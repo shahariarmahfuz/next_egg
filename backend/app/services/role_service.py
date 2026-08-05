@@ -3,23 +3,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions.custom import BadRequestException, ConflictException, NotFoundException
 from app.models.role import Role
+from app.models.user import User
 from app.repositories.permission_repository import permission_repository
 from app.repositories.role_repository import role_repository
 from app.schemas.role import RoleCreate, RoleUpdate
 
 
 class RoleService:
-    async def get_all_roles(self, db: AsyncSession) -> Sequence[Role]:
-        roles = await role_repository.get_all_roles(db)
+    async def get_all_roles(self, db: AsyncSession, current_user: User) -> Sequence[Role]:
+        roles = await role_repository.get_all_with_permissions(db)
+        if not current_user.role or current_user.role.code != "owner":
+            roles = [r for r in roles if r.code != "owner"]
+
         # Populate user_count attribute dynamically
         for role in roles:
             setattr(role, "user_count", await role_repository.get_user_count_by_role(db, role.id))
         return roles
 
-    async def get_role(self, db: AsyncSession, role_id: str) -> Role:
+    async def get_role(self, db: AsyncSession, role_id: str, current_user: User) -> Role:
         role = await role_repository.get_with_permissions(db, role_id)
         if not role:
             raise NotFoundException(f"Role with ID '{role_id}' not found.")
+        if role.code == "owner" and (not current_user.role or current_user.role.code != "owner"):
+            raise NotFoundException(f"Role with ID '{role_id}' not found.")
+
         setattr(role, "user_count", await role_repository.get_user_count_by_role(db, role.id))
         return role
 

@@ -33,6 +33,8 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const availableRoles = roles.filter((r) => r.code !== "owner");
+
   const {
     register,
     handleSubmit,
@@ -135,7 +137,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
                 {...register("role_id")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {roles.map((r) => (
+                {availableRoles.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name} ({r.code})
                   </option>

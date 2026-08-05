@@ -160,15 +160,28 @@ async def seed_initial_data(db: AsyncSession) -> None:
 
     # 3. Assign Default Permissions to Admin & Employee
     all_perms = list(permission_map.values())
-    view_perms = [p for p in all_perms if p.code.endswith(".view")]
+
+    # Employee gets operational view and creation perms only (no admin/user/role/edit/delete perms)
+    employee_perm_codes = {
+        "sales.view", "sales.create",
+        "customer.view", "customer.create", "customer.due.view",
+        "product.view", "product.create",
+        "supplier.view", "supplier.create",
+        "purchase.view", "purchase.create",
+        "collection.view", "collection.create",
+        "supplier_payment.view", "supplier_payment.create",
+        "expense.view", "expense.create",
+        "reports.view",
+    }
+    employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
 
     # Admin gets all perms
-    if role_map.get("admin") and not role_map["admin"].permissions:
+    if role_map.get("admin"):
         await role_repository.set_role_permissions(db, role_map["admin"], all_perms)
 
-    # Employee gets view perms by default
-    if role_map.get("employee") and not role_map["employee"].permissions:
-        await role_repository.set_role_permissions(db, role_map["employee"], view_perms)
+    # Employee gets restricted operational perms
+    if role_map.get("employee"):
+        await role_repository.set_role_permissions(db, role_map["employee"], employee_perms)
 
     # 4. Seed Initial System Owner Account
     owner_role = role_map.get("owner")

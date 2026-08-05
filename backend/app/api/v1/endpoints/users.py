@@ -27,7 +27,7 @@ async def list_users(
     """List users with pagination, role filtering, and search capability."""
     skip = (page - 1) * size
     users, total = await user_service.get_users_paginated(
-        db, skip=skip, limit=size, search=search, role_id=role_id, status=status
+        db, current_user, skip=skip, limit=size, search=search, role_id=role_id, status=status
     )
     pages = math.ceil(total / size) if total > 0 else 0
 
@@ -54,7 +54,7 @@ async def create_user(
     current_user: User = Depends(RequirePermission("user.create")),
 ):
     """Create a new user account."""
-    user = await user_service.create_user(db, user_in)
+    user = await user_service.create_user(db, user_in, current_user)
     return ResponseModel[UserResponse](
         success=True,
         message="User created successfully",
@@ -69,7 +69,7 @@ async def get_user(
     current_user: User = Depends(RequirePermission("user.view")),
 ):
     """Get single user profile by ID."""
-    user = await user_service.get_user(db, user_id)
+    user = await user_service.get_user(db, user_id, current_user)
     return ResponseModel[UserResponse](
         success=True,
         message="User retrieved",
@@ -85,7 +85,7 @@ async def update_user(
     current_user: User = Depends(RequirePermission("user.edit")),
 ):
     """Update user profile and role assignment."""
-    user = await user_service.update_user(db, user_id, user_in)
+    user = await user_service.update_user(db, user_id, user_in, current_user)
     return ResponseModel[UserResponse](
         success=True,
         message="User updated successfully",
@@ -100,7 +100,7 @@ async def delete_user(
     current_user: User = Depends(RequirePermission("user.delete")),
 ):
     """Soft delete user account."""
-    await user_service.delete_user(db, user_id)
+    await user_service.delete_user(db, user_id, current_user)
     return ResponseModel[dict](
         success=True,
         message="User deleted successfully",

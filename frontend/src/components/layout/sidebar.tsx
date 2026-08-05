@@ -921,22 +921,64 @@ export function SidebarContent({
           </div>
         )}
 
-        {/* User Management */}
+        {/* User Management Collapsible Group */}
         {hasPermission("user.view") && (
-          <Link
-            href="/users"
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-              pathname === "/users"
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+          <div className="space-y-1">
+            <button
+              onClick={() => toggleGroup("users")}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group",
+                pathname.startsWith("/users")
+                  ? "bg-accent/80 text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              )}
+              title={collapsed ? "User Management" : undefined}
+            >
+              <div className="flex items-center space-x-3">
+                <UserCheck className="h-5 w-5 shrink-0 text-primary" />
+                {!collapsed && <span>User Management</span>}
+              </div>
+              {!collapsed && (
+                <ChevronDown
+                  className={cn("h-4 w-4 transition-transform duration-200", isGroupOpen("users") ? "rotate-180" : "")}
+                />
+              )}
+            </button>
+
+            {isGroupOpen("users") && !collapsed && (
+              <div className="pl-9 space-y-1 animate-in fade-in-50">
+                {hasPermission("user.create") && (
+                  <Link
+                    href="/users/new"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/users/new"
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <UserPlus className="h-3.5 w-3.5 text-primary" />
+                    <span>Add User</span>
+                  </Link>
+                )}
+
+                <Link
+                  href="/users"
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                    pathname === "/users"
+                      ? "bg-primary/15 text-primary font-semibold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                  )}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span>Manage Users</span>
+                </Link>
+              </div>
             )}
-            title={collapsed ? "User Management" : undefined}
-          >
-            <UserCheck className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>User Management</span>}
-          </Link>
+          </div>
         )}
 
         {/* Roles & Permissions */}
@@ -957,67 +999,78 @@ export function SidebarContent({
           </Link>
         )}
 
-        {/* Architecture & Infrastructure */}
-        <Link
-          href="/architecture"
-          onClick={onNavigate}
-          className={cn(
-            "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-            pathname === "/architecture"
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-          )}
-          title={collapsed ? "System Architecture" : undefined}
-        >
-          <Layers className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>System Architecture</span>}
-          {!collapsed && <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0">Foundation</Badge>}
-        </Link>
+        {/* System Architecture */}
+        {hasPermission("role.view") && (
+          <Link
+            href="/architecture"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
+              pathname === "/architecture"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            )}
+            title={collapsed ? "System Architecture" : undefined}
+          >
+            <Layers className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>System Architecture</span>}
+            {!collapsed && <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0">Foundation</Badge>}
+          </Link>
+        )}
 
-        <Link
-          href="/system-status"
-          onClick={onNavigate}
-          className={cn(
-            "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-            pathname === "/system-status"
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-          )}
-          title={collapsed ? "API Status" : undefined}
-        >
-          <Activity className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>API Status</span>}
-        </Link>
+        {/* API Status */}
+        {hasPermission("role.view") && (
+          <Link
+            href="/system-status"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
+              pathname === "/system-status"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            )}
+            title={collapsed ? "API Status" : undefined}
+          >
+            <Activity className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>API Status</span>}
+          </Link>
+        )}
 
-        <Link
-          href="/security"
-          onClick={onNavigate}
-          className={cn(
-            "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-            pathname === "/security"
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-          )}
-          title={collapsed ? "Security & Auth" : undefined}
-        >
-          <Shield className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>Security & Auth</span>}
-        </Link>
+        {/* Security & Auth */}
+        {hasPermission("security.view") && (
+          <Link
+            href="/security"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
+              pathname === "/security"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            )}
+            title={collapsed ? "Security & Auth" : undefined}
+          >
+            <Shield className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>Security & Auth</span>}
+          </Link>
+        )}
 
-        <Link
-          href="/settings"
-          onClick={onNavigate}
-          className={cn(
-            "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-            pathname === "/settings"
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-          )}
-          title={collapsed ? "System Settings" : undefined}
-        >
-          <Settings className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>System Settings</span>}
-        </Link>
+        {/* System Settings */}
+        {hasPermission("settings.view") && (
+          <Link
+            href="/settings"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
+              pathname === "/settings"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            )}
+            title={collapsed ? "System Settings" : undefined}
+          >
+            <Settings className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>System Settings</span>}
+          </Link>
+        )}
       </div>
 
       {/* Footer User & Logout */}

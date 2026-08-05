@@ -19,7 +19,7 @@ async def list_roles(
     current_user: User = Depends(RequirePermission("role.view")),
 ):
     """List system and custom roles with permission counts."""
-    roles = await role_service.get_all_roles(db)
+    roles = await role_service.get_all_roles(db, current_user)
     items = [RoleResponse.model_validate(r) for r in roles]
     return ResponseModel[List[RoleResponse]](
         success=True,
@@ -50,7 +50,7 @@ async def get_role(
     current_user: User = Depends(RequirePermission("role.view")),
 ):
     """Get single role with permission assignments."""
-    role = await role_service.get_role(db, role_id)
+    role = await role_service.get_role(db, role_id, current_user)
     return ResponseModel[RoleResponse](
         success=True,
         message="Role retrieved",

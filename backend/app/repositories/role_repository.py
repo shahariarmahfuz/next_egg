@@ -39,5 +39,12 @@ class RoleRepository(BaseRepository[Role, dict, dict]):
         await db.flush()
         return await self.get_by_id(db, role.id) or role
 
+    async def get_user_count_by_role(self, db: AsyncSession, role_id: str) -> int:
+        from app.models.user import User
+        from sqlalchemy import func
+        query = select(func.count(User.id)).where(User.role_id == role_id)
+        res = await db.execute(query)
+        return res.scalar() or 0
+
 
 role_repository = RoleRepository()

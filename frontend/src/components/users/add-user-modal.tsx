@@ -10,15 +10,21 @@ import { RoleItem, UserCreatePayload } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const userCreateSchema = z.object({
-  full_name: z.string().min(2, "Full name must be at least 2 characters"),
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
-  phone: z.string().min(5, "Phone number is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  role_id: z.string().min(1, "Role selection is required"),
-  status: z.string(),
-});
+const userCreateSchema = z
+  .object({
+    full_name: z.string().min(2, "Full name must be at least 2 characters"),
+    username: z.string().min(3, "Username must be at least 3 characters"),
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    phone: z.string().min(5, "Phone number is required"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirm_password: z.string().min(1, "Please confirm your password"),
+    role_id: z.string().min(1, "Role selection is required"),
+    status: z.string(),
+  })
+  .refine((data) => data.password === data.confirm_password, {
+    message: "Passwords do not match",
+    path: ["confirm_password"],
+  });
 
 type UserFormValues = z.infer<typeof userCreateSchema>;
 
@@ -33,6 +39,8 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const availableRoles = roles.filter((r) => r.code !== "owner");
+
   const {
     register,
     handleSubmit,
@@ -46,7 +54,8 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
       email: "",
       phone: "",
       password: "",
-      role_id: roles[0]?.id || "",
+      confirm_password: "",
+      role_id: availableRoles[0]?.id || "",
       status: "active",
     },
   });
@@ -58,8 +67,13 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
       setIsSubmitting(true);
       setErrorMsg(null);
       const payload: UserCreatePayload = {
-        ...values,
+        full_name: values.full_name,
+        username: values.username,
         email: values.email || undefined,
+        phone: values.phone,
+        password: values.password,
+        role_id: values.role_id,
+        status: values.status,
       };
       await userService.createUser(payload);
       reset();
@@ -122,10 +136,18 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium">Password *</label>
-            <Input {...register("password")} type="password" placeholder="••••••••••••" />
-            {errors.password && <p className="text-[11px] text-destructive">{errors.password.message}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Password *</label>
+              <Input {...register("password")} type="password" placeholder="••••••••••••" />
+              {errors.password && <p className="text-[11px] text-destructive">{errors.password.message}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Confirm Password *</label>
+              <Input {...register("confirm_password")} type="password" placeholder="••••••••••••" />
+              {errors.confirm_password && <p className="text-[11px] text-destructive">{errors.confirm_password.message}</p>}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -135,7 +157,7 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
                 {...register("role_id")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {roles.map((r) => (
+                {availableRoles.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name} ({r.code})
                   </option>

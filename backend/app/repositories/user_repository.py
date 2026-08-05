@@ -51,8 +51,12 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         search: Optional[str] = None,
         role_id: Optional[str] = None,
         status: Optional[str] = None,
+        exclude_owner: bool = False,
     ) -> tuple[Sequence[User], int]:
         query = select(User)
+
+        if exclude_owner:
+            query = query.join(User.role).where(Role.code != "owner")
 
         if search:
             pattern = f"%{search}%"
