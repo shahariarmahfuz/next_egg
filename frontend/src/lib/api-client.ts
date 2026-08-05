@@ -75,6 +75,14 @@ export async function apiClient<T = any>(
     const response = await fetch(url, config);
 
     if (!response.ok) {
+      if (response.status === 401 && typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+        document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
+
       let errorData;
       try {
         errorData = await response.json();

@@ -24,6 +24,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const fetchCurrentUser = useCallback(async () => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("auth_token");
+      if (!token) {
+        document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        setUser(null);
+        setPermissions([]);
+        setIsLoading(false);
+        return;
+      }
+      document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+    }
+
     try {
       setIsLoading(true);
       const res = await authService.getMe();
@@ -31,10 +43,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(res.data.user);
         setPermissions(res.data.permissions || []);
       } else {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("auth_token");
+          document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        }
         setUser(null);
         setPermissions([]);
       }
     } catch {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+        document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      }
       setUser(null);
       setPermissions([]);
     } finally {
@@ -51,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (res.success && res.data) {
       if (typeof window !== "undefined" && res.data.access_token) {
         localStorage.setItem("auth_token", res.data.access_token);
+        document.cookie = `auth_token=${res.data.access_token}; path=/; max-age=86400; SameSite=Lax`;
       }
       setUser(res.data.user);
       setPermissions(res.data.permissions || []);
@@ -66,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (typeof window !== "undefined") {
         localStorage.removeItem("auth_token");
+        document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       }
       setUser(null);
       setPermissions([]);
