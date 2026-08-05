@@ -198,7 +198,7 @@ class SupplierPaymentService:
             db.add(log_entry)
 
             # Delete voucher
-            await supplier_payment_repository.delete(db, id=payment_id)
+            await db.delete(payment)
 
             await db.commit()
             return True

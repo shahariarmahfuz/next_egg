@@ -67,7 +67,8 @@ class ProductService:
         if not product:
             raise NotFoundException(f"Product with ID '{product_id}' not found.")
 
-        await product_repository.delete(db, id=product_id)
+        await db.delete(product)
+        await db.commit()
         return True
 
     async def hard_delete_product(self, db: AsyncSession, product_id: str) -> bool:
@@ -88,7 +89,7 @@ class ProductService:
         await db.execute(delete(SaleReturnItem).where(SaleReturnItem.product_id == product_id))
         await db.execute(delete(ProductReturnItem).where(ProductReturnItem.product_id == product_id))
 
-        await product_repository.delete(db, id=product_id)
+        await db.delete(product)
         await db.commit()
         return True
 

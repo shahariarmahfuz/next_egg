@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Sequence
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions.custom import BadRequestException, ConflictException, NotFoundException
@@ -218,7 +219,8 @@ class PurchaseService:
                     )
                 db.add(product)
 
-        await purchase_repository.delete(db, id=purchase_id)
+        await db.delete(purchase)
+        await db.commit()
         return True
 
     async def get_purchase(self, db: AsyncSession, purchase_id: str) -> Purchase:
@@ -348,7 +350,6 @@ class PurchaseService:
         return True
 
     async def hard_delete_purchase(self, db: AsyncSession, purchase_id: str) -> bool:
-        from sqlalchemy import delete
         from app.models.supplier_payment import SupplierPayment
         from app.models.product_return import ProductReturn, ProductReturnItem
 

@@ -81,7 +81,9 @@ class SupplierService:
         if not supplier:
             raise NotFoundException(f"Supplier with ID '{supplier_id}' not found.")
 
-        return await supplier_repository.delete(db, id=supplier_id)
+        await db.delete(supplier)
+        await db.commit()
+        return True
 
     async def hard_delete_supplier(self, db: AsyncSession, supplier_id: str) -> bool:
         """
@@ -116,10 +118,14 @@ class SupplierService:
         await db.execute(delete(SupplierPayment).where(SupplierPayment.supplier_id == supplier_id))
 
         # 4. Delete BalanceAdjustments
-        await db.execute(delete(BalanceAdjustment).where(BalanceAdjustment.supplier_id == supplier_id))
+        await db.execute(
+            delete(BalanceAdjustment).where(
+                BalanceAdjustment.entity_type == "supplier",
+                BalanceAdjustment.entity_id == supplier_id,
+            )
+        )
 
-        # 5. Delete Supplier
-        await supplier_repository.delete(db, id=supplier_id)
+        await db.delete(supplier)
         await db.commit()
         return True
 

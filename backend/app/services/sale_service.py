@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional, Sequence
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -280,7 +281,6 @@ class SaleService:
         4. Adjusts Customer balance
         5. Deletes SaleItems & Sale record
         """
-        from sqlalchemy import delete
         from app.models.customer_collection import CustomerCollection
         from app.models.sale_return import SaleReturn, SaleReturnItem
 

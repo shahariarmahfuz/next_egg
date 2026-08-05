@@ -392,7 +392,7 @@ class SaleReturnService:
             db.add(log_entry)
 
             # 4. Delete voucher
-            await sale_return_repository.delete(db, id=return_id)
+            await db.delete(sale_return)
 
             await db.commit()
             return True

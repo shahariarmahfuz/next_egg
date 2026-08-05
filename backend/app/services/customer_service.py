@@ -68,7 +68,8 @@ class CustomerService:
                 f"Cannot delete customer '{customer.name}': customer has {sales_count} existing transaction(s). Set status to 'inactive' instead."
             )
 
-        await customer_repository.delete(db, id=customer_id)
+        await db.delete(customer)
+        await db.commit()
         return True
 
     async def hard_delete_customer(self, db: AsyncSession, customer_id: str) -> bool:
@@ -104,10 +105,15 @@ class CustomerService:
         await db.execute(delete(CustomerCollection).where(CustomerCollection.customer_id == customer_id))
 
         # 4. Delete BalanceAdjustments
-        await db.execute(delete(BalanceAdjustment).where(BalanceAdjustment.customer_id == customer_id))
+        await db.execute(
+            delete(BalanceAdjustment).where(
+                BalanceAdjustment.entity_type == "customer",
+                BalanceAdjustment.entity_id == customer_id,
+            )
+        )
 
         # 5. Delete Customer
-        await customer_repository.delete(db, id=customer_id)
+        await db.delete(customer)
         await db.commit()
         return True
 

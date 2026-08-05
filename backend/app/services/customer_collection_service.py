@@ -210,7 +210,7 @@ class CustomerCollectionService:
             )
             db.add(log_entry)
 
-            await customer_collection_repository.delete(db, id=collection_id)
+            await db.delete(collection)
 
             await db.commit()
             return True
