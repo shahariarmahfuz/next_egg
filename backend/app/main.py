@@ -22,15 +22,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Starting {settings.APP_NAME} in [{settings.APP_ENV}] mode...")
 
     # Ensure tables exist safely
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    except Exception as e:
-        logger.warning(f"Database table verification notice: {e}")
+    # (Removed to prevent race conditions in multi-worker environments. Should be handled by pre-start scripts like Alembic)
 
     # Seed initial roles, permissions, and owner user
-    async with AsyncSessionLocal() as session:
-        await seed_initial_data(session)
+    # (Removed to prevent race conditions. Handled by start.sh pre-start script)
 
     yield
 

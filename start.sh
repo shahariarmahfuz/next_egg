@@ -9,7 +9,23 @@ cd /app/backend
 python -m alembic upgrade head || {
     echo "WARNING: Migration check finished with notice or schema is up to date."
 }
-python -c "import asyncio; from app.db.session import AsyncSessionLocal; from app.db.seed import seed_initial_data; asyncio.run(seed_initial_data(AsyncSessionLocal()))" || {
+python -c "
+import asyncio
+from app.db.session import engine, AsyncSessionLocal
+from app.db.base import Base
+from app.db.seed import seed_initial_data
+
+async def init_db():
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        async with AsyncSessionLocal() as session:
+            await seed_initial_data(session)
+    finally:
+        await engine.dispose()
+
+asyncio.run(init_db())
+" || {
     echo "Notice: System database seed check complete."
 }
 
