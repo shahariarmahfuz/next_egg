@@ -30,8 +30,8 @@ asyncio.run(init_db())
 }
 
 # 2. Start FastAPI Backend in Background (With stdin redirected from /dev/null)
-echo "[2/3] Starting FastAPI Backend on 0.0.0.0:8000 (Internal Only)..."
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 < /dev/null > /app/backend.log 2>&1 &
+echo "[2/3] Starting FastAPI Backend on 127.0.0.1:8000 (Internal Only)..."
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 < /dev/null > /app/backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait for FastAPI backend to respond on health endpoint
@@ -50,7 +50,7 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     exit 1
 fi
 
-echo "FastAPI Backend is healthy (PID: $BACKEND_PID) and listening on 0.0.0.0:8000!"
+echo "FastAPI Backend is healthy (PID: $BACKEND_PID) and listening on 127.0.0.1:8000!"
 
 # 3. Start Next.js Frontend (Render Public $PORT)
 RENDER_PORT="${PORT:-10000}"
