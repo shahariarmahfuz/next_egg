@@ -27,7 +27,11 @@ export async function apiClient<T = any>(
   const { params, token, headers, ...customConfig } = options;
 
   let baseUrl = env.NEXT_PUBLIC_API_URL;
-  if (typeof window === "undefined" && process.env.SERVER_API_URL) {
+  if (typeof window !== "undefined") {
+    if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
+      baseUrl = "/api/v1";
+    }
+  } else if (process.env.SERVER_API_URL) {
     baseUrl = process.env.SERVER_API_URL;
   }
 

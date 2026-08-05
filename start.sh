@@ -3,16 +3,19 @@ set -e
 
 echo "=== Starting Enterprise Business Management System (Single Container) ==="
 
-# 1. Run Alembic Database Migrations
-echo "[1/3] Running Alembic Database Migrations..."
+# 1. Run Alembic Database Migrations & Initial Seed
+echo "[1/3] Running Alembic Database Migrations & System Seed..."
 cd /app/backend
 python -m alembic upgrade head || {
     echo "WARNING: Migration check finished with notice or schema is up to date."
 }
+python -c "import asyncio; from app.db.session import AsyncSessionLocal; from app.db.seed import seed_initial_data; asyncio.run(seed_initial_data(AsyncSessionLocal()))" || {
+    echo "Notice: System database seed check complete."
+}
 
-# 2. Start FastAPI Backend in Background (Internal Only: 127.0.0.1:8000)
-echo "[2/3] Starting FastAPI Backend on 127.0.0.1:8000 (Internal Only)..."
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000 --daemon --access-logfile - --error-logfile -
+# 2. Start FastAPI Backend in Background (Internal Only: 0.0.0.0:8000)
+echo "[2/3] Starting FastAPI Backend on 0.0.0.0:8000 (Internal Only)..."
+gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --daemon --access-logfile - --error-logfile -
 
 # Wait for FastAPI backend to respond on health endpoint
 echo "Waiting for FastAPI backend readiness on http://127.0.0.1:8000/health..."
