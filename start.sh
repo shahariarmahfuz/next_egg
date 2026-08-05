@@ -3,7 +3,7 @@ set -e
 
 echo "=== Starting Enterprise Business Management System (Single Container) ==="
 
-# 1. Run Alembic Database Migrations & Initial Seed
+# 1. Run Alembic Database Migrations & System Seed
 echo "[1/3] Running Alembic Database Migrations & System Seed..."
 cd /app/backend
 python -m alembic upgrade head || {
@@ -13,9 +13,10 @@ python -c "import asyncio; from app.db.session import AsyncSessionLocal; from ap
     echo "Notice: System database seed check complete."
 }
 
-# 2. Start FastAPI Backend in Background (Internal Only: 0.0.0.0:8000)
+# 2. Start FastAPI Backend in Background (With stdin redirected from /dev/null)
 echo "[2/3] Starting FastAPI Backend on 0.0.0.0:8000 (Internal Only)..."
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --daemon --access-logfile - --error-logfile -
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 < /dev/null > /app/backend.log 2>&1 &
+BACKEND_PID=$!
 
 # Wait for FastAPI backend to respond on health endpoint
 echo "Waiting for FastAPI backend readiness on http://127.0.0.1:8000/health..."
@@ -28,12 +29,14 @@ done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "ERROR: FastAPI Backend failed to start on 127.0.0.1:8000 within 30 seconds."
+    cat /app/backend.log
+    kill $BACKEND_PID 2>/dev/null || true
     exit 1
 fi
 
-echo "FastAPI Backend is healthy and listening on 127.0.0.1:8000!"
+echo "FastAPI Backend is healthy (PID: $BACKEND_PID) and listening on 0.0.0.0:8000!"
 
-# 3. Start Next.js Frontend in Foreground (Render Public $PORT)
+# 3. Start Next.js Frontend (Render Public $PORT)
 RENDER_PORT="${PORT:-10000}"
 echo "[3/3] Starting Next.js Standalone Server on 0.0.0.0:${RENDER_PORT}..."
 cd /app/frontend
@@ -42,4 +45,8 @@ export HOSTNAME="0.0.0.0"
 export SERVER_API_URL="http://127.0.0.1:8000/api/v1"
 export NEXT_PUBLIC_API_URL="/api/v1"
 
+# Handle container shutdown signals
+trap 'kill $BACKEND_PID 2>/dev/null; exit 0' SIGTERM SIGINT
+
+# Run Next.js server in foreground
 exec node server.js

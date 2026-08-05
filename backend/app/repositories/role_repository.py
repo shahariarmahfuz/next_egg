@@ -27,17 +27,11 @@ class RoleRepository(BaseRepository[Role, dict, dict]):
         return result.scalars().all()
 
     async def set_role_permissions(self, db: AsyncSession, role: Role, permissions: list[Permission]) -> Role:
-        """Assign permissions to a role in the role_permissions association table."""
-        # Clear existing permissions
-        await db.execute(delete(role_permissions).where(role_permissions.c.role_id == role.id))
-        
-        # Insert new associations
-        for perm in permissions:
-            await db.execute(
-                role_permissions.insert().values(role_id=role.id, permission_id=perm.id)
-            )
+        """Assign permissions to a role using ORM relationship assignment for complete idempotency."""
+        unique_perms_dict = {p.id: p for p in permissions}
+        role.permissions = list(unique_perms_dict.values())
         await db.flush()
-        return await self.get_by_id(db, role.id) or role
+        return role
 
     async def get_user_count_by_role(self, db: AsyncSession, role_id: str) -> int:
         from app.models.user import User
