@@ -1,0 +1,74 @@
+version: '3.8'
+
+networks:
+  enterprise_network:
+    driver: bridge
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: enterprise_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=Business Management API
+      - APP_ENV=development
+      - DEBUG=true
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://neondb_owner:npg_2j3xCmEBeNcV@ep-jolly-glade-az8f29ac-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?ssl=require}
+      - SECRET_KEY=${SECRET_KEY:-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000","http://localhost"]
+    volumes:
+      - ./backend/app:/app/app
+    networks:
+      - enterprise_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: enterprise_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_APP_NAME=Business Management System
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - SERVER_API_URL=http://backend:8000/api/v1
+    networks:
+      - enterprise_network
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  nginx:
+    image: nginx:alpine
+    container_name: enterprise_proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - enterprise_network
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M

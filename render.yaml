@@ -1,0 +1,50 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Backend FastAPI Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: business-management-backend
+    env: python
+    region: singapore
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt && python -m alembic upgrade head"
+    startCommand: "gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: APP_NAME
+        value: "Business Management API"
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: API_V1_STR
+        value: "/api/v1"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "1440"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "7"
+      - key: DATABASE_URL
+        sync: false
+      - key: BACKEND_CORS_ORIGINS
+        value: '["https://business-management-frontend.onrender.com"]'
+
+  # ----------------------------------------------------------------------------
+  # 2. Frontend Next.js Service
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: business-management-frontend
+    env: node
+    region: singapore
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    startCommand: "npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_NAME
+        value: "Business Management System"
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://business-management-backend.onrender.com/api/v1"
+      - key: SERVER_API_URL
+        value: "https://business-management-backend.onrender.com/api/v1"

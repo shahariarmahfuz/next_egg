@@ -1,0 +1,75 @@
+version: '3.8'
+
+networks:
+  enterprise_network:
+    driver: bridge
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: enterprise_backend_prod
+    environment:
+      - APP_NAME=Business Management API
+      - APP_ENV=production
+      - DEBUG=false
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - BACKEND_CORS_ORIGINS=["http://localhost","https://enterprise.local"]
+    networks:
+      - enterprise_network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: enterprise_frontend_prod
+    environment:
+      - NEXT_PUBLIC_APP_NAME=Business Management System
+      - NEXT_PUBLIC_API_URL=/api/v1
+      - SERVER_API_URL=http://backend:8000/api/v1
+    networks:
+      - enterprise_network
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  nginx:
+    image: nginx:alpine
+    container_name: enterprise_proxy_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - enterprise_network
+    depends_on:
+      - frontend
+      - backend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M

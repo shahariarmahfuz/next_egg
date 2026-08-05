@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+.pnp
+.pnp.*
+
+# Virtual Environments
+venv/
+.venv/
+backend/venv/
+env/
+ENV/
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+
+# Next.js build output & cache
+.next/
+frontend/.next/
+out/
+frontend/out/
+build/
+frontend/build/
+dist/
+*.tsbuildinfo
+frontend/*.tsbuildinfo
+next-env.d.ts
+
+# Environment variables & secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env.local
+
+# Databases (SQLite dev files)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+backend/app.db*
+
+# Logs & Debugging
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# System & IDE files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
