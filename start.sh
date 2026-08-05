@@ -34,23 +34,22 @@ echo "[2/3] Starting FastAPI Backend on 127.0.0.1:8000 (Internal Only)..."
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 < /dev/null > /app/backend.log 2>&1 &
 BACKEND_PID=$!
 
-# Wait for FastAPI backend to respond on health endpoint
-echo "Waiting for FastAPI backend readiness on http://127.0.0.1:8000/health..."
-MAX_RETRIES=30
+# Wait briefly for FastAPI to initialize (optional, we won't block Next.js from starting)
+echo "Waiting up to 15 seconds for FastAPI backend readiness on http://127.0.0.1:8000/health..."
+MAX_RETRIES=15
 RETRY_COUNT=0
 until curl -s http://127.0.0.1:8000/health > /dev/null 2>&1 || [ $RETRY_COUNT -eq $MAX_RETRIES ]; do
     sleep 1
     RETRY_COUNT=$((RETRY_COUNT + 1))
 done
 
-if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "ERROR: FastAPI Backend failed to start on 127.0.0.1:8000 within 30 seconds."
-    cat /app/backend.log
-    kill $BACKEND_PID 2>/dev/null || true
-    exit 1
+if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+    echo "FastAPI Backend is healthy (PID: $BACKEND_PID) and listening on 127.0.0.1:8000!"
+else
+    echo "WARNING: FastAPI Backend not fully ready within 15 seconds, but continuing to start Next.js..."
+    echo "Tail of backend.log:"
+    tail -n 10 /app/backend.log
 fi
-
-echo "FastAPI Backend is healthy (PID: $BACKEND_PID) and listening on 127.0.0.1:8000!"
 
 # 3. Start Next.js Frontend (Render Public $PORT)
 RENDER_PORT="${PORT:-10000}"
