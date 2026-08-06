@@ -8,6 +8,7 @@ from app.exceptions.custom import BadRequestException, ConflictException, NotFou
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.sale import Sale, SaleItem
+from app.models.inventory_batch import InventoryBatch
 from app.repositories.customer_repository import customer_repository
 from app.repositories.product_repository import product_repository
 from app.repositories.sale_repository import sale_repository
@@ -106,6 +107,27 @@ class SaleService:
 
         # 6. Create Line Items and Decrease Product Stock
         for item_data in prepared_items:
+            # FIFO COGS Calculation
+            batch_query = select(InventoryBatch).where(
+                InventoryBatch.product_id == item_data["product_id"],
+                InventoryBatch.remaining_quantity > 0
+            ).order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
+            
+            batch_result = await db.execute(batch_query)
+            available_batches = batch_result.scalars().all()
+
+            qty_to_deduct = item_data["quantity"]
+            total_cogs = 0.0
+
+            for b in available_batches:
+                if qty_to_deduct <= 0:
+                    break
+                deduct = min(b.remaining_quantity, qty_to_deduct)
+                b.remaining_quantity -= deduct
+                total_cogs += deduct * b.unit_cost
+                qty_to_deduct -= deduct
+                db.add(b)
+
             sale_item = SaleItem(
                 sale_id=sale.id,
                 product_id=item_data["product_id"],
@@ -113,6 +135,7 @@ class SaleService:
                 unit_price=item_data["unit_price"],
                 discount=item_data["discount"],
                 total_price=item_data["total_price"],
+                cogs=total_cogs,
             )
             db.add(sale_item)
 
@@ -160,6 +183,23 @@ class SaleService:
                 if product:
                     product.current_stock += old_item.quantity
                     db.add(product)
+                
+                # Restore InventoryBatches (reverse FIFO)
+                qty_to_restore = old_item.quantity
+                restore_query = select(InventoryBatch).where(
+                    InventoryBatch.product_id == old_item.product_id,
+                    InventoryBatch.remaining_quantity < InventoryBatch.quantity
+                ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+                
+                restore_result = await db.execute(restore_query)
+                for b in restore_result.scalars().all():
+                    if qty_to_restore <= 0:
+                        break
+                    can_restore = b.quantity - b.remaining_quantity
+                    restore_amt = min(can_restore, qty_to_restore)
+                    b.remaining_quantity += restore_amt
+                    qty_to_restore -= restore_amt
+                    db.add(b)
 
             # 2. Clear old items
             sale.items.clear()
@@ -184,6 +224,27 @@ class SaleService:
 
                 subtotal += item_total
 
+                # FIFO COGS Calculation
+                batch_query = select(InventoryBatch).where(
+                    InventoryBatch.product_id == product.id,
+                    InventoryBatch.remaining_quantity > 0
+                ).order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
+                
+                batch_result = await db.execute(batch_query)
+                available_batches = batch_result.scalars().all()
+
+                qty_to_deduct = item_in.quantity
+                total_cogs = 0.0
+
+                for b in available_batches:
+                    if qty_to_deduct <= 0:
+                        break
+                    deduct = min(b.remaining_quantity, qty_to_deduct)
+                    b.remaining_quantity -= deduct
+                    total_cogs += deduct * b.unit_cost
+                    qty_to_deduct -= deduct
+                    db.add(b)
+
                 sale_item = SaleItem(
                     sale_id=sale.id,
                     product_id=product.id,
@@ -191,6 +252,7 @@ class SaleService:
                     unit_price=item_in.unit_price,
                     discount=item_in.discount,
                     total_price=item_total,
+                    cogs=total_cogs,
                 )
                 db.add(sale_item)
 
@@ -254,12 +316,28 @@ class SaleService:
         if not sale:
             raise NotFoundException(f"Sale invoice with ID '{sale_id}' not found.")
 
-        # 1. Restore Product Current Stock
+        # 1. Restore Product Current Stock and Inventory Batches
         for item in sale.items:
             product = await product_repository.get_by_id(db, id=item.product_id)
             if product:
                 product.current_stock += item.quantity
                 db.add(product)
+                
+            qty_to_restore = item.quantity
+            restore_query = select(InventoryBatch).where(
+                InventoryBatch.product_id == item.product_id,
+                InventoryBatch.remaining_quantity < InventoryBatch.quantity
+            ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+            
+            restore_result = await db.execute(restore_query)
+            for b in restore_result.scalars().all():
+                if qty_to_restore <= 0:
+                    break
+                can_restore = b.quantity - b.remaining_quantity
+                restore_amt = min(can_restore, qty_to_restore)
+                b.remaining_quantity += restore_amt
+                qty_to_restore -= restore_amt
+                db.add(b)
 
         # 2. Adjust Customer Due Balance
         customer = await customer_repository.get_by_id(db, id=sale.customer_id)
@@ -299,12 +377,28 @@ class SaleService:
         # 2. Delete linked CustomerCollections
         await db.execute(delete(CustomerCollection).where(CustomerCollection.sale_id == sale_id))
 
-        # 3. Restore Product Current Stock
+        # 3. Restore Product Current Stock and Inventory Batches
         for item in sale.items:
             product = await product_repository.get_by_id(db, id=item.product_id)
             if product:
                 product.current_stock += item.quantity
                 db.add(product)
+                
+            qty_to_restore = item.quantity
+            restore_query = select(InventoryBatch).where(
+                InventoryBatch.product_id == item.product_id,
+                InventoryBatch.remaining_quantity < InventoryBatch.quantity
+            ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+            
+            restore_result = await db.execute(restore_query)
+            for b in restore_result.scalars().all():
+                if qty_to_restore <= 0:
+                    break
+                can_restore = b.quantity - b.remaining_quantity
+                restore_amt = min(can_restore, qty_to_restore)
+                b.remaining_quantity += restore_amt
+                qty_to_restore -= restore_amt
+                db.add(b)
 
         # 4. Adjust Customer Due Balance
         customer = await customer_repository.get_by_id(db, id=sale.customer_id)

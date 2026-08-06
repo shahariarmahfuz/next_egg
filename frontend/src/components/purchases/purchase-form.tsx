@@ -112,7 +112,7 @@ export function PurchaseForm({
           product_code: "",
           category_id: "",
           unit: "pcs",
-          purchase_price: item.unit_price,
+          opening_stock_unit_cost: item.unit_price,
           selling_price: item.unit_price,
           current_stock: 0,
           status: "active",
@@ -194,7 +194,7 @@ export function PurchaseForm({
       };
       setLineItems(updated);
     } else {
-      const unitPrice = product.purchase_price ?? 0;
+      const unitPrice = product.opening_stock_unit_cost ?? 0;
       const newItem: LineItemState = {
         product,
         quantity: 1,

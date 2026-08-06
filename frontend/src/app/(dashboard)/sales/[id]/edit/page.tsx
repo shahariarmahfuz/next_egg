@@ -89,7 +89,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
             product_code: "",
             current_stock: 99999,
             unit: "",
-            purchase_price: item.unit_price,
+            opening_stock_unit_cost: item.unit_price,
             selling_price: item.unit_price,
             opening_stock: 0,
             minimum_stock: 0,

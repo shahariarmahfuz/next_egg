@@ -2,6 +2,7 @@ from app.models.activity_log import ActivityLog
 from app.models.base import Base, TimestampedBaseModel
 from app.models.customer import Customer
 from app.models.customer_collection import CustomerCollection
+from app.models.balance_adjustment import BalanceAdjustment
 from app.models.expense import Expense, ExpenseCategory
 from app.models.permission import Permission
 from app.models.product import Product
@@ -14,6 +15,7 @@ from app.models.setting import Setting
 from app.models.supplier import Supplier
 from app.models.supplier_payment import SupplierPayment
 from app.models.user import User
+from app.models.inventory_batch import InventoryBatch
 
 __all__ = [
     "Base",
@@ -40,4 +42,6 @@ __all__ = [
     "ActivityLog",
     "ExpenseCategory",
     "Expense",
+    "InventoryBatch",
+    "BalanceAdjustment",
 ]

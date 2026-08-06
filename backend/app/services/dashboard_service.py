@@ -74,8 +74,14 @@ class DashboardService:
         res_supp_due = await db.execute(q_supp_due)
         supplier_due = float(res_supp_due.scalar() or 0.0)
 
-        # 10. Total Profit = Total Sales - Total Purchases - Total Expenses
-        total_profit = round(total_sales - total_purchases - total_expenses, 2)
+        # 10. Total COGS (Cost of Goods Sold based on actual batches)
+        from app.models.sale import SaleItem
+        q_cogs = select(func.coalesce(func.sum(SaleItem.cogs), 0.0))
+        res_cogs = await db.execute(q_cogs)
+        total_cogs = float(res_cogs.scalar() or 0.0)
+
+        # 11. Total Profit = Total Sales - Total COGS - Total Expenses
+        total_profit = round(total_sales - total_cogs - total_expenses, 2)
 
         return DashboardCardsSummary(
             total_products=total_products,

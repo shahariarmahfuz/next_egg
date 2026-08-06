@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 class ProductCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=200, description="Product Name")
     unit: str = Field(..., min_length=1, max_length=30, description="Measurement unit e.g. pcs, kg, box")
-    purchase_price: float = Field(..., ge=0.0, description="Default purchase price ($)")
+    opening_stock_unit_cost: float = Field(..., ge=0.0, description="Opening stock unit cost ($)")
     selling_price: float = Field(..., ge=0.0, description="Default selling price ($)")
     product_code: Optional[str] = Field(None, max_length=50, description="Optional custom product code")
     category: Optional[str] = Field(None, max_length=100)
@@ -40,7 +40,7 @@ class ProductUpdate(BaseModel):
     brand: Optional[str] = Field(None, max_length=100)
     barcode: Optional[str] = Field(None, max_length=100)
     unit: Optional[str] = Field(None, min_length=1, max_length=30)
-    purchase_price: Optional[float] = Field(None, ge=0.0)
+    opening_stock_unit_cost: Optional[float] = Field(None, ge=0.0)
     selling_price: Optional[float] = Field(None, ge=0.0)
     minimum_stock: Optional[float] = Field(None, ge=0.0)
     status: Optional[str] = Field(None, description="active / inactive")
@@ -63,7 +63,7 @@ class ProductResponse(BaseModel):
     unit: str
     opening_stock: float
     current_stock: float
-    purchase_price: float
+    opening_stock_unit_cost: float
     selling_price: float
     minimum_stock: float
     status: str

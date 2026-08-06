@@ -8,6 +8,7 @@ from app.models.sale import SaleItem
 from app.models.purchase import PurchaseItem
 from app.models.sale_return import SaleReturnItem
 from app.models.product_return import ProductReturnItem
+from app.models.inventory_batch import InventoryBatch
 from app.repositories.product_repository import product_repository
 from app.schemas.product import ProductCreate, ProductUpdate
 
@@ -40,7 +41,20 @@ class ProductService:
         # Automatic rule: Opening Stock initializes Current Stock
         product_data["current_stock"] = product_in.opening_stock
 
-        return await product_repository.create(db, obj_in=product_data)
+        product = await product_repository.create(db, obj_in=product_data)
+
+        if product.opening_stock > 0:
+            batch = InventoryBatch(
+                product_id=product.id,
+                purchase_id=None,
+                quantity=product.opening_stock,
+                remaining_quantity=product.opening_stock,
+                unit_cost=product.opening_stock_unit_cost,
+            )
+            db.add(batch)
+            await db.flush()
+
+        return product
 
     async def update_product(
         self, db: AsyncSession, product_id: str, product_in: ProductUpdate

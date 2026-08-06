@@ -61,6 +61,7 @@ class SaleItem(TimestampedBaseModel):
     unit_price: Mapped[float] = mapped_column(Float, nullable=False)
     discount: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     total_price: Mapped[float] = mapped_column(Float, nullable=False)
+    cogs: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
     # Relationships
     sale: Mapped["Sale"] = relationship("Sale", back_populates="items")

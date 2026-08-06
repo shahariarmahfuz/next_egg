@@ -26,7 +26,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         brand: values.brand || undefined,
         barcode: values.barcode || undefined,
         unit: values.unit,
-        purchase_price: values.purchase_price,
+        opening_stock_unit_cost: values.opening_stock_unit_cost,
         selling_price: values.selling_price,
         minimum_stock: values.minimum_stock,
         status: values.status,

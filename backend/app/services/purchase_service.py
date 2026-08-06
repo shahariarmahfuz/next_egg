@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.exceptions.custom import BadRequestException, ConflictException, NotFoundException
 from app.models.product import Product
 from app.models.purchase import Purchase, PurchaseItem
+from app.models.inventory_batch import InventoryBatch
 from app.models.supplier import Supplier
 from app.models.user import User
 from app.repositories.product_repository import product_repository
@@ -63,6 +64,10 @@ class PurchaseService:
             )
             purchase_items.append(p_item)
 
+            # Defer batch creation to set purchase_id after flush
+            # We will use purchase_items for this, or create a list of batches
+
+
         # Financial Calculations
         grand_total = subtotal - purchase_in.discount_amount + purchase_in.tax_amount
         if grand_total < 0:
@@ -99,6 +104,19 @@ class PurchaseService:
         )
 
         db.add(purchase)
+        await db.flush()
+
+        for item_data in purchase_in.items:
+            batch = InventoryBatch(
+                product_id=item_data.product_id,
+                purchase_id=purchase.id,
+                quantity=item_data.quantity,
+                remaining_quantity=item_data.quantity,
+                unit_cost=item_data.unit_price,
+                purchase_date=purchase_in.purchase_date or datetime.now(timezone.utc),
+            )
+            db.add(batch)
+            
         await db.flush()
         return await purchase_repository.get_by_id_loaded(db, purchase.id) or purchase
 

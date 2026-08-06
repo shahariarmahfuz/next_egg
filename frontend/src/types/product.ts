@@ -9,7 +9,7 @@ export interface ProductItem {
   opening_stock: number;
   current_stock: number;
   available_stock: number;
-  purchase_price: number;
+  opening_stock_unit_cost: number;
   selling_price: number;
   minimum_stock: number;
   status: "active" | "inactive";
@@ -26,7 +26,7 @@ export interface ProductCreatePayload {
   brand?: string;
   barcode?: string;
   unit: string;
-  purchase_price: number;
+  opening_stock_unit_cost: number;
   selling_price: number;
   opening_stock: number;
   minimum_stock: number;
@@ -39,7 +39,7 @@ export interface ProductUpdatePayload {
   brand?: string;
   barcode?: string;
   unit?: string;
-  purchase_price?: number;
+  opening_stock_unit_cost?: number;
   selling_price?: number;
   minimum_stock?: number;
   status?: string;

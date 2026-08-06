@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const productSchema = z.object({
   name: z.string().min(2, "Product name must be at least 2 characters").max(200),
   unit: z.string().min(1, "Unit of measurement is required e.g. pcs, kg"),
-  purchase_price: z.coerce.number().min(0, "Purchase price cannot be negative"),
+  opening_stock_unit_cost: z.coerce.number().min(0, "Opening stock unit cost cannot be negative"),
   selling_price: z.coerce.number().min(0, "Selling price cannot be negative"),
   product_code: z.string().optional(),
   category: z.string().optional(),
@@ -53,7 +53,7 @@ export function ProductForm({
     defaultValues: {
       name: initialData?.name || "",
       unit: initialData?.unit || "pcs",
-      purchase_price: initialData?.purchase_price ?? 0,
+      opening_stock_unit_cost: initialData?.opening_stock_unit_cost ?? 0,
       selling_price: initialData?.selling_price ?? 0,
       product_code: initialData?.product_code || "",
       category: initialData?.category || "",
@@ -159,9 +159,9 @@ export function ProductForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium">Default Purchase Price ($) *</label>
-                <Input {...register("purchase_price")} type="number" step="0.01" min="0" />
-                {errors.purchase_price && <p className="text-[11px] text-destructive">{errors.purchase_price.message}</p>}
+                <label className="text-xs font-medium">Opening Stock Unit Cost ($) *</label>
+                <Input {...register("opening_stock_unit_cost")} type="number" step="0.01" min="0" />
+                {errors.opening_stock_unit_cost && <p className="text-[11px] text-destructive">{errors.opening_stock_unit_cost.message}</p>}
               </div>
 
               <div className="space-y-1.5">

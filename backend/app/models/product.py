@@ -20,7 +20,7 @@ class Product(TimestampedBaseModel):
 
     opening_stock: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     current_stock: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    purchase_price: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    opening_stock_unit_cost: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     selling_price: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     minimum_stock: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
@@ -31,7 +31,7 @@ class Product(TimestampedBaseModel):
 
     __table_args__ = (
         CheckConstraint("current_stock >= 0", name="chk_product_stock_non_negative"),
-        CheckConstraint("purchase_price >= 0", name="chk_product_purchase_price_positive"),
+        CheckConstraint("opening_stock_unit_cost >= 0", name="chk_product_opening_cost_positive"),
         CheckConstraint("selling_price >= 0", name="chk_product_selling_price_positive"),
         Index("idx_product_status_name", "status", "name"),
         Index("idx_product_category", "category"),

@@ -155,7 +155,7 @@ export default function ProductsPage() {
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Product Name</th>
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Unit</th>
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Current Stock</th>
-                <th className="px-3 py-2.5 align-middle whitespace-nowrap">Purchase Price</th>
+                <th className="px-3 py-2.5 align-middle whitespace-nowrap">Opening Stock Unit Cost</th>
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Selling Price</th>
                 <th className="px-3 py-2.5 align-middle w-[110px] whitespace-nowrap">Status</th>
                 <th className="px-3 py-2.5 align-middle w-[140px] text-right whitespace-nowrap">Actions</th>
@@ -218,7 +218,7 @@ export default function ProductsPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2 align-middle text-xs font-semibold text-foreground whitespace-nowrap">
-                        {formatCurrency(product.purchase_price)}
+                        {formatCurrency(product.opening_stock_unit_cost)}
                       </td>
                       <td className="px-3 py-2 align-middle text-xs font-semibold text-primary whitespace-nowrap">
                         {formatCurrency(product.selling_price)}

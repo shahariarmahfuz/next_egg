@@ -16,7 +16,7 @@ export default function NewProductPage() {
       productService.createProduct({
         name: values.name,
         unit: values.unit,
-        purchase_price: values.purchase_price,
+        opening_stock_unit_cost: values.opening_stock_unit_cost,
         selling_price: values.selling_price,
         product_code: values.product_code || undefined,
         category: values.category || undefined,

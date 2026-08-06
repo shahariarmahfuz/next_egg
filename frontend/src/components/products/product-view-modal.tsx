@@ -100,8 +100,8 @@ export function ProductViewModal({ product, isOpen, onClose }: ProductViewModalP
           </div>
 
           <div className="flex justify-between items-center pt-2 border-t">
-            <span className="text-muted-foreground font-medium">Purchase Price (Cost):</span>
-            <span className="text-foreground">{formatCurrency(product.purchase_price)}</span>
+            <span className="text-muted-foreground font-medium">Opening Stock Unit Cost:</span>
+            <span className="text-foreground">{formatCurrency(product.opening_stock_unit_cost)}</span>
           </div>
 
           <div className="flex justify-between items-center">
