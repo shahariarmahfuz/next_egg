@@ -23,5 +23,10 @@ class PermissionRepository(BaseRepository[Permission, dict, dict]):
     async def get_all_permissions(self, db: AsyncSession) -> Sequence[Permission]:
         return await self.get_all_ordered(db)
 
+    async def get_by_ids(self, db: AsyncSession, ids: list[str]) -> Sequence[Permission]:
+        query = select(Permission).where(Permission.id.in_(ids))
+        result = await db.execute(query)
+        return result.scalars().all()
+
 
 permission_repository = PermissionRepository()

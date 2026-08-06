@@ -21,6 +21,15 @@ class RoleRepository(BaseRepository[Role, dict, dict]):
         result = await db.execute(query)
         return result.scalars().first()
 
+    async def get_with_permissions(self, db: AsyncSession, id: str) -> Optional[Role]:
+        query = (
+            select(Role)
+            .where(Role.id == id)
+            .options(selectinload(Role.permissions))
+        )
+        result = await db.execute(query)
+        return result.scalars().first()
+
     async def get_all_with_permissions(self, db: AsyncSession) -> Sequence[Role]:
         query = select(Role).options(selectinload(Role.permissions)).order_by(Role.name.asc())
         result = await db.execute(query)
