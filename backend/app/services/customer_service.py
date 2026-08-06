@@ -325,5 +325,8 @@ class CustomerService:
         }
 
 
+    async def get_dues_summary(self, db: AsyncSession, search: Optional[str] = None) -> tuple[int, float]:
+        return await customer_repository.get_dues_summary(db, search=search)
+
 customer_service = CustomerService()
 

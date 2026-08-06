@@ -7,6 +7,7 @@ import { z } from "zod";
 import { X, Loader2, UserPlus } from "lucide-react";
 import { userService } from "@/services/api";
 import { RoleItem, UserCreatePayload } from "@/types";
+import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -39,7 +40,12 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const availableRoles = roles.filter((r) => r.code !== "owner");
+  const { user } = useAuth();
+  const availableRoles = roles.filter((r) => {
+    if (r.code === "owner") return false;
+    if (user?.role?.code === "admin" && r.code === "admin") return false;
+    return true;
+  });
 
   const {
     register,

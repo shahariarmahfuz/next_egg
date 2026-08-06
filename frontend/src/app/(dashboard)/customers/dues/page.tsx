@@ -10,6 +10,8 @@ import {
   Eye,
   ArrowLeft,
   DollarSign,
+  Printer,
+  Loader2,
 } from "lucide-react";
 import { customerService } from "@/services/api";
 import { CustomerItem } from "@/types";
@@ -20,45 +22,78 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
 import { CustomerViewModal } from "@/components/customers/customer-view-modal";
+import { PrintableDueList } from "@/components/customers/printable-due-list";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
 
 export default function CustomerDueListPage() {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [search, setSearch] = useState("");
   const [viewingCustomer, setViewingCustomer] = useState<CustomerItem | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printData, setPrintData] = useState<CustomerItem[]>([]);
 
   const debouncedSearch = useDebounce(search, 300);
 
   // Fetch Customers with current_balance > 0 ONLY
   const { data: duesData, isLoading } = useQuery({
-    queryKey: ["customer-dues", page, debouncedSearch],
+    queryKey: ["customer-dues", page, pageSize, debouncedSearch],
     queryFn: () =>
       customerService.getCustomerDues({
         page,
-        size: 15,
+        size: pageSize,
         search: debouncedSearch || undefined,
       }),
   });
 
+  const { data: summaryData, isLoading: isLoadingSummary } = useQuery({
+    queryKey: ["customer-dues-summary", debouncedSearch],
+    queryFn: () => customerService.getCustomerDuesSummary({ search: debouncedSearch || undefined }),
+  });
+
   const dueCustomers: CustomerItem[] = duesData?.data?.items || [];
   const totalPages = duesData?.data?.pages || 1;
-  const pageSize = 15;
-  const totalDueSum = dueCustomers.reduce((acc, c) => acc + c.current_balance, 0);
+  const summary = summaryData?.data;
+
+  const handlePrint = async () => {
+    try {
+      setIsPrinting(true);
+      const res = await customerService.getCustomerDues({
+        page: 1,
+        size: 100000,
+        search: debouncedSearch || undefined,
+      });
+      setPrintData(res.data.items);
+      setTimeout(() => {
+        window.print();
+        setIsPrinting(false);
+      }, 500);
+    } catch (error) {
+      console.error("Failed to fetch print data", error);
+      setIsPrinting(false);
+    }
+  };
 
   return (
     <HasPermission code="customer.due.view">
-      <div className="space-y-6">
+      <div className="space-y-6 print:hidden">
         <PageHeader
           title="Customer Outstanding Due List"
           description="Monitors accounts receivable with active due balances greater than zero ($0.00)."
           action={
-            <Button asChild variant="outline">
-              <Link href="/customers">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to All Customers
-              </Link>
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" onClick={handlePrint} disabled={isPrinting}>
+                {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                Print Due List
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/customers">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to All Customers
+                </Link>
+              </Button>
+            </div>
           }
         />
 
@@ -68,14 +103,14 @@ export default function CustomerDueListPage() {
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <span className="text-xs text-muted-foreground font-medium block">
-                  Active Debtors Count (Current Page)
+                  Total Due Customers
                 </span>
                 <span className="text-2xl font-extrabold text-foreground">
-                  {dueCustomers.length} Client(s)
+                  {isLoadingSummary ? <Skeleton className="h-8 w-20" /> : `${summary?.total_customers || 0} Client(s)`}
                 </span>
               </div>
               <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
-                <AlertCircle className="h-5 w-5" />
+                <Users className="h-5 w-5" />
               </div>
             </CardContent>
           </Card>
@@ -84,10 +119,10 @@ export default function CustomerDueListPage() {
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <span className="text-xs text-muted-foreground font-medium block">
-                  Page Total Receivable Due
+                  Total Customer Due
                 </span>
                 <span className="text-2xl font-extrabold text-amber-500 ">
-                  {formatCurrency(totalDueSum)}
+                  {isLoadingSummary ? <Skeleton className="h-8 w-32" /> : formatCurrency(summary?.total_amount || 0)}
                 </span>
               </div>
               <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
@@ -97,9 +132,9 @@ export default function CustomerDueListPage() {
           </Card>
         </div>
 
-        {/* Server-side Search */}
+        {/* Server-side Search and Pagination Size */}
         <Card className="glass-card">
-          <CardContent className="p-4">
+          <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="relative w-full md:w-96">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -108,6 +143,24 @@ export default function CustomerDueListPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 h-10"
               />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-muted-foreground">Rows per page:</span>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
             </div>
           </CardContent>
         </Card>
@@ -224,6 +277,16 @@ export default function CustomerDueListPage() {
           onClose={() => setViewingCustomer(null)}
         />
       </div>
+
+      {/* Print View */}
+      {isPrinting && (
+        <PrintableDueList
+          customers={printData}
+          searchQuery={debouncedSearch}
+          totalCustomers={summary?.total_customers || 0}
+          totalAmount={summary?.total_amount || 0}
+        />
+      )}
     </HasPermission>
   );
 }

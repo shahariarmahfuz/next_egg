@@ -27,9 +27,10 @@ const defaultSettings: BusinessSettings = {
   thousand_separator: ",",
   decimal_separator: ".",
   currency: {
-    name: "US Dollar",
-    code: "USD",
-    symbol: "$",
+    id: "BDT",
+    name: "Bangladeshi Taka",
+    code: "BDT",
+    symbol: "৳",
     symbol_position: "before",
     decimal_places: 2,
   },

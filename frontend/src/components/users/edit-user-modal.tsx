@@ -7,6 +7,7 @@ import { z } from "zod";
 import { X, Loader2, UserCheck } from "lucide-react";
 import { userService } from "@/services/api";
 import { RoleItem, UserItem, UserUpdatePayload } from "@/types";
+import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -33,7 +34,12 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const availableRoles = roles.filter((r) => r.code !== "owner");
+  const { user: currentUser } = useAuth();
+  const availableRoles = roles.filter((r) => {
+    if (r.code === "owner") return false;
+    if (currentUser?.role?.code === "admin" && r.code === "admin") return false;
+    return true;
+  });
 
   const {
     register,

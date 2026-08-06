@@ -14,6 +14,7 @@ import { useSettingsStore, BusinessSettings } from "@/store/settings";
 import { apiClient } from "@/lib/api-client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
 
 const businessSettingsSchema = z.object({
   business_name: z.string().min(1, "Business name is required"),
@@ -49,7 +50,6 @@ const timeFormats = [
 
 export default function SettingsPage() {
   const { settings, setSettings } = useSettingsStore();
-  const [currencies, setCurrencies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<BusinessSettingsFormValues>({
@@ -68,31 +68,19 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    // Load currencies for the dropdown
-    async function loadCurrencies() {
-      try {
-        const response = await apiClient("/currencies");
-        setCurrencies(response.data);
-        
-        // Reset form once settings and currencies are loaded
-        const currentSettings = useSettingsStore.getState().settings;
-        form.reset({
-          business_name: currentSettings.business_name || "",
-          timezone: currentSettings.timezone || "UTC",
-          date_format: currentSettings.date_format || "MMM dd, yyyy",
-          time_format: currentSettings.time_format || "hh:mm a",
-          week_start: "Monday",
-          language: "en",
-          default_currency_id: currentSettings.currency?.id || "",
-          thousand_separator: currentSettings.thousand_separator || ",",
-          decimal_separator: currentSettings.decimal_separator || ".",
-        });
-      } catch (error) {
-        toast.error("Failed to load currencies");
-      }
-    }
-    loadCurrencies();
-  }, [form]);
+    // Reset form with current settings
+    form.reset({
+      business_name: settings.business_name || "",
+      timezone: settings.timezone || "UTC",
+      date_format: settings.date_format || "MMM dd, yyyy",
+      time_format: settings.time_format || "hh:mm a",
+      week_start: "Monday",
+      language: "en",
+      default_currency_id: settings.currency?.id || "BDT",
+      thousand_separator: settings.thousand_separator || ",",
+      decimal_separator: settings.decimal_separator || ".",
+    });
+  }, [settings, form]);
 
   async function onSubmit(data: BusinessSettingsFormValues) {
     try {
@@ -101,7 +89,11 @@ export default function SettingsPage() {
         method: "PUT",
         body: JSON.stringify(data),
       });
-      setSettings(response.data);
+      
+      const defaultCurrencyId = response.data.default_currency_id || data.default_currency_id;
+      const currency = STATIC_CURRENCIES.find((c) => c.id === defaultCurrencyId) || DEFAULT_CURRENCY;
+      
+      setSettings({ ...response.data, currency });
       toast.success("Business settings saved successfully");
     } catch (error) {
       toast.error("Failed to save settings");
@@ -121,9 +113,6 @@ export default function SettingsPage() {
         <TabsList className="bg-accent/50 p-1 rounded-xl">
           <TabsTrigger value="business" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Building className="w-4 h-4 mr-2" /> Business Settings
-          </TabsTrigger>
-          <TabsTrigger value="currencies" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <Banknote className="w-4 h-4 mr-2" /> Currencies Management
           </TabsTrigger>
         </TabsList>
 
@@ -241,15 +230,12 @@ export default function SettingsPage() {
                         <SelectValue placeholder="Select Currency" />
                       </SelectTrigger>
                       <SelectContent>
-                        {currencies.map(curr => (
-                          <SelectItem key={curr.id} value={curr.id}>{curr.name} ({curr.code})</SelectItem>
+                        {STATIC_CURRENCIES.map(curr => (
+                          <SelectItem key={curr.id} value={curr.id as string}>{curr.name} ({curr.code})</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {form.formState.errors.default_currency_id && <p className="text-xs text-destructive">{form.formState.errors.default_currency_id.message}</p>}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      To add new currencies or modify formatting options (decimals, position), go to the Currencies Management tab.
-                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -265,57 +251,6 @@ export default function SettingsPage() {
           </form>
         </TabsContent>
 
-        <TabsContent value="currencies">
-          <Card className="glass-card border-none shadow-xl shadow-black/5">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="text-lg flex items-center"><Banknote className="w-5 h-5 mr-2 text-primary" /> Currencies</CardTitle>
-                  <CardDescription>Manage available currencies and their display formats</CardDescription>
-                </div>
-                <Button>+ Add Currency</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-accent/40 text-left border-b">
-                    <tr>
-                      <th className="p-3 font-medium">Currency</th>
-                      <th className="p-3 font-medium">Code</th>
-                      <th className="p-3 font-medium">Symbol</th>
-                      <th className="p-3 font-medium">Position</th>
-                      <th className="p-3 font-medium">Decimals</th>
-                      <th className="p-3 font-medium">Status</th>
-                      <th className="p-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currencies.length > 0 ? currencies.map((curr) => (
-                      <tr key={curr.id} className="border-b last:border-0 hover:bg-accent/20 transition-colors">
-                        <td className="p-3 font-medium">{curr.name} {curr.is_default && <span className="ml-2 text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full">Default</span>}</td>
-                        <td className="p-3 text-muted-foreground">{curr.code}</td>
-                        <td className="p-3 font-mono">{curr.symbol}</td>
-                        <td className="p-3 capitalize">{curr.symbol_position}</td>
-                        <td className="p-3">{curr.decimal_places}</td>
-                        <td className="p-3 capitalize">{curr.status}</td>
-                        <td className="p-3 text-right">
-                          <Button variant="ghost" size="sm" className="h-8">Edit</Button>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                          No currencies found. Loading...
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

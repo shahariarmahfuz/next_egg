@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useSettingsStore } from "@/store/settings";
 import { apiClient } from "@/lib/api-client";
 
+import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
+
 interface SettingsProviderProps {
   children: React.ReactNode;
 }
@@ -16,7 +18,9 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       try {
         const response = await apiClient("/settings/business");
         if (response.data) {
-          setSettings(response.data);
+          const defaultCurrencyId = response.data.default_currency_id;
+          const currency = STATIC_CURRENCIES.find((c) => c.id === defaultCurrencyId) || DEFAULT_CURRENCY;
+          setSettings({ ...response.data, currency });
         }
       } catch (error) {
         console.error("Failed to load business settings:", error);

@@ -1,8 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.setting_repository import setting_repository
-from app.repositories.currency_repository import currency_repository
 from app.schemas.setting import BusinessSettingsResponse, BusinessSettingsUpdate, SettingCreate
-from app.schemas.currency import CurrencyResponse
 
 class SettingService:
     async def get_business_settings(self, db: AsyncSession) -> BusinessSettingsResponse:
@@ -18,13 +16,8 @@ class SettingService:
             language=settings_dict.get("language"),
             thousand_separator=settings_dict.get("thousand_separator"),
             decimal_separator=settings_dict.get("decimal_separator"),
+            default_currency_id=settings_dict.get("default_currency_id")
         )
-        
-        currency_id = settings_dict.get("default_currency_id")
-        if currency_id:
-            currency = await currency_repository.get(db, id=currency_id)
-            if currency:
-                response.currency = CurrencyResponse.model_validate(currency)
                 
         return response
 

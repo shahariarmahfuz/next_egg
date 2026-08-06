@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HasPermission } from "@/providers/auth-provider";
+import { HasPermission, useAuth } from "@/providers/auth-provider";
 import { RolePermissionMatrix } from "@/components/roles/role-permission-matrix";
 import { AddRoleModal } from "@/components/roles/add-role-modal";
 
@@ -24,7 +24,12 @@ export default function RolesPage() {
     queryKey: ["roles"],
     queryFn: () => roleService.getRoles(),
   });
-  const roles: RoleItem[] = rolesData?.data || [];
+  const { user: currentUser } = useAuth();
+
+  const roles: RoleItem[] = (rolesData?.data || []).filter(r => {
+    if (currentUser?.role?.code === "admin" && r.code === "owner") return false;
+    return true;
+  });
 
   // Fetch System Permissions
   const { data: permsData, isLoading: isLoadingPerms } = useQuery({

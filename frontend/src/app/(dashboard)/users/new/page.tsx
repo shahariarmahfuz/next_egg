@@ -38,7 +38,6 @@ type UserFormValues = z.infer<typeof userCreateSchema>;
 export default function AddUserPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { hasPermission } = useAuth();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Fetch available roles (backend automatically filters out Owner for Admin/Employee)
@@ -47,9 +46,13 @@ export default function AddUserPage() {
     queryFn: () => roleService.getRoles(),
   });
 
-  const availableRoles: RoleItem[] = (rolesData?.data || []).filter(
-    (r) => r.code !== "owner"
-  );
+  const { user, hasPermission } = useAuth();
+
+  const availableRoles: RoleItem[] = (rolesData?.data || []).filter((r) => {
+    if (r.code === "owner") return false;
+    if (user?.role?.code === "admin" && r.code === "admin") return false;
+    return true;
+  });
 
   const {
     register,

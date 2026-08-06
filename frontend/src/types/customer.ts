@@ -60,3 +60,8 @@ export interface CustomerLedgerResponse {
   transactions: CustomerLedgerTransaction[];
 }
 
+export interface CustomerDuesSummary {
+  total_customers: number;
+  total_amount: number;
+}
+

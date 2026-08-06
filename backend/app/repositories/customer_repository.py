@@ -78,4 +78,30 @@ class CustomerRepository(BaseRepository[Customer, CustomerCreate, CustomerUpdate
         return customers, total
 
 
+    async def get_dues_summary(self, db: AsyncSession, search: Optional[str] = None) -> tuple[int, float]:
+        query = select(Customer).where(Customer.current_balance > 0)
+        
+        if search:
+            pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    Customer.name.ilike(pattern),
+                    Customer.customer_code.ilike(pattern),
+                    Customer.phone.ilike(pattern),
+                    Customer.email.ilike(pattern),
+                )
+            )
+
+        count_query = select(func.count()).select_from(query.subquery())
+        # To get the sum, we can query it directly
+        sum_query = select(func.sum(Customer.current_balance)).where(Customer.id.in_(select(query.subquery().c.id)))
+        
+        count_res = await db.execute(count_query)
+        sum_res = await db.execute(sum_query)
+        
+        total_customers = count_res.scalar() or 0
+        total_amount = sum_res.scalar() or 0.0
+        
+        return total_customers, float(total_amount)
+
 customer_repository = CustomerRepository()

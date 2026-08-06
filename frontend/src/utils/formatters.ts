@@ -23,7 +23,7 @@ export function formatCurrency(amount: number): string {
 
   // Format number using standard US format first to get thousands and decimal correctly
   const numStr = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: currency.decimal_places,
+    minimumFractionDigits: 0,
     maximumFractionDigits: currency.decimal_places,
   }).format(amount);
 
@@ -45,7 +45,7 @@ export function formatNumber(amount: number, forceDecimals?: number): string {
   const decimals = forceDecimals !== undefined ? forceDecimals : currency.decimal_places;
 
   const numStr = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: decimals,
+    minimumFractionDigits: 0,
     maximumFractionDigits: decimals,
   }).format(amount);
 

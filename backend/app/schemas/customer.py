@@ -76,3 +76,7 @@ class CustomerLedgerResponse(BaseModel):
     summary: CustomerLedgerSummary
     transactions: list[CustomerLedgerTransaction]
 
+
+class CustomerDuesSummary(BaseModel):
+    total_customers: int
+    total_amount: float

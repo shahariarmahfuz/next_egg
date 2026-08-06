@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HasPermission } from "@/providers/auth-provider";
+import { HasPermission, useAuth } from "@/providers/auth-provider";
 import { AddUserModal } from "@/components/users/add-user-modal";
 import { EditUserModal } from "@/components/users/edit-user-modal";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -29,12 +29,17 @@ export default function UsersPage() {
 
   const debouncedSearch = useDebounce(search, 300);
 
+  const { user: currentUser } = useAuth();
+
   // Fetch Roles for dropdown filter & modals
   const { data: rolesData } = useQuery({
     queryKey: ["roles"],
     queryFn: () => roleService.getRoles(),
   });
-  const roles: RoleItem[] = rolesData?.data || [];
+  const roles: RoleItem[] = (rolesData?.data || []).filter(r => {
+    if (currentUser?.role?.code === "admin" && r.code === "owner") return false;
+    return true;
+  });
 
   // Fetch Paginated Users
   const { data: usersData, isLoading } = useQuery({
@@ -49,7 +54,10 @@ export default function UsersPage() {
       }),
   });
 
-  const users: UserItem[] = usersData?.data?.items || [];
+  const users: UserItem[] = (usersData?.data?.items || []).filter(u => {
+    if (currentUser?.role?.code === "admin" && u.role?.code === "owner") return false;
+    return true;
+  });
   const totalPages = usersData?.data?.pages || 1;
   const pageSize = 10;
 

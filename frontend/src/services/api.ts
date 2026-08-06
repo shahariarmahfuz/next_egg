@@ -7,6 +7,7 @@ import {
   CustomerCollectionItem,
   CustomerCollectionUpdatePayload,
   CustomerCreatePayload,
+  CustomerDuesSummary,
   CustomerFinancialSummary,
   CustomerItem,
   CustomerLedgerResponse,
@@ -243,6 +244,10 @@ export const customerService = {
     search?: string;
   }) => {
     return http.get<PaginatedResult<CustomerItem>>("/customers/dues", params);
+  },
+
+  getCustomerDuesSummary: async (params?: { search?: string }) => {
+    return http.get<CustomerDuesSummary>("/customers/dues/summary", params);
   },
 
   getCustomerById: async (id: string) => {

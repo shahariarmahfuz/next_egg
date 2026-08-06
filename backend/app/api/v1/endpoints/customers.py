@@ -14,6 +14,7 @@ from app.schemas.customer import (
     CustomerResponse,
     CustomerStatusUpdate,
     CustomerUpdate,
+    CustomerDuesSummary,
 )
 from app.services.customer_service import customer_service
 
@@ -72,10 +73,31 @@ async def list_customers(
     )
 
 
+@router.get("/dues/summary", response_model=ResponseModel[CustomerDuesSummary])
+async def get_customer_dues_summary(
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("customer.due.view")),
+):
+    """Get total number of customers with due and the sum of their due amounts."""
+    total_customers, total_amount = await customer_service.get_dues_summary(db, search=search)
+    
+    summary = CustomerDuesSummary(
+        total_customers=total_customers,
+        total_amount=total_amount,
+    )
+    
+    return ResponseModel[CustomerDuesSummary](
+        success=True,
+        message="Customer dues summary retrieved successfully",
+        data=summary,
+    )
+
+
 @router.get("/dues", response_model=ResponseModel[PaginatedResponse[CustomerResponse]])
 async def list_customer_dues(
     page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+    size: int = Query(20, ge=1, le=100000),
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("customer.due.view")),

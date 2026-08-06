@@ -1,6 +1,5 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
-from app.schemas.currency import CurrencyResponse
 
 class SettingBase(BaseModel):
     key: str
@@ -29,7 +28,7 @@ class BusinessSettingsResponse(BaseModel):
     language: Optional[str] = None
     thousand_separator: Optional[str] = None
     decimal_separator: Optional[str] = None
-    currency: Optional[CurrencyResponse] = None
+    default_currency_id: Optional[str] = None
 
 class BusinessSettingsUpdate(BaseModel):
     business_name: Optional[str] = None
