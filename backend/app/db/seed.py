@@ -7,6 +7,7 @@ from app.models.user import User
 from app.repositories.permission_repository import permission_repository
 from app.repositories.role_repository import role_repository
 from app.repositories.user_repository import user_repository
+from app.db.seeds.settings_seed import seed_settings_and_currencies
 
 DEFAULT_PERMISSIONS = [
     # Dashboard module
@@ -204,4 +205,8 @@ async def seed_initial_data(db: AsyncSession) -> None:
             db.add(existing_owner)
 
     await db.commit()
+    
+    # 5. Seed Settings and Currencies
+    await seed_settings_and_currencies(db)
+    
     logger.info("Database seeding completed successfully.")

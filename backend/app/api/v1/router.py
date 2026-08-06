@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
     balance_adjustments,
+    currencies,
     customer_collections,
     customers,
     dashboard,
@@ -14,6 +15,7 @@ from app.api.v1.endpoints import (
     roles,
     sale_returns,
     sales,
+    settings,
     supplier_payments,
     suppliers,
     users,
@@ -40,3 +42,5 @@ api_router.include_router(product_returns.router)
 api_router.include_router(supplier_payments.router)
 api_router.include_router(balance_adjustments.router)
 api_router.include_router(expense.router)
+api_router.include_router(currencies.router)
+api_router.include_router(settings.router)

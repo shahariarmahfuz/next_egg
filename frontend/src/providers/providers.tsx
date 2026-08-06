@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AuthProvider } from "./auth-provider";
 import { QueryProvider } from "./query-provider";
 import { ThemeProvider } from "./theme-provider";
+import { SettingsProvider } from "./settings-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 interface ProvidersProps {
@@ -15,8 +16,10 @@ export function Providers({ children }: ProvidersProps) {
     <ThemeProvider defaultTheme="dark">
       <QueryProvider>
         <AuthProvider>
-          {children}
-          <Toaster />
+          <SettingsProvider>
+            {children}
+            <Toaster />
+          </SettingsProvider>
         </AuthProvider>
       </QueryProvider>
     </ThemeProvider>
