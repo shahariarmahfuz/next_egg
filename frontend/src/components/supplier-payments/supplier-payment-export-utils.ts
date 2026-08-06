@@ -1,4 +1,5 @@
 import { SupplierPaymentItem } from "@/types";
+import { useSettingsStore } from "@/store/settings";
 
 export function formatCurrency(amount: number | undefined | null): string {
   if (amount === undefined || amount === null) return "$0.00";
@@ -160,7 +161,7 @@ export function exportSupplierPaymentsExcel(payments: SupplierPaymentItem[], fil
   document.body.removeChild(link);
 }
 
-export function printVoucherWindow(payment: SupplierPaymentItem) {
+export function printSupplierPaymentVoucher(pay: SupplierPaymentItem) {
   const printWindow = window.open("", "_blank", "width=800,height=900");
   if (!printWindow) return;
   const businessName = useSettingsStore.getState().settings.business_name || "ENTERPRISE MANAGEMENT SYSTEM";
@@ -169,7 +170,7 @@ export function printVoucherWindow(payment: SupplierPaymentItem) {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Payment Voucher - ${payment.payment_no}</title>
+        <title>Payment Voucher - ${pay.payment_no}</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; padding: 40px; margin: 0; line-height: 1.5; }
           .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; }
@@ -195,7 +196,7 @@ export function printVoucherWindow(payment: SupplierPaymentItem) {
 
         <div class="amount-box">
           <div class="amount-label">Payment Amount Paid</div>
-          <div class="amount-val">$${payment.amount.toFixed(2)}</div>
+          <div class="amount-val">$${pay.amount.toFixed(2)}</div>
         </div>
 
         <div class="grid">
