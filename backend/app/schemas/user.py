@@ -8,7 +8,7 @@ class UserBase(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=150)
     username: str = Field(..., min_length=3, max_length=50)
     email: Optional[EmailStr] = None
-    phone: str = Field(..., min_length=5, max_length=30)
+    phone: Optional[str] = Field(None, max_length=30)
     status: str = Field("active", description="User status: active, inactive, suspended")
 
 

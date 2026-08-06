@@ -11,6 +11,12 @@ export interface Currency {
 
 export interface BusinessSettings {
   business_name: string;
+  business_short_name: string;
+  business_logo: string;
+  business_address: string;
+  business_phone: string;
+  business_email: string;
+  website?: string;
   timezone: string;
   date_format: string;
   time_format: string;
@@ -21,6 +27,12 @@ export interface BusinessSettings {
 
 const defaultSettings: BusinessSettings = {
   business_name: "Business",
+  business_short_name: "Biz",
+  business_logo: "",
+  business_address: "",
+  business_phone: "",
+  business_email: "",
+  website: "",
   timezone: "UTC",
   date_format: "MMM dd, yyyy",
   time_format: "hh:mm a",

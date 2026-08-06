@@ -36,6 +36,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers/auth-provider";
+import { useSettingsStore } from "@/store/settings";
 
 export function SidebarContent({
   onNavigate,
@@ -74,24 +75,37 @@ export function SidebarContent({
   const isSupplierPaymentActive = pathname.startsWith("/supplier-payments");
   const isExpenseActive = pathname.startsWith("/expenses");
 
+  const { settings } = useSettingsStore();
+
+  const brandName = settings.business_short_name || settings.business_name || "Enterprise Hub";
+  const initial = brandName.charAt(0).toUpperCase();
+
   return (
     <div className="flex flex-col h-full w-full">
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-border shrink-0">
         {!collapsed && (
           <Link href="/" onClick={onNavigate} className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center font-bold text-primary-foreground text-lg shadow-md shrink-0">
-              E
-            </div>
+            {settings.business_logo ? (
+              <img src={settings.business_logo} alt={brandName} className="h-8 w-8 rounded-lg object-contain bg-white shrink-0" />
+            ) : (
+              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center font-bold text-primary-foreground text-lg shadow-md shrink-0">
+                {initial}
+              </div>
+            )}
             <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent truncate">
-              Enterprise Hub
+              {brandName}
             </span>
           </Link>
         )}
         {collapsed && (
-          <div className="mx-auto h-8 w-8 rounded-lg bg-primary flex items-center justify-center font-bold text-primary-foreground text-lg shrink-0">
-            E
-          </div>
+          settings.business_logo ? (
+            <img src={settings.business_logo} alt={brandName} className="mx-auto h-8 w-8 rounded-lg object-contain bg-white shrink-0" />
+          ) : (
+            <div className="mx-auto h-8 w-8 rounded-lg bg-primary flex items-center justify-center font-bold text-primary-foreground text-lg shrink-0">
+              {initial}
+            </div>
+          )
         )}
         {setCollapsed && (
           <button
@@ -1000,7 +1014,7 @@ export function SidebarContent({
         )}
 
         {/* System Architecture */}
-        {hasPermission("role.view") && (
+        {user?.role?.code === 'owner' && (
           <Link
             href="/architecture"
             onClick={onNavigate}
@@ -1019,7 +1033,7 @@ export function SidebarContent({
         )}
 
         {/* API Status */}
-        {hasPermission("role.view") && (
+        {user?.role?.code === 'owner' && (
           <Link
             href="/system-status"
             onClick={onNavigate}

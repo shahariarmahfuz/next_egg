@@ -5,7 +5,7 @@ export interface UserItem {
   full_name: string;
   username: string;
   email?: string;
-  phone: string;
+  phone?: string;
   role_id: string;
   role?: RoleItem;
   status: "active" | "inactive" | "suspended";
@@ -17,7 +17,7 @@ export interface UserCreatePayload {
   full_name: string;
   username: string;
   email?: string;
-  phone: string;
+  phone?: string;
   password: string;
   role_id: string;
   status: string;

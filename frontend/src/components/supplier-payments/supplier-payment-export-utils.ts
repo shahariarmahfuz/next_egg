@@ -160,42 +160,42 @@ export function exportSupplierPaymentsExcel(payments: SupplierPaymentItem[], fil
   document.body.removeChild(link);
 }
 
-export function printSupplierPaymentVoucher(pay: SupplierPaymentItem) {
+export function printVoucherWindow(payment: SupplierPaymentItem) {
   const printWindow = window.open("", "_blank", "width=800,height=900");
   if (!printWindow) return;
+  const businessName = useSettingsStore.getState().settings.business_name || "ENTERPRISE MANAGEMENT SYSTEM";
 
   const htmlContent = `
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Supplier Payment Voucher - ${pay.payment_no}</title>
+        <title>Payment Voucher - ${payment.payment_no}</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; padding: 40px; margin: 0; line-height: 1.5; }
           .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; }
-          .company-name { font-size: 24px; font-weight: bold; color: #0f172a; }
-          .voucher-title { font-size: 16px; font-weight: 600; text-transform: uppercase; color: #059669; margin-top: 5px; }
+          .company-name { font-size: 24px; font-weight: bold; color: #0f172a; letter-spacing: 0.5px; }
+          .voucher-title { font-size: 16px; font-weight: 600; text-transform: uppercase; color: #64748b; margin-top: 5px; }
           .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
           .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
           .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: bold; margin-bottom: 8px; }
           .detail-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
           .detail-label { color: #64748b; }
           .detail-value { font-weight: 600; color: #0f172a; }
-          .amount-box { background: #ecfdf5; border: 2px solid #10b981; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 30px; }
-          .amount-label { font-size: 12px; text-transform: uppercase; color: #047857; font-weight: bold; letter-spacing: 1px; }
-          .amount-val { font-size: 32px; font-weight: 900; color: #047857;  margin-top: 4px; }
+          .amount-box { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px; }
+          .amount-val { font-size: 32px; font-weight: 800; }
           .footer { margin-top: 60px; display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 20px; font-size: 12px; color: #64748b; }
           .sig-line { width: 180px; border-top: 1px solid #94a3b8; text-align: center; padding-top: 5px; margin-top: 40px; }
         </style>
       </head>
       <body>
         <div class="header">
-          <div class="company-name">ENTERPRISE MANAGEMENT SYSTEM</div>
-          <div class="voucher-title">OFFICIAL SUPPLIER PAYMENT VOUCHER</div>
+          <div class="company-name">${businessName}</div>
+          <div class="voucher-title">OFFICIAL PAYMENT VOUCHER</div>
         </div>
 
         <div class="amount-box">
           <div class="amount-label">Payment Amount Paid</div>
-          <div class="amount-val">$${pay.amount.toFixed(2)}</div>
+          <div class="amount-val">$${payment.amount.toFixed(2)}</div>
         </div>
 
         <div class="grid">

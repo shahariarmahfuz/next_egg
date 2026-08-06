@@ -37,6 +37,9 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
 
         {/* Header */}
         <div className="text-center mb-6">
+          {settings.business_logo && (
+            <img src={settings.business_logo} alt={settings.business_name} className="h-16 mx-auto mb-2 object-contain" />
+          )}
           <h1 className="text-2xl font-bold uppercase mb-1">{settings.business_name}</h1>
           <h2 className="text-xl font-bold uppercase border-b-2 border-black inline-block pb-1 mt-2 mb-4">
             CUSTOMER DUE LIST
@@ -93,7 +96,7 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
           <tfoot>
             <tr>
               <td colSpan={7} className="border-none pt-4 text-xs text-center text-gray-500">
-                Printed from Enterprise Hub
+                Printed from {settings.business_name}
               </td>
             </tr>
           </tfoot>

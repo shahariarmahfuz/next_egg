@@ -18,6 +18,12 @@ import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
 
 const businessSettingsSchema = z.object({
   business_name: z.string().min(1, "Business name is required"),
+  business_short_name: z.string().min(1, "Short name is required"),
+  business_logo: z.string().optional(),
+  business_address: z.string().min(1, "Address is required"),
+  business_phone: z.string().min(1, "Phone is required"),
+  business_email: z.string().email("Invalid email"),
+  website: z.string().optional(),
   timezone: z.string().min(1, "Timezone is required"),
   date_format: z.string().min(1, "Date format is required"),
   time_format: z.string().min(1, "Time format is required"),
@@ -56,6 +62,12 @@ export default function SettingsPage() {
     resolver: zodResolver(businessSettingsSchema),
     defaultValues: {
       business_name: settings.business_name || "",
+      business_short_name: settings.business_short_name || "",
+      business_logo: settings.business_logo || "",
+      business_address: settings.business_address || "",
+      business_phone: settings.business_phone || "",
+      business_email: settings.business_email || "",
+      website: settings.website || "",
       timezone: settings.timezone || "UTC",
       date_format: settings.date_format || "MMM dd, yyyy",
       time_format: settings.time_format || "hh:mm a",
@@ -71,6 +83,12 @@ export default function SettingsPage() {
     // Reset form with current settings
     form.reset({
       business_name: settings.business_name || "",
+      business_short_name: settings.business_short_name || "",
+      business_logo: settings.business_logo || "",
+      business_address: settings.business_address || "",
+      business_phone: settings.business_phone || "",
+      business_email: settings.business_email || "",
+      website: settings.website || "",
       timezone: settings.timezone || "UTC",
       date_format: settings.date_format || "MMM dd, yyyy",
       time_format: settings.time_format || "hh:mm a",
@@ -131,6 +149,42 @@ export default function SettingsPage() {
                     <label className="text-sm font-medium">Business Name</label>
                     <Input {...form.register("business_name")} placeholder="e.g. Next Egg Enterprise" className="bg-background/50 backdrop-blur-sm" />
                     {form.formState.errors.business_name && <p className="text-xs text-destructive">{form.formState.errors.business_name.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Business Short Name</label>
+                    <Input {...form.register("business_short_name")} placeholder="e.g. Next Egg" className="bg-background/50 backdrop-blur-sm" />
+                    {form.formState.errors.business_short_name && <p className="text-xs text-destructive">{form.formState.errors.business_short_name.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Business Logo URL</label>
+                    <Input {...form.register("business_logo")} placeholder="https://example.com/logo.png" className="bg-background/50 backdrop-blur-sm" />
+                    {form.formState.errors.business_logo && <p className="text-xs text-destructive">{form.formState.errors.business_logo.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Business Phone</label>
+                    <Input {...form.register("business_phone")} placeholder="+1 234 567 8900" className="bg-background/50 backdrop-blur-sm" />
+                    {form.formState.errors.business_phone && <p className="text-xs text-destructive">{form.formState.errors.business_phone.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Business Email</label>
+                    <Input {...form.register("business_email")} placeholder="contact@nextegg.com" className="bg-background/50 backdrop-blur-sm" />
+                    {form.formState.errors.business_email && <p className="text-xs text-destructive">{form.formState.errors.business_email.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Website (Optional)</label>
+                    <Input {...form.register("website")} placeholder="https://nextegg.com" className="bg-background/50 backdrop-blur-sm" />
+                    {form.formState.errors.website && <p className="text-xs text-destructive">{form.formState.errors.website.message}</p>}
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium">Business Address</label>
+                    <Input {...form.register("business_address")} placeholder="123 Main St, City, Country" className="bg-background/50 backdrop-blur-sm" />
+                    {form.formState.errors.business_address && <p className="text-xs text-destructive">{form.formState.errors.business_address.message}</p>}
                   </div>
                 </div>
               </CardContent>

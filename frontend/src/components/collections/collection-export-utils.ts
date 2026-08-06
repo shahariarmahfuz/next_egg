@@ -152,9 +152,12 @@ export function exportCollectionsExcel(collections: CustomerCollectionItem[], fi
   document.body.removeChild(link);
 }
 
+import { useSettingsStore } from "@/store/settings";
+
 export function printVoucherWindow(collection: CustomerCollectionItem) {
   const printWindow = window.open("", "_blank", "width=800,height=900");
   if (!printWindow) return;
+  const businessName = useSettingsStore.getState().settings.business_name || "ENTERPRISE MANAGEMENT SYSTEM";
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -180,7 +183,7 @@ export function printVoucherWindow(collection: CustomerCollectionItem) {
       </head>
       <body>
         <div class="header">
-          <div class="company-name">ENTERPRISE MANAGEMENT SYSTEM</div>
+          <div class="company-name">${businessName}</div>
           <div class="voucher-title">OFFICIAL PAYMENT COLLECTION VOUCHER</div>
         </div>
 

@@ -34,6 +34,13 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     }
   }, [setSettings, setLoaded, isLoaded]);
 
+  const { settings } = useSettingsStore();
+  useEffect(() => {
+    if (isLoaded && settings.business_name) {
+      document.title = settings.business_name;
+    }
+  }, [settings.business_name, isLoaded]);
+
   // Wait until settings are loaded to prevent hydration mismatch with formats
   if (!isLoaded) {
     return null; // Or a loading spinner

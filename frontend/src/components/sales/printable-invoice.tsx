@@ -4,35 +4,32 @@ import { SaleItem } from "@/types";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 
+import { useSettingsStore } from "@/store/settings";
+
 export type PrintTemplateFormat = "a4" | "a5" | "pos_80mm";
 
 interface PrintableInvoiceProps {
   sale: SaleItem;
   template: PrintTemplateFormat;
-  businessInfo?: {
-    name?: string;
-    logoText?: string;
-    address?: string;
-    phone?: string;
-    email?: string;
-    website?: string;
-    poweredBy?: string;
-  };
 }
 
 export function PrintableInvoice({
   sale,
   template,
-  businessInfo = {
-    name: "Enterprise POS Systems Ltd.",
-    logoText: "ENTERPRISE",
-    address: "Level 8, Commerce Tower, Tech Zone, Dhaka 1212",
-    phone: "+880 1711-000999",
-    email: "billing@enterprisepos.com",
-    website: "www.enterprisepos.com",
-    poweredBy: "Powered by Enterprise POS Hub",
-  },
 }: PrintableInvoiceProps) {
+  const { settings } = useSettingsStore();
+
+  const businessInfo = {
+    name: settings.business_name || "Enterprise POS Systems Ltd.",
+    logoText: settings.business_short_name || "ENTERPRISE",
+    address: settings.business_address || "Level 8, Commerce Tower, Tech Zone, Dhaka 1212",
+    phone: settings.business_phone || "+880 1711-000999",
+    email: settings.business_email || "billing@enterprisepos.com",
+    website: settings.website || "www.enterprisepos.com",
+    poweredBy: "Powered by Enterprise POS Hub",
+    logoUrl: settings.business_logo || "",
+  };
+
   // 1. THERMAL POS 80MM RECEIPT FORMAT
   if (template === "pos_80mm") {
     return (
@@ -245,9 +242,13 @@ export function PrintableInvoice({
       <div className="flex justify-between items-start pb-6 border-b-2 border-gray-900">
         <div className="space-y-2">
           <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 rounded-xl bg-gray-900 text-white flex items-center justify-center font-black text-xl shadow-md">
-              E
-            </div>
+            {businessInfo.logoUrl ? (
+              <img src={businessInfo.logoUrl} alt={businessInfo.logoText} className="h-10 w-10 rounded-xl object-contain bg-white shrink-0" />
+            ) : (
+              <div className="h-10 w-10 rounded-xl bg-gray-900 text-white flex items-center justify-center font-black text-xl shadow-md">
+                {businessInfo.logoText?.charAt(0) || "E"}
+              </div>
+            )}
             <div>
               <h1 className="text-xl font-extrabold tracking-tight text-gray-900 uppercase">
                 {businessInfo.name}

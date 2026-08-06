@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { useSettingsStore } from "@/store/settings";
+
 const loginSchema = z.object({
   username: z.string().min(1, "Username or email is required"),
   password: z.string().min(1, "Password is required"),
@@ -21,6 +23,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const { login, isAuthenticated, isLoading } = useAuth();
+  const { settings } = useSettingsStore();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -63,6 +66,9 @@ export default function LoginPage() {
     setValue("password", "Owner@123456");
   };
 
+  const brandName = settings.business_name || "Enterprise Hub";
+  const initial = brandName.charAt(0).toUpperCase();
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden">
       {/* Background Decorative Blur Spheres */}
@@ -71,12 +77,16 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in-50 zoom-in-95 duration-500">
         {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/30">
-            E
-          </div>
+        <div className="text-center space-y-2 flex flex-col items-center">
+          {settings.business_logo ? (
+            <img src={settings.business_logo} alt={brandName} className="h-16 w-16 rounded-2xl object-contain bg-white shadow-lg shadow-primary/30" />
+          ) : (
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/30">
+              {initial}
+            </div>
+          )}
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-blue-400 to-indigo-400 bg-clip-text text-transparent">
-            Enterprise Hub
+            {brandName}
           </h1>
           <p className="text-sm text-muted-foreground">
             Sign in to access your business management portal

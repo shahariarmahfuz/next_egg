@@ -16,7 +16,7 @@ const userCreateSchema = z
     full_name: z.string().min(2, "Full name must be at least 2 characters"),
     username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
-    phone: z.string().min(5, "Phone number is required"),
+    phone: z.string().optional().or(z.literal("")),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirm_password: z.string().min(1, "Please confirm your password"),
     role_id: z.string().min(1, "Role selection is required"),
@@ -76,7 +76,7 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
         full_name: values.full_name,
         username: values.username,
         email: values.email || undefined,
-        phone: values.phone,
+        phone: values.phone || undefined,
         password: values.password,
         role_id: values.role_id,
         status: values.status,
@@ -136,7 +136,7 @@ export function AddUserModal({ isOpen, onClose, onSuccess, roles }: AddUserModal
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium">Phone Number *</label>
+              <label className="text-xs font-medium">Phone Number</label>
               <Input {...register("phone")} placeholder="+1 555-0199" />
               {errors.phone && <p className="text-[11px] text-destructive">{errors.phone.message}</p>}
             </div>
