@@ -16,6 +16,7 @@ import {
   Package,
   FileText,
   UserCheck,
+  Calendar,
 } from "lucide-react";
 import { customerService, productService, saleService } from "@/services/api";
 import { CustomerItem, ProductItem, SaleUpdatePayload, SaleItem } from "@/types";
@@ -63,6 +64,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
   const [taxAmount, setTaxAmount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [notes, setNotes] = useState("");
+  const [saleDate, setSaleDate] = useState<string>("");
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +82,9 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       setTaxAmount(sale.tax_amount);
       setPaidAmount(sale.paid_amount);
       setNotes(sale.notes || "");
+      if (sale.sale_date) {
+        setSaleDate(new Date(sale.sale_date).toISOString().split("T")[0]);
+      }
 
       if (sale.items) {
         const mappedItems: LineItemState[] = sale.items.map((item) => ({
@@ -203,6 +208,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       setIsSubmitting(true);
       const payload: SaleUpdatePayload = {
         customer_id: selectedCustomer?.id || sale?.customer_id,
+        sale_date: saleDate ? new Date(saleDate).toISOString() : undefined,
         discount_amount: orderDiscount,
         tax_amount: taxAmount,
         paid_amount: paidAmount,
@@ -275,58 +281,74 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                   <User className="h-4 w-4 text-primary" /> Customer Information
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                {selectedCustomer ? (
-                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 flex justify-between items-center text-xs">
-                    <div>
-                      <div className="font-bold text-foreground flex items-center gap-2">
-                        <UserCheck className="h-4 w-4 text-primary" />
-                        {selectedCustomer.name}
+              <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground block">Customer</label>
+                  {selectedCustomer ? (
+                    <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 flex justify-between items-center text-xs">
+                      <div>
+                        <div className="font-bold text-foreground flex items-center gap-2">
+                          <UserCheck className="h-4 w-4 text-primary" />
+                          {selectedCustomer.name}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedCustomer(null)}
+                          className="text-[10px] text-destructive hover:bg-destructive/10 h-6 px-2"
+                        >
+                          Change
+                        </Button>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedCustomer(null)}
-                        className="text-[10px] text-destructive hover:bg-destructive/10 h-6 px-2"
-                      >
-                        Change
-                      </Button>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search customer to change..."
+                        value={customerSearch}
+                        onChange={(e) => {
+                          setCustomerSearch(e.target.value);
+                          setShowCustomerDropdown(true);
+                        }}
+                        className="pl-9 h-10 text-xs"
+                      />
+                      {showCustomerDropdown && customerSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-11 z-50 bg-card border rounded-xl shadow-2xl overflow-hidden divide-y text-xs">
+                          {customerSuggestions.map((cust) => (
+                            <div
+                              key={cust.id}
+                              onClick={() => {
+                                setSelectedCustomer(cust);
+                                setShowCustomerDropdown(false);
+                                setCustomerSearch("");
+                              }}
+                              className="p-3 hover:bg-accent cursor-pointer flex justify-between"
+                            >
+                              <span className="font-semibold">{cust.name}</span>
+                              <span className="text-muted-foreground">{cust.phone}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search customer to change..."
-                      value={customerSearch}
-                      onChange={(e) => {
-                        setCustomerSearch(e.target.value);
-                        setShowCustomerDropdown(true);
-                      }}
-                      className="pl-9 h-10 text-xs"
-                    />
-                    {showCustomerDropdown && customerSuggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-11 z-50 bg-card border rounded-xl shadow-2xl overflow-hidden divide-y text-xs">
-                        {customerSuggestions.map((cust) => (
-                          <div
-                            key={cust.id}
-                            onClick={() => {
-                              setSelectedCustomer(cust);
-                              setShowCustomerDropdown(false);
-                              setCustomerSearch("");
-                            }}
-                            className="p-3 hover:bg-accent cursor-pointer flex justify-between"
-                          >
-                            <span className="font-semibold">{cust.name}</span>
-                            <span className="text-muted-foreground">{cust.phone}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-primary" />
+                    Sale Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={saleDate}
+                    onChange={(e) => setSaleDate(e.target.value)}
+                    className="h-10 text-xs bg-background/50"
+                  />
+                </div>
               </CardContent>
             </Card>
 
