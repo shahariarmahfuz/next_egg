@@ -7,27 +7,36 @@ import * as z from "zod";
 import { useQuery } from "@tanstack/react-query";
 import {
   Search,
-  User,
-  Phone,
-  Hash,
-  DollarSign,
-  AlertCircle,
   CheckCircle2,
   Calendar,
   CreditCard,
-  FileText,
   Loader2,
+  UserCheck,
+  ChevronsUpDown,
+  AlertTriangle,
+  FileText,
+  DollarSign
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 
 import { customerService, collectionService } from "@/services/api";
 import { CustomerItem, CustomerFinancialSummary, CustomerCollectionItem } from "@/types";
 import { formatCurrency } from "./collection-export-utils";
+import { useDebounce } from "@/hooks/use-debounce";
+import { cn } from "@/lib/utils";
 
 const collectionFormSchema = z.object({
   customer_id: z.string().min(1, "Customer selection is required"),
@@ -51,33 +60,31 @@ interface CollectionFormProps {
 
 export function CollectionForm({ initialData, onSubmit, isSubmitting }: CollectionFormProps) {
   const [customerSearch, setCustomerSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(initialData?.customer_id || "");
+  const [openCustomerPopover, setOpenCustomerPopover] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerItem | null>(initialData?.customer || null);
 
-  // Debounce customer search input
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedSearch(customerSearch), 300);
-    return () => clearTimeout(handler);
-  }, [customerSearch]);
+  const debouncedCustomerQuery = useDebounce(customerSearch, 300);
 
-  // Fetch customer list for searching
-  const { data: customerSearchData, isLoading: isSearchingCustomers } = useQuery({
-    queryKey: ["customers-search-select", debouncedSearch],
-    queryFn: () => customerService.getCustomers({ search: debouncedSearch || undefined, size: 20 }),
+  const { data: customerSearchData, isLoading: isCustomerLoading } = useQuery({
+    queryKey: ["customers-search", debouncedCustomerQuery],
+    queryFn: () => customerService.getCustomers({ search: debouncedCustomerQuery, size: 20 }),
   });
+  
+  const customerSuggestions: CustomerItem[] = customerSearchData?.data?.items || [];
 
-  const searchedCustomers: CustomerItem[] = customerSearchData?.data?.items || [];
-
-  // Fetch financial summary of selected customer
   const { data: summaryData, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ["customer-financial-summary", selectedCustomerId],
-    queryFn: () => collectionService.getCustomerSummary(selectedCustomerId),
-    enabled: !!selectedCustomerId,
+    queryKey: ["customer-financial-summary", selectedCustomer?.id],
+    queryFn: () => collectionService.getCustomerSummary(selectedCustomer!.id),
+    enabled: !!selectedCustomer?.id,
   });
 
   const financialSummary: CustomerFinancialSummary | undefined = summaryData?.data;
 
-  // React Hook Form
+  // For Edit modal, the date must be YYYY-MM-DD for type="date"
+  const defaultDate = initialData?.collection_date 
+    ? new Date(initialData.collection_date).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0];
+
   const {
     register,
     handleSubmit,
@@ -90,9 +97,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
     resolver: zodResolver(collectionFormSchema),
     defaultValues: {
       customer_id: initialData?.customer_id || "",
-      collection_date: initialData?.collection_date
-        ? new Date(initialData.collection_date).toISOString().slice(0, 16)
-        : new Date().toISOString().slice(0, 16),
+      collection_date: defaultDate,
       amount: initialData?.amount || 0,
       payment_method: initialData?.payment_method || "cash",
       reference_no: initialData?.reference_no || "",
@@ -105,9 +110,8 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
   const currentDueAvailable = financialSummary?.current_due ?? (initialData?.customer?.current_balance || 0);
   const maxAllowedAmount = initialData ? currentDueAvailable + initialData.amount : currentDueAvailable;
 
-  // Dynamic validation against current due
   useEffect(() => {
-    if (selectedCustomerId && financialSummary) {
+    if (selectedCustomer?.id && financialSummary) {
       if (watchedAmount > maxAllowedAmount) {
         setError("amount", {
           type: "manual",
@@ -122,12 +126,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
         clearErrors("amount");
       }
     }
-  }, [watchedAmount, financialSummary, maxAllowedAmount, selectedCustomerId, setError, clearErrors]);
-
-  const handleSelectCustomer = (cust: CustomerItem) => {
-    setSelectedCustomerId(cust.id);
-    setValue("customer_id", cust.id, { shouldValidate: true });
-  };
+  }, [watchedAmount, financialSummary, maxAllowedAmount, selectedCustomer?.id, setError, clearErrors]);
 
   const handleFormSubmit = async (values: CollectionFormValues) => {
     if (financialSummary && values.amount > maxAllowedAmount) {
@@ -141,118 +140,149 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-      {/* 1. Customer Search & Selection */}
-      <Card className="glass-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <User className="h-5 w-5 text-primary" />
-            1. Select Customer
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 w-full max-w-full pb-4">
+      {Object.keys(errors).length > 0 && (
+        <div className="p-4 rounded-xl bg-destructive/15 text-destructive border border-destructive/30 text-xs flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>Please fix the form errors before submitting.</span>
+        </div>
+      )}
+
+      {/* Collection Information Card (Mirrors Sales Information from sale-form.tsx) */}
+      <Card className="glass-card w-full">
+        <CardHeader className="pb-3 border-b">
+          <CardTitle className="text-sm font-semibold flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-primary" /> Collection Information
+            </span>
           </CardTitle>
-          <CardDescription>
-            Search customer by Name, Phone, or Customer Code to fetch real-time due status.
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {!initialData && (
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <CardContent className="p-4 space-y-4">
+          {/* Row 1: Customer Selection */}
+          <div className="space-y-1.5 w-full">
+            <label className="text-xs font-semibold text-foreground block">
+              Customer Selection
+            </label>
+            <Popover open={openCustomerPopover} onOpenChange={setOpenCustomerPopover}>
+              <PopoverTrigger asChild>
+                {selectedCustomer ? (
+                  <div className={cn(
+                    "p-3 rounded-xl border flex items-center justify-between gap-3 text-xs w-full transition-colors",
+                    initialData ? "bg-muted/40 border-border cursor-not-allowed" : "bg-primary/10 border-primary/20 hover:bg-primary/15 cursor-pointer"
+                  )} onClick={() => {
+                    if (!initialData) {
+                      setOpenCustomerPopover(true);
+                    }
+                  }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <UserCheck className="h-4 w-4 text-primary shrink-0" />
+                      <span className="font-bold text-foreground truncate">{selectedCustomer.name}</span>
+                    </div>
+                    {!initialData && <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground opacity-70" />}
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCustomerPopover}
+                    className="w-full justify-between h-10 text-xs font-normal bg-background/50 border-input hover:bg-accent/50"
+                  >
+                    <span className="flex items-center gap-2 text-muted-foreground truncate">
+                      <Search className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                      Select or search customer (Name, Phone, Code)...
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                )}
+              </PopoverTrigger>
+              {!initialData && (
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search by customer name, code, or phone..."
+                      value={customerSearch}
+                      onValueChange={setCustomerSearch}
+                    />
+                    <CommandList>
+                      {isCustomerLoading ? (
+                        <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Searching customers...
+                        </div>
+                      ) : customerSuggestions.length === 0 ? (
+                        <CommandEmpty>No customers found.</CommandEmpty>
+                      ) : (
+                        <CommandGroup>
+                          {customerSuggestions.map((cust) => (
+                            <CommandItem
+                              key={cust.id}
+                              value={`${cust.name} ${cust.customer_code || ""} ${cust.phone || ""} ${cust.id}`}
+                              onSelect={() => {
+                                setSelectedCustomer(cust);
+                                setValue("customer_id", cust.id, { shouldValidate: true });
+                                setOpenCustomerPopover(false);
+                                setCustomerSearch("");
+                              }}
+                              className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs"
+                            >
+                              <span className="font-medium text-foreground">
+                                {cust.name}{cust.phone ? ` (${cust.phone})` : ""}
+                              </span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              )}
+            </Popover>
+            {errors.customer_id && (
+              <p className="text-xs text-destructive">{errors.customer_id.message}</p>
+            )}
+          </div>
+
+          {/* Row 2: Date, Contact Number, Address */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-primary" /> Collection Date
+              </label>
               <Input
-                type="text"
-                placeholder="Search customer by name, phone, code (CUST-00001)..."
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                className="pl-9 pr-4 py-2"
+                type="date"
+                {...register("collection_date")}
+                className="h-10 text-xs bg-background/50"
+              />
+              {errors.collection_date && (
+                <p className="text-xs text-destructive">{errors.collection_date.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground block">Contact Number</label>
+              <Input
+                readOnly
+                value={selectedCustomer?.phone || ""}
+                placeholder="N/A"
+                className="h-10 text-xs bg-muted/40 text-muted-foreground"
               />
             </div>
-          )}
 
-          {/* Customer Suggestions List */}
-          {!initialData && !selectedCustomerId && (
-            <div className="border rounded-xl max-h-48 overflow-y-auto divide-y bg-card/60 backdrop-blur">
-              {isSearchingCustomers ? (
-                <div className="p-4 flex items-center justify-center text-sm text-muted-foreground gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  Searching customer directory...
-                </div>
-              ) : searchedCustomers.length === 0 ? (
-                <div className="p-4 text-center text-sm text-muted-foreground">
-                  No active customer found matching "{customerSearch}"
-                </div>
-              ) : (
-                searchedCustomers.map((cust) => (
-                  <button
-                    key={cust.id}
-                    type="button"
-                    onClick={() => handleSelectCustomer(cust)}
-                    className="w-full text-left p-3 hover:bg-accent/60 transition-colors flex items-center justify-between group"
-                  >
-                    <div>
-                      <div className="font-semibold text-sm group-hover:text-primary transition-colors flex items-center gap-2">
-                        <span>{cust.name}</span>
-                        <Badge variant="outline" className="text-[10px]">
-                          {cust.customer_code}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {cust.phone}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-medium text-muted-foreground">Current Due</div>
-                      <div className="text-sm font-bold text-amber-500">
-                        {formatCurrency(cust.current_balance)}
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground block">Customer Address</label>
+              <Input
+                readOnly
+                value={selectedCustomer?.address || ""}
+                placeholder="N/A"
+                className="h-10 text-xs bg-muted/40 text-muted-foreground truncate"
+              />
             </div>
-          )}
-
-          {/* Selected Customer Header Banner */}
-          {selectedCustomerId && (
-            <div className="p-4 rounded-xl border bg-primary/5 border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                  <User className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="font-bold text-base">
-                    {financialSummary?.name || initialData?.customer?.name}
-                  </div>
-                </div>
-              </div>
-
-              {!initialData && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedCustomerId("");
-                    setValue("customer_id", "", { shouldValidate: true });
-                  }}
-                >
-                  Change Customer
-                </Button>
-              )}
-            </div>
-          )}
-
-          {errors.customer_id && (
-            <p className="text-xs text-destructive flex items-center gap-1 font-medium">
-              <AlertCircle className="h-3.5 w-3.5" />
-              {errors.customer_id.message}
-            </p>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* 2. Real-Time Customer Financial Summary Metrics Cards */}
-      {selectedCustomerId && (
+      {/* Customer Financial Summary */}
+      {selectedCustomer && (
         <div className="space-y-2">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
             Customer Financial Dues Summary
@@ -264,7 +294,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
                 {isSummaryLoading ? (
                   <Skeleton className="h-7 w-24" />
                 ) : (
-                  <span className="text-2xl font-extrabold text-amber-500 ">
+                  <span className="text-2xl font-extrabold text-amber-500">
                     {formatCurrency(financialSummary?.current_due)}
                   </span>
                 )}
@@ -277,7 +307,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
                 {isSummaryLoading ? (
                   <Skeleton className="h-7 w-24" />
                 ) : (
-                  <span className="text-2xl font-extrabold text-foreground ">
+                  <span className="text-2xl font-extrabold text-foreground">
                     {formatCurrency(financialSummary?.total_sales)}
                   </span>
                 )}
@@ -290,7 +320,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
                 {isSummaryLoading ? (
                   <Skeleton className="h-7 w-24" />
                 ) : (
-                  <span className="text-2xl font-extrabold text-emerald-500 ">
+                  <span className="text-2xl font-extrabold text-emerald-500">
                     {formatCurrency(financialSummary?.total_paid)}
                   </span>
                 )}
@@ -313,69 +343,39 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
         </div>
       )}
 
-      {/* 3. Collection Voucher Details Form */}
-      <Card className="glass-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-emerald-500" />
-            2. Payment Collection Entry
+      {/* Payment Details Card */}
+      <Card className="glass-card w-full">
+        <CardHeader className="pb-3 border-b">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-emerald-500" /> Payment Details
           </CardTitle>
-          <CardDescription>
-            Record collection date, payment method, reference, and collection amount.
-          </CardDescription>
         </CardHeader>
-
-        <CardContent className="space-y-4">
+        <CardContent className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Collection Date */}
-            <div className="space-y-2">
-              <label htmlFor="collection_date" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-primary" />
-                Collection Date *
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5 text-emerald-500" /> Collection Amount ($)
               </label>
               <Input
-                id="collection_date"
-                type="datetime-local"
-                {...register("collection_date")}
-                className="w-full"
-              />
-              {errors.collection_date && (
-                <p className="text-xs text-destructive">{errors.collection_date.message}</p>
-              )}
-            </div>
-
-            {/* Collection Amount */}
-            <div className="space-y-2">
-              <label htmlFor="amount" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
-                Collection Amount ($) *
-              </label>
-              <Input
-                id="amount"
                 type="number"
                 step="0.01"
                 min="0.01"
                 placeholder="0.00"
                 {...register("amount", { valueAsNumber: true })}
-                className="w-full text-lg font-bold text-emerald-500"
+                className="h-10 text-lg font-bold text-emerald-500 bg-background/50"
               />
               {errors.amount && (
-                <p className="text-xs text-destructive font-medium flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  {errors.amount.message}
-                </p>
+                <p className="text-xs text-destructive">{errors.amount.message}</p>
               )}
             </div>
 
-            {/* Payment Method */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5 text-primary" />
-                Payment Method *
+                <CreditCard className="h-3.5 w-3.5 text-primary" /> Payment Method
               </label>
               <select
                 {...register("payment_method")}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="w-full h-10 rounded-md border border-input bg-background/50 px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="cash">Cash Payment</option>
                 <option value="bank_transfer">Bank Transfer</option>
@@ -388,38 +388,34 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
               )}
             </div>
           </div>
-
-          {/* Notes (Optional) */}
-          <div className="space-y-2 pt-2">
-            <label htmlFor="notes" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              Notes & Remarks (Optional)
+          
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Notes & Remarks (Optional)
             </label>
-            <textarea
-              id="notes"
-              rows={3}
+            <Input
+              type="text"
               placeholder="Additional comments or payment breakdown details..."
               {...register("notes")}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="h-10 text-xs bg-background/50"
             />
           </div>
 
-          {/* Submit Action */}
           <div className="pt-4 flex justify-end gap-3 border-t">
             <Button
               type="submit"
-              disabled={isSubmitting || !selectedCustomerId || !!errors.amount}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-6 font-semibold"
+              disabled={isSubmitting || !selectedCustomer || !!errors.amount}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm px-6 font-semibold h-9 text-xs"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing Collection...
+                  Processing...
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  {initialData ? "Update Collection Voucher" : "Save Collection Voucher"}
+                  {initialData ? "Update Collection" : "Save Collection"}
                 </>
               )}
             </Button>
