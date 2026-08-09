@@ -90,7 +90,7 @@ RUN chmod +x /app/start.sh
 # Expose Render PORT (Only public entry port, default 10000)
 EXPOSE 10000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
   CMD curl -f http://127.0.0.1:8000/health || exit 1
 
 CMD ["/app/start.sh"]
