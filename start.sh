@@ -31,10 +31,12 @@ asyncio.run(init_db())
 
 # 2. Start FastAPI Backend in Background (With stdin redirected from /dev/null)
 echo "[2/3] Starting FastAPI Backend on 127.0.0.1:8000 (Internal Only)..."
+# We run uvicorn without --workers when running inside a shell script to avoid process management issues 
+# Or we can keep --workers 2 but ensure the parent shell stays alive to manage it.
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 < /dev/null > /app/backend.log 2>&1 &
 BACKEND_PID=$!
 
-# Wait briefly for FastAPI to initialize (optional, we won't block Next.js from starting)
+# Wait briefly for FastAPI to initialize
 echo "Waiting up to 15 seconds for FastAPI backend readiness on http://127.0.0.1:8000/health..."
 MAX_RETRIES=15
 RETRY_COUNT=0
@@ -46,9 +48,11 @@ done
 if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
     echo "FastAPI Backend is healthy (PID: $BACKEND_PID) and listening on 127.0.0.1:8000!"
 else
-    echo "WARNING: FastAPI Backend not fully ready within 15 seconds, but continuing to start Next.js..."
+    echo "ERROR: FastAPI Backend failed to start within 15 seconds."
     echo "Tail of backend.log:"
-    tail -n 10 /app/backend.log
+    tail -n 50 /app/backend.log
+    kill $BACKEND_PID 2>/dev/null || true
+    exit 1
 fi
 
 # 3. Start Next.js Frontend (Render Public $PORT)
@@ -60,8 +64,25 @@ export HOSTNAME="0.0.0.0"
 export SERVER_API_URL="http://127.0.0.1:8000/api/v1"
 export NEXT_PUBLIC_API_URL="/api/v1"
 
-# Handle container shutdown signals
-trap 'kill $BACKEND_PID 2>/dev/null; exit 0' SIGTERM SIGINT
+node server.js &
+NODE_PID=$!
 
-# Run Next.js server in foreground
-exec node server.js
+# Handle container shutdown signals
+trap 'echo "Shutting down processes..."; kill -TERM $BACKEND_PID $NODE_PID 2>/dev/null; wait $BACKEND_PID $NODE_PID; exit 0' SIGTERM SIGINT
+
+# Wait for ANY process to exit. If one exits, the container must exit to let the orchestrator restart it.
+wait -n $BACKEND_PID $NODE_PID
+EXIT_CODE=$?
+
+echo "========================================================="
+echo "CRITICAL: A process exited unexpectedly with code $EXIT_CODE."
+echo "========================================================="
+echo "--- Tail of Backend Log ---"
+tail -n 50 /app/backend.log
+echo "---------------------------"
+
+# Terminate the remaining processes
+kill -TERM $BACKEND_PID $NODE_PID 2>/dev/null || true
+wait $BACKEND_PID $NODE_PID 2>/dev/null || true
+
+exit $EXIT_CODE

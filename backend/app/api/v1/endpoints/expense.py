@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select, or_
 from app.models.expense import Expense
-from app.models.expense_category import ExpenseCategory
+from app.models.expense import ExpenseCategory
 
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
