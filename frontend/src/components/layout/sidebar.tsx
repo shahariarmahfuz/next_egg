@@ -135,6 +135,24 @@ export function SidebarContent({
           {!collapsed && <span>Dashboard</span>}
         </Link>
 
+        {/* Filtered Dashboard (Owner/Admin Only) */}
+        {(user?.role?.code === 'owner' || user?.role?.code === 'admin') && (
+          <Link
+            href="/dashboard/filtered"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
+              pathname === "/dashboard/filtered"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            )}
+            title={collapsed ? "Filtered Dashboard" : undefined}
+          >
+            <BarChart3 className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>Filtered Dashboard</span>}
+          </Link>
+        )}
+
         {/* Centralized Reports Hub */}
         {(hasPermission("reports.view") || hasPermission("sales.report.view")) && (
           <Link

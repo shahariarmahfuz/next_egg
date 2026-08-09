@@ -3,6 +3,9 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, or_
+from app.models.supplier_payment import SupplierPayment
+from app.models.supplier import Supplier
 
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
@@ -48,6 +51,35 @@ async def list_supplier_payments(
     )
     pages = math.ceil(total / size) if total > 0 else 0
 
+    agg_query = select(
+        func.count(SupplierPayment.id).label("count"),
+        func.coalesce(func.sum(SupplierPayment.amount), 0.0).label("total_amount")
+    )
+    if search:
+        pattern = f"%{search}%"
+        agg_query = agg_query.join(Supplier, SupplierPayment.supplier_id == Supplier.id, isouter=True).where(
+            or_(
+                SupplierPayment.voucher_no.ilike(pattern),
+                SupplierPayment.reference_no.ilike(pattern),
+                Supplier.name.ilike(pattern),
+            )
+        )
+    if supplier_id:
+        agg_query = agg_query.where(SupplierPayment.supplier_id == supplier_id)
+    if payment_method:
+        agg_query = agg_query.where(SupplierPayment.payment_method == payment_method)
+    if start_date:
+        agg_query = agg_query.where(SupplierPayment.payment_date >= start_date)
+    if end_date:
+        agg_query = agg_query.where(SupplierPayment.payment_date <= end_date)
+        
+    agg_res = await db.execute(agg_query)
+    agg_row = agg_res.one()
+    aggregate = {
+        "count": agg_row.count,
+        "total_amount": float(agg_row.total_amount),
+    }
+
     items = [SupplierPaymentResponse.model_validate(p) for p in payments]
     paginated_data = PaginatedResponse[SupplierPaymentResponse](
         items=items,
@@ -55,6 +87,7 @@ async def list_supplier_payments(
         page=page,
         size=size,
         pages=pages,
+        aggregate=aggregate
     )
 
     return ResponseModel[PaginatedResponse[SupplierPaymentResponse]](

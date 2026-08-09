@@ -47,7 +47,7 @@ export default function NewSaleReturnPage() {
       queryClient.invalidateQueries({ queryKey: ["customer-financial-summary"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Sale Return added successfully.");
-      router.push("/sale-returns");
+      // router.push("/sale-returns");
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||

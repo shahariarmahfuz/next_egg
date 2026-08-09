@@ -294,6 +294,8 @@ export const purchaseService = {
     search?: string;
     supplier_id?: string;
     payment_status?: string;
+    start_date?: string;
+    end_date?: string;
   }) => {
     return http.get<PaginatedResult<PurchaseModelItem>>("/purchases", params);
   },
@@ -574,8 +576,12 @@ export const supplierPaymentService = {
 };
 
 export const dashboardService = {
-  getSummary: async () => {
-    return http.get<DashboardCardsSummary>("/dashboard/summary");
+  getSummary: async (start_date?: string, end_date?: string) => {
+    const params = new URLSearchParams();
+    if (start_date) params.append("start_date", start_date);
+    if (end_date) params.append("end_date", end_date);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return http.get<DashboardCardsSummary>(`/dashboard/summary${qs}`);
   },
 
   getRecentSales: async () => {

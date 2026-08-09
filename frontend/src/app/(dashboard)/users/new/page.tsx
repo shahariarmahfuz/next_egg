@@ -105,7 +105,7 @@ export default function AddUserPage() {
       await userService.createUser(payload);
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(`User account "${values.username}" created successfully!`);
-      router.push("/users");
+      // router.push("/users");
     } catch (err: any) {
       setErrorMsg(err.message || "Failed to create user account.");
     }

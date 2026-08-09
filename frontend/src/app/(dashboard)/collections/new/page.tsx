@@ -39,7 +39,7 @@ export default function NewCollectionPage() {
       queryClient.invalidateQueries({ queryKey: ["collections-list"] });
       queryClient.invalidateQueries({ queryKey: ["customer-financial-summary"] });
       toast.success("Collection added successfully.");
-      router.push("/collections");
+      // router.push("/collections");
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||

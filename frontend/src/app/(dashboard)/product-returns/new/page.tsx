@@ -48,7 +48,7 @@ export default function NewProductReturnPage() {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product Return added successfully.");
-      router.push("/product-returns");
+      // router.push("/product-returns");
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||

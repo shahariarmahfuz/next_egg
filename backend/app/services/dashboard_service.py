@@ -12,7 +12,7 @@ from app.schemas.dashboard import (
 
 
 class DashboardService:
-    async def get_dashboard_summary(self, db: AsyncSession) -> DashboardCardsSummary:
+    async def get_dashboard_summary(self, db: AsyncSession, start_date=None, end_date=None) -> DashboardCardsSummary:
         """
         Executes aggregate queries for all 8 KPI performance metrics based on strict business rules:
         1. Total Sales = SUM(Sale.grand_total)
@@ -25,6 +25,26 @@ class DashboardService:
         8. Total Profit = Total Sales - Total Purchases - Total Expenses
         """
 
+        
+        if start_date is None and end_date is None:
+            from app.services.setting_service import setting_service
+            from datetime import datetime, timezone, timedelta
+            import zoneinfo
+            
+            settings = await setting_service.get_business_settings(db)
+            tz_str = settings.timezone or "UTC"
+            try:
+                tz = zoneinfo.ZoneInfo(tz_str)
+            except Exception:
+                tz = timezone.utc
+                
+            now_tz = datetime.now(tz)
+            start_tz = datetime(now_tz.year, now_tz.month, now_tz.day, tzinfo=tz)
+            end_tz = start_tz + timedelta(days=1, microseconds=-1)
+            
+            start_date = start_tz.astimezone(timezone.utc)
+            end_date = end_tz.astimezone(timezone.utc)
+
         # 1. Total Products Count
         q_products = select(func.count(Product.id)).where(Product.status == "active")
         res_products = await db.execute(q_products)
@@ -36,31 +56,27 @@ class DashboardService:
         total_customers = res_customers.scalar() or 0
 
         # 3. Total Sales Amount (All sales invoices: Cash + Credit)
-        q_sales = select(func.coalesce(func.sum(Sale.grand_total), 0.0))
+        q_sales = select(func.coalesce(func.sum(Sale.grand_total), 0.0)).where(Sale.sale_date >= start_date, Sale.sale_date <= end_date)
         res_sales = await db.execute(q_sales)
         total_sales = float(res_sales.scalar() or 0.0)
 
         # 4. Total Cash Sales (Sales where Due Amount = 0)
-        q_cash_sales = select(func.coalesce(func.sum(Sale.grand_total), 0.0)).where(
-            Sale.due_amount <= 0.0
-        )
+        q_cash_sales = select(func.coalesce(func.sum(Sale.grand_total), 0.0)).where(Sale.due_amount <= 0.0, Sale.sale_date >= start_date, Sale.sale_date <= end_date)
         res_cash_sales = await db.execute(q_cash_sales)
         total_cash_sales = float(res_cash_sales.scalar() or 0.0)
 
         # 5. Total Due Sales (Sales where Due Amount > 0)
-        q_due_sales = select(func.coalesce(func.sum(Sale.grand_total), 0.0)).where(
-            Sale.due_amount > 0.0
-        )
+        q_due_sales = select(func.coalesce(func.sum(Sale.grand_total), 0.0)).where(Sale.due_amount > 0.0, Sale.sale_date >= start_date, Sale.sale_date <= end_date)
         res_due_sales = await db.execute(q_due_sales)
         total_due_sales = float(res_due_sales.scalar() or 0.0)
 
         # 6. Total Purchases Amount (All purchase invoices)
-        q_purchases = select(func.coalesce(func.sum(Purchase.grand_total), 0.0))
+        q_purchases = select(func.coalesce(func.sum(Purchase.grand_total), 0.0)).where(Purchase.purchase_date >= start_date, Purchase.purchase_date <= end_date)
         res_purchases = await db.execute(q_purchases)
         total_purchases = float(res_purchases.scalar() or 0.0)
 
         # 7. Total Expenses (Sum of all recorded expense entries)
-        q_expenses = select(func.coalesce(func.sum(Expense.amount), 0.0))
+        q_expenses = select(func.coalesce(func.sum(Expense.amount), 0.0)).where(Expense.expense_date >= start_date, Expense.expense_date <= end_date)
         res_expenses = await db.execute(q_expenses)
         total_expenses = float(res_expenses.scalar() or 0.0)
 
@@ -76,7 +92,7 @@ class DashboardService:
 
         # 10. Total COGS (Cost of Goods Sold based on actual batches)
         from app.models.sale import SaleItem
-        q_cogs = select(func.coalesce(func.sum(SaleItem.cogs), 0.0))
+        q_cogs = select(func.coalesce(func.sum(SaleItem.cogs), 0.0)).join(Sale).where(Sale.sale_date >= start_date, Sale.sale_date <= end_date)
         res_cogs = await db.execute(q_cogs)
         total_cogs = float(res_cogs.scalar() or 0.0)
 

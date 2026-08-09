@@ -78,7 +78,6 @@ export default function AddExpensePage() {
       setSuccessVoucher(voucher);
 
       setTimeout(() => {
-        router.push("/expenses");
       }, 1500);
     },
     onError: (err: any) => {

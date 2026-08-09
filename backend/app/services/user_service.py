@@ -120,7 +120,7 @@ class UserService:
         if user.role and user.role.code == "admin" and (not current_user.role or current_user.role.code != "owner"):
             raise ForbiddenException("Only System Owner can delete an Admin user.")
 
-        await user_repository.soft_delete(db, id=user_id)
+        await user_repository.hard_delete(db, id=user_id)
         return True
 
 

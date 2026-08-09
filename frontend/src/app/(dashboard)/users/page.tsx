@@ -16,6 +16,9 @@ import { AddUserModal } from "@/components/users/add-user-modal";
 import { EditUserModal } from "@/components/users/edit-user-modal";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatDate } from "@/utils/formatters";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertTriangle } from "lucide-react";
 
 export default function UsersPage() {
   const queryClient = useQueryClient();
@@ -26,6 +29,7 @@ export default function UsersPage() {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserItem | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -65,13 +69,20 @@ export default function UsersPage() {
   const deleteMutation = useMutation({
     mutationFn: (userId: string) => userService.deleteUser(userId),
     onSuccess: () => {
+      toast.success("User deleted successfully");
+      setDeletingUser(null);
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete user.";
+      toast.error(msg);
+      setDeletingUser(null);
+    }
   });
 
-  const handleDelete = async (user: UserItem) => {
-    if (confirm(`Are you sure you want to delete user "${user.username}"?`)) {
-      deleteMutation.mutate(user.id);
+  const handleDeleteConfirm = async () => {
+    if (deletingUser) {
+      deleteMutation.mutate(deletingUser.id);
     }
   };
 
@@ -227,7 +238,7 @@ export default function UsersPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(user)}
+                            onClick={() => setDeletingUser(user)}
                             title="Delete User"
                             className="h-7 w-7 text-destructive hover:bg-destructive/10"
                           >
@@ -287,6 +298,39 @@ export default function UsersPage() {
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["users"] })}
         roles={roles}
       />
+
+      {/* Delete User Modal */}
+      {deletingUser && (
+        <Dialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" /> Delete User
+              </DialogTitle>
+              <DialogDescription className="pt-2">
+                Are you sure you want to delete the user <strong className="text-foreground">{deletingUser.username}</strong>?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0 mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setDeletingUser(null)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete User"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

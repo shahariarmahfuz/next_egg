@@ -258,7 +258,13 @@ export function SaleForm() {
       if (andPrint && res?.data?.id) {
         router.push(`/sales/${res.data.id}/print`);
       } else {
-        router.push("/sales");
+        // Reset the form manually since we stay on the page
+        setLineItems([]);
+        setOrderDiscount(0);
+        setTaxAmount(0);
+        setPaidAmount(0);
+        setNotes("");
+        setCustomInvoiceNo("");
       }
     } catch (err: any) {
       const msg = err.message || "Failed to process sale order.";

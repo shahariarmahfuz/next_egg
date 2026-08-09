@@ -1,16 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import {
-  BarChart3,
-  Calendar,
-  DollarSign,
-  ShoppingBag,
-  ArrowLeft,
-  Filter,
-} from "lucide-react";
+import { Search, Eye } from "lucide-react";
 import { purchaseService } from "@/services/api";
 import { PurchaseItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
@@ -19,304 +11,195 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HasPermission } from "@/providers/auth-provider";
+import { Label } from "@/components/ui/label";
+import { PurchaseViewModal } from "@/components/purchases/purchase-view-modal";
+import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
-export default function PurchaseReportsPage() {
-  const [reportType, setReportType] = useState<"today" | "date_wise" | "date_range" | "monthly">("today");
-  const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+export default function PurchasesReportPage() {
+  const today = new Date().toLocaleDateString('en-CA');
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<string>("");
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [viewingPurchase, setViewingPurchase] = useState<PurchaseItem | null>(null);
 
-  const { data: reportData, isLoading } = useQuery({
-    queryKey: ["purchase-report", reportType, targetDate, startDate, endDate, month, year],
+  const debouncedSearch = useDebounce(search, 300);
+
+  const { data: purchasesData, isLoading } = useQuery({
+    queryKey: ["purchases-reports", page, debouncedSearch, paymentStatus, startDate, endDate],
     queryFn: () =>
-      purchaseService.getPurchaseReports({
-        report_type: reportType,
-        target_date: reportType === "date_wise" ? targetDate : undefined,
-        start_date: reportType === "date_range" ? startDate : undefined,
-        end_date: reportType === "date_range" ? endDate : undefined,
-        month: reportType === "monthly" ? month : undefined,
-        year: reportType === "monthly" ? year : undefined,
+      purchaseService.getPurchases({
+        page,
+        size: 15,
+        search: debouncedSearch || undefined,
+        payment_status: paymentStatus || undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
       }),
   });
 
-  const summary = reportData?.data;
-  const purchases: PurchaseItem[] = summary?.purchases || [];
+  const purchases: PurchaseItem[] = purchasesData?.data?.items || [];
+  const totalPages = purchasesData?.data?.pages || 1;
+  const pageSize = 15;
+  const aggregate = purchasesData?.data?.aggregate || { total_amount: 0, paid_amount: 0, due_amount: 0 };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "paid":
+        return <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20">Paid</Badge>;
+      case "partial":
+        return <Badge className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/20">Partial</Badge>;
+      case "due":
+        return <Badge className="bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border-rose-500/20">Due</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
 
   return (
-    <HasPermission code="purchase.report">
-      <div className="space-y-6">
-        <PageHeader
-          title="Purchase Executive Report"
-          description="Analyze procurement performance, total expenditure, supplier payment settlements, and outstanding dues."
-          action={
-            <Button asChild variant="outline">
-              <Link href="/purchases">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Purchases
-              </Link>
-            </Button>
-          }
-        />
-
-        {/* Report Timeframe Selector Tabs */}
-        <div className="flex flex-wrap gap-2 p-1 bg-muted/40 rounded-xl border max-w-fit">
-          <Button
-            variant={reportType === "today" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setReportType("today")}
-          >
-            Today
-          </Button>
-          <Button
-            variant={reportType === "date_wise" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setReportType("date_wise")}
-          >
-            Date Wise
-          </Button>
-          <Button
-            variant={reportType === "date_range" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setReportType("date_range")}
-          >
-            Date Range
-          </Button>
-          <Button
-            variant={reportType === "monthly" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setReportType("monthly")}
-          >
-            Monthly
-          </Button>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <PageHeader title="Purchase Report" description="Comprehensive report of all purchase transactions." />
+        <div className="flex items-center space-x-3 bg-card p-2 rounded-lg border shadow-sm">
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="start_date" className="text-xs">From</Label>
+            <Input type="date" id="start_date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-auto h-8 text-xs" />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="end_date" className="text-xs">To</Label>
+            <Input type="date" id="end_date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-auto h-8 text-xs" />
+          </div>
         </div>
+      </div>
 
-        {/* Dynamic Filter Controls */}
-        <Card className="glass-card">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card className="glass-card border-purple-500/30 bg-purple-500/5">
           <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
-              <Filter className="h-4 w-4 text-primary" />
-
-              {reportType === "date_wise" && (
-                <div className="flex items-center space-x-2">
-                  <span>Select Date:</span>
-                  <Input
-                    type="date"
-                    value={targetDate}
-                    onChange={(e) => setTargetDate(e.target.value)}
-                    className="h-9 w-40 text-xs"
-                  />
-                </div>
-              )}
-
-              {reportType === "date_range" && (
-                <div className="flex flex-wrap items-center space-x-2">
-                  <span>Start Date:</span>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="h-9 w-40 text-xs"
-                  />
-                  <span>End Date:</span>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="h-9 w-40 text-xs"
-                  />
-                </div>
-              )}
-
-              {reportType === "monthly" && (
-                <div className="flex items-center space-x-2">
-                  <span>Month:</span>
-                  <select
-                    value={month}
-                    onChange={(e) => setMonth(Number(e.target.value))}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-xs"
-                  >
-                    {Array.from({ length: 12 }).map((_, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        {new Date(2026, i, 1).toLocaleString("default", { month: "long" })}
-                      </option>
-                    ))}
-                  </select>
-
-                  <span>Year:</span>
-                  <select
-                    value={year}
-                    onChange={(e) => setYear(Number(e.target.value))}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-xs"
-                  >
-                    {[2024, 2025, 2026, 2027].map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="ml-auto text-xs text-muted-foreground ">
-                Report Period: <span className="font-bold text-foreground">{summary?.period || "Loading..."}</span>
-              </div>
-            </div>
+            <div className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-1">Total Purchases</div>
+            <div className="text-xl font-extrabold text-purple-500">{formatCurrency(aggregate.total_amount)}</div>
           </CardContent>
         </Card>
-
-        {/* Summary Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="glass-card">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-muted-foreground font-medium block">Total Orders</span>
-                <span className="text-2xl font-extrabold text-foreground">
-                  {summary?.total_purchases ?? 0}
-                </span>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-                <ShoppingBag className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-muted-foreground font-medium block">Total Purchase Amount</span>
-                <span className="text-2xl font-extrabold text-foreground">
-                  {formatCurrency(summary?.total_amount || 0)}
-                </span>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold">
-                <DollarSign className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-muted-foreground font-medium block">Total Settled / Paid</span>
-                <span className="text-2xl font-extrabold text-emerald-500">
-                  {formatCurrency(summary?.total_paid || 0)}
-                </span>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-                <DollarSign className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-muted-foreground font-medium block">Total Outstanding Due</span>
-                <span className="text-2xl font-extrabold text-amber-500">
-                  {formatCurrency(summary?.total_due || 0)}
-                </span>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
-                <DollarSign className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Detailed Purchase Report Table */}
-        <Card className="glass-card overflow-hidden w-full">
-          <div className="p-4 border-b font-semibold text-sm">
-            Detailed Purchase Statement ({purchases.length} records)
-          </div>
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 border-b font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">
-                <tr>
-                  <th className="px-3 py-2.5 align-middle w-12 text-center whitespace-nowrap">SL</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">PO Number</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Supplier</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Date</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Subtotal</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Grand Total</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Paid</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Due</th>
-                  <th className="px-3 py-2.5 align-middle w-[110px] whitespace-nowrap">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="h-10">
-                      <td className="px-3 py-2 align-middle text-center"><Skeleton className="h-4 w-6 mx-auto" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-24" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-36" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-16" /></td>
-                    </tr>
-                  ))
-                ) : purchases.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                      No purchase orders recorded for the selected report period.
-                    </td>
-                  </tr>
-                ) : (
-                  purchases.map((purchase, index) => (
-                    <tr key={purchase.id} className="hover:bg-accent/40 transition-colors h-10">
-                      <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">
-                        {index + 1}
-                      </td>
-                      <td className="px-3 py-2 align-middle font-medium text-primary whitespace-nowrap">
-                        {purchase.purchase_no}
-                      </td>
-                      <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap">
-                        {purchase.supplier?.name || "Supplier"}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDate(purchase.purchase_date)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-xs text-muted-foreground whitespace-nowrap font-medium">
-                        {formatCurrency(purchase.subtotal)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-xs font-semibold text-foreground whitespace-nowrap">
-                        {formatCurrency(purchase.grand_total)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-xs font-semibold text-emerald-500 whitespace-nowrap">
-                        {formatCurrency(purchase.paid_amount)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-xs font-semibold text-amber-500 whitespace-nowrap">
-                        {formatCurrency(purchase.due_amount)}
-                      </td>
-                      <td className="px-3 py-2 align-middle whitespace-nowrap">
-                        <Badge
-                          variant={
-                            purchase.payment_status === "paid"
-                              ? "success"
-                              : purchase.payment_status === "partial"
-                              ? "warning"
-                              : "secondary"
-                          }
-                          className="capitalize text-[10px] py-0 px-2 h-5"
-                        >
-                          {purchase.payment_status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
+          <CardContent className="p-4">
+            <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Paid</div>
+            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(aggregate.paid_amount)}</div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card border-orange-500/30 bg-orange-500/5">
+          <CardContent className="p-4">
+            <div className="text-xs font-semibold text-orange-600 uppercase tracking-wider mb-1">Total Due</div>
+            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(aggregate.due_amount)}</div>
+          </CardContent>
         </Card>
       </div>
-    </HasPermission>
+
+      <Card className="border-border/40 shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-border/40 bg-muted/20 flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search reference or supplier..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="pl-9 bg-background w-full"
+            />
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <select
+              value={paymentStatus}
+              onChange={(e) => {
+                setPaymentStatus(e.target.value);
+                setPage(1);
+              }}
+              className="flex h-10 w-full sm:w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="">All Statuses</option>
+              <option value="paid">Paid</option>
+              <option value="partial">Partial</option>
+              <option value="due">Due</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2.5 align-middle font-medium w-[60px] text-center whitespace-nowrap">#</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Ref No</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Date</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Supplier</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Grand Total</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Paid</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Due</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap w-[110px]">Status</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-right whitespace-nowrap w-[80px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="h-10">
+                    <td className="px-3 py-2 align-middle text-center"><Skeleton className="h-4 w-6 mx-auto" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-32" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-14" /></td>
+                    <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-10 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : purchases.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                    No purchase orders found matching your criteria.
+                  </td>
+                </tr>
+              ) : (
+                purchases.map((purchase, index) => {
+                  const serialNumber = (page - 1) * pageSize + index + 1;
+                  return (
+                    <tr key={purchase.id} className="hover:bg-accent/40 transition-colors h-10">
+                      <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">{serialNumber}</td>
+                      <td className="px-3 py-2 align-middle font-medium text-primary whitespace-nowrap">{purchase.purchase_no}</td>
+                      <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">{formatDate(purchase.purchase_date)}</td>
+                      <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap max-w-[200px] truncate" title={purchase.supplier?.name || "Walk-in Vendor"}>{purchase.supplier?.name || "Walk-in Vendor"}</td>
+                      <td className="px-3 py-2 align-middle font-semibold text-foreground whitespace-nowrap">{formatCurrency(purchase.grand_total)}</td>
+                      <td className="px-3 py-2 align-middle font-semibold text-emerald-500 whitespace-nowrap">{formatCurrency(purchase.paid_amount)}</td>
+                      <td className="px-3 py-2 align-middle font-semibold text-amber-500 whitespace-nowrap">{formatCurrency(purchase.due_amount)}</td>
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">{getStatusBadge(purchase.payment_status)}</td>
+                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewingPurchase(purchase)} title="View Purchase Details">
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 border-t bg-muted/20">
+            <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
+            <div className="flex space-x-2">
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Previous</Button>
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <PurchaseViewModal purchase={viewingPurchase} isOpen={!!viewingPurchase} onClose={() => setViewingPurchase(null)} />
+    </div>
   );
 }

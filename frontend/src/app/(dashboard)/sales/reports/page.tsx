@@ -1,438 +1,205 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import {
-  BarChart3,
-  Search,
-  Calendar,
-  Download,
-  Printer,
-  FileSpreadsheet,
-  FileText,
-  DollarSign,
-  ShoppingCart,
-  ArrowLeft,
-  Package,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle2,
-  Eye,
-} from "lucide-react";
+import { Search, Eye, Filter } from "lucide-react";
 import { saleService } from "@/services/api";
-import { SaleItem, SaleReportSummaryData } from "@/types";
+import { SaleItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HasPermission } from "@/providers/auth-provider";
+import { Label } from "@/components/ui/label";
 import { SaleViewModal } from "@/components/sales/sale-view-modal";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
-export default function SaleReportPage() {
+export default function SalesReportPage() {
+  const today = new Date().toLocaleDateString('en-CA');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState<string>("month");
-  const [sortBy, setSortBy] = useState<string>("newest");
-  const [customStartDate, setCustomStartDate] = useState<string>("");
-  const [customEndDate, setCustomEndDate] = useState<string>("");
+  const [paymentStatus, setPaymentStatus] = useState<string>("");
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
   const [viewingSale, setViewingSale] = useState<SaleItem | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
 
-  // Compute ISO Start/End Dates based on preset selection
-  const getDateRange = () => {
-    const now = new Date();
-    if (dateFilter === "today") {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      return { start_date: start, end_date: undefined };
-    } else if (dateFilter === "yesterday") {
-      const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-      const start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).toISOString();
-      const end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59).toISOString();
-      return { start_date: start, end_date: end };
-    } else if (dateFilter === "week") {
-      const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
-      const start = new Date(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate()).toISOString();
-      return { start_date: start, end_date: undefined };
-    } else if (dateFilter === "month") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      return { start_date: start, end_date: undefined };
-    } else if (dateFilter === "year") {
-      const start = new Date(now.getFullYear(), 0, 1).toISOString();
-      return { start_date: start, end_date: undefined };
-    } else if (dateFilter === "custom" && customStartDate) {
-      return {
-        start_date: new Date(customStartDate).toISOString(),
-        end_date: customEndDate ? new Date(customEndDate).toISOString() : undefined,
-      };
-    }
-    return { start_date: undefined, end_date: undefined };
-  };
-
-  const { start_date, end_date } = getDateRange();
-
-  // Fetch Report Summary Cards Metrics
-  const { data: reportSummaryData, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ["sales-report-summary", debouncedSearch, dateFilter, customStartDate, customEndDate],
-    queryFn: () =>
-      saleService.getSaleReports({
-        search: debouncedSearch || undefined,
-        start_date,
-        end_date,
-      }),
-  });
-
-  // Fetch Server-Side Paginated & Filtered Sales
-  const { data: salesData, isLoading: isSalesLoading } = useQuery({
-    queryKey: ["sales-report-list", page, debouncedSearch, sortBy, dateFilter, customStartDate, customEndDate],
+  const { data: salesData, isLoading } = useQuery({
+    queryKey: ["sales-reports", page, debouncedSearch, paymentStatus, startDate, endDate],
     queryFn: () =>
       saleService.getSales({
         page,
         size: 15,
         search: debouncedSearch || undefined,
-        start_date,
-        end_date,
-        sort_by: sortBy,
+        payment_status: paymentStatus || undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
       }),
   });
 
-  const summary: SaleReportSummaryData = reportSummaryData?.data || {
-    total_sales: 0,
-    total_sale_amount: 0,
-    total_discount: 0,
-    total_paid: 0,
-    total_due: 0,
-    total_items_sold: 0,
-  };
-
   const sales: SaleItem[] = salesData?.data?.items || [];
   const totalPages = salesData?.data?.pages || 1;
+  const pageSize = 15;
+  const aggregate = salesData?.data?.aggregate || { total_amount: 0, paid_amount: 0, due_amount: 0 };
 
-  // Export File Generators
-  const handleExportCSV = () => {
-    if (sales.length === 0) return;
-
-    const headers = ["Invoice No", "Sale Date", "Customer Name", "Customer Phone", "Line Items", "Grand Total", "Paid Amount", "Due Amount", "Payment Status"];
-    const rows = sales.map((s) => [
-      `"${s.invoice_no}"`,
-      `"${formatDate(s.sale_date)}"`,
-      `"${s.customer?.name || "Cash Customer"}"`,
-      `"${s.customer?.phone || ""}"`,
-      s.items?.length || 0,
-      s.grand_total,
-      s.paid_amount,
-      s.due_amount,
-      `"${s.payment_status}"`,
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `sales_report_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handlePrint = () => {
-    window.print();
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "paid":
+        return <Badge className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20">Paid</Badge>;
+      case "partial":
+        return <Badge className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/20">Partial</Badge>;
+      case "due":
+        return <Badge className="bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 border-rose-500/20">Due</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
   return (
-    <HasPermission code="sales.report.view">
-      <div className="space-y-6 print:p-0">
-        <PageHeader
-          title="Sales Executive Report"
-          description="Comprehensive analytical report covering revenue, customer due balances, line discounts, and item volumes."
-          action={
-            <div className="flex flex-wrap space-x-2 print:hidden">
-              <Button variant="outline" size="sm" onClick={handlePrint}>
-                <Printer className="mr-1.5 h-4 w-4 text-primary" />
-                Print Report
-              </Button>
-
-              <HasPermission code="sales.report.export">
-                <Button variant="outline" size="sm" onClick={handleExportCSV}>
-                  <FileSpreadsheet className="mr-1.5 h-4 w-4 text-emerald-500" />
-                  Export CSV / Excel
-                </Button>
-              </HasPermission>
-
-              <Button asChild variant="default" size="sm">
-                <Link href="/sales">
-                  <ArrowLeft className="mr-1.5 h-4 w-4" />
-                  Manage Sales
-                </Link>
-              </Button>
-            </div>
-          }
-        />
-
-        {/* 6 Summary Cards (KPIs) */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-1">
-              <span className="text-[11px] text-muted-foreground font-medium block">Total Sales</span>
-              {isSummaryLoading ? (
-                <Skeleton className="h-7 w-16" />
-              ) : (
-                <span className="text-xl font-extrabold text-foreground">{summary.total_sales}</span>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-1">
-              <span className="text-[11px] text-muted-foreground font-medium block">Total Revenue</span>
-              {isSummaryLoading ? (
-                <Skeleton className="h-7 w-24" />
-              ) : (
-                <span className="text-xl font-extrabold text-primary ">{formatCurrency(summary.total_sale_amount)}</span>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-1">
-              <span className="text-[11px] text-muted-foreground font-medium block">Total Discount</span>
-              {isSummaryLoading ? (
-                <Skeleton className="h-7 w-20" />
-              ) : (
-                <span className="text-xl font-extrabold text-amber-500 ">{formatCurrency(summary.total_discount)}</span>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-1">
-              <span className="text-[11px] text-muted-foreground font-medium block">Total Collected</span>
-              {isSummaryLoading ? (
-                <Skeleton className="h-7 w-24" />
-              ) : (
-                <span className="text-xl font-extrabold text-emerald-500 ">{formatCurrency(summary.total_paid)}</span>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-1">
-              <span className="text-[11px] text-muted-foreground font-medium block">Total Outstanding Due</span>
-              {isSummaryLoading ? (
-                <Skeleton className="h-7 w-24" />
-              ) : (
-                <span className="text-xl font-extrabold text-amber-500 ">{formatCurrency(summary.total_due)}</span>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-4 space-y-1">
-              <span className="text-[11px] text-muted-foreground font-medium block">Items Sold Volume</span>
-              {isSummaryLoading ? (
-                <Skeleton className="h-7 w-16" />
-              ) : (
-                <span className="text-xl font-extrabold text-foreground ">{summary.total_items_sold}</span>
-              )}
-            </CardContent>
-          </Card>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <PageHeader title="Sales Report" description="Comprehensive report of all sales transactions." />
+        <div className="flex items-center space-x-3 bg-card p-2 rounded-lg border shadow-sm">
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="start_date" className="text-xs">From</Label>
+            <Input type="date" id="start_date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-auto h-8 text-xs" />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="end_date" className="text-xs">To</Label>
+            <Input type="date" id="end_date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-auto h-8 text-xs" />
+          </div>
         </div>
+      </div>
 
-        {/* Filters and Sorting Bar */}
-        <Card className="glass-card print:hidden">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-              <div className="relative w-full md:w-80">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search invoice #, customer name, phone..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 h-10 text-xs"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
-                {/* Date Filter Preset */}
-                <select
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="year">This Year</option>
-                  <option value="custom">Custom Date Range</option>
-                </select>
-
-                {/* Sort By Selector */}
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                  <option value="highest_amount">Highest Amount</option>
-                  <option value="lowest_amount">Lowest Amount</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Custom Date Range Pickers */}
-            {dateFilter === "custom" && (
-              <div className="flex flex-wrap items-center gap-3 pt-2 border-t text-xs">
-                <span className="font-medium text-muted-foreground flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5" /> Start Date:
-                </span>
-                <Input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="h-8 w-40 text-xs"
-                />
-                <span className="font-medium text-muted-foreground">End Date:</span>
-                <Input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="h-8 w-40 text-xs"
-                />
-              </div>
-            )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card className="glass-card border-blue-500/30 bg-blue-500/5">
+          <CardContent className="p-4">
+            <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">Total Sales</div>
+            <div className="text-xl font-extrabold text-blue-500">{formatCurrency(aggregate.total_amount)}</div>
           </CardContent>
         </Card>
+        <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
+          <CardContent className="p-4">
+            <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Paid</div>
+            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(aggregate.paid_amount)}</div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card border-orange-500/30 bg-orange-500/5">
+          <CardContent className="p-4">
+            <div className="text-xs font-semibold text-orange-600 uppercase tracking-wider mb-1">Total Due</div>
+            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(aggregate.due_amount)}</div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Report Table */}
-        <Card className="glass-card overflow-hidden w-full">
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 border-b font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">
-                <tr>
-                  <th className="px-3 py-2.5 align-middle w-12 text-center whitespace-nowrap">SL</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Invoice #</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Date</th>
-                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Customer</th>
-                  <th className="px-3 py-2.5 align-middle text-center whitespace-nowrap">Items</th>
-                  <th className="px-3 py-2.5 align-middle text-right whitespace-nowrap">Grand Total</th>
-                  <th className="px-3 py-2.5 align-middle text-right whitespace-nowrap">Paid</th>
-                  <th className="px-3 py-2.5 align-middle text-right whitespace-nowrap">Due</th>
-                  <th className="px-3 py-2.5 align-middle w-[120px] text-right whitespace-nowrap print:hidden">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {isSalesLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="h-10">
-                      <td className="px-3 py-2 align-middle text-center"><Skeleton className="h-4 w-6 mx-auto" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-24" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-28" /></td>
-                      <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-36" /></td>
-                      <td className="px-3 py-2 align-middle text-center"><Skeleton className="h-4 w-12 mx-auto" /></td>
-                      <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
-                      <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
-                      <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
-                      <td className="px-3 py-2 align-middle text-right print:hidden"><Skeleton className="h-4 w-16 ml-auto" /></td>
-                    </tr>
-                  ))
-                ) : sales.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                      No sales records found matching the report filter parameters.
-                    </td>
+      <Card className="border-border/40 shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-border/40 bg-muted/20 flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search invoice or customer..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="pl-9 bg-background w-full"
+            />
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <select
+              value={paymentStatus}
+              onChange={(e) => {
+                setPaymentStatus(e.target.value);
+                setPage(1);
+              }}
+              className="flex h-10 w-full sm:w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="">All Statuses</option>
+              <option value="paid">Paid</option>
+              <option value="partial">Partial</option>
+              <option value="due">Due</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2.5 align-middle font-medium w-[60px] text-center whitespace-nowrap">#</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Invoice No</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Date</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Customer</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Grand Total</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Paid</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Due</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap w-[110px]">Status</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-right whitespace-nowrap w-[80px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="h-10">
+                    <td className="px-3 py-2 align-middle text-center"><Skeleton className="h-4 w-6 mx-auto" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-32" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-14" /></td>
+                    <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-10 ml-auto" /></td>
                   </tr>
-                ) : (
-                  sales.map((sale, index) => (
+                ))
+              ) : sales.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                    No sales invoices found matching your criteria.
+                  </td>
+                </tr>
+              ) : (
+                sales.map((sale, index) => {
+                  const serialNumber = (page - 1) * pageSize + index + 1;
+                  return (
                     <tr key={sale.id} className="hover:bg-accent/40 transition-colors h-10">
-                      <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">
-                        {index + 1}
-                      </td>
-                      <td className="px-3 py-2 align-middle font-medium text-primary whitespace-nowrap">
-                        {sale.invoice_no}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-xs font-medium text-muted-foreground whitespace-nowrap">
-                        {formatDate(sale.sale_date)}
-                      </td>
-                      <td className="px-3 py-2 align-middle">
-                        <div className="font-semibold text-foreground">{sale.customer?.name || "Walk-in Cash Customer"}</div>
-                        {sale.customer?.phone && (
-                          <div className="text-[10px] text-muted-foreground">{sale.customer.phone}</div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-center whitespace-nowrap">
-                        <Badge variant="outline" className="text-[10px] py-0 px-2 h-5">
-                          {sale.items?.length || 0}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 align-middle text-right text-xs font-semibold text-foreground whitespace-nowrap">
-                        {formatCurrency(sale.grand_total)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-right text-xs font-semibold text-emerald-500 whitespace-nowrap">
-                        {formatCurrency(sale.paid_amount)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-right text-xs font-semibold text-amber-500 whitespace-nowrap">
-                        {formatCurrency(sale.due_amount)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap space-x-1 print:hidden">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setViewingSale(sale)}
-                          title="View Invoice Profile"
-                        >
+                      <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">{serialNumber}</td>
+                      <td className="px-3 py-2 align-middle font-medium text-primary whitespace-nowrap">{sale.invoice_no}</td>
+                      <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">{formatDate(sale.sale_date)}</td>
+                      <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap max-w-[200px] truncate" title={sale.customer?.name || "Walk-in Cash Customer"}>{sale.customer?.name || "Walk-in Cash Customer"}</td>
+                      <td className="px-3 py-2 align-middle font-semibold text-foreground whitespace-nowrap">{formatCurrency(sale.grand_total)}</td>
+                      <td className="px-3 py-2 align-middle font-semibold text-emerald-500 whitespace-nowrap">{formatCurrency(sale.paid_amount)}</td>
+                      <td className="px-3 py-2 align-middle font-semibold text-amber-500 whitespace-nowrap">{formatCurrency(sale.due_amount)}</td>
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">{getStatusBadge(sale.payment_status)}</td>
+                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewingSale(sale)} title="View Sale Invoice Details">
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t bg-muted/20 print:hidden">
-              <span className="text-xs text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 border-t bg-muted/20">
+            <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
+            <div className="flex space-x-2">
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Previous</Button>
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Button>
             </div>
-          )}
-        </Card>
+          </div>
+        )}
+      </Card>
 
-        {/* View Modal */}
-        <SaleViewModal
-          sale={viewingSale}
-          isOpen={!!viewingSale}
-          onClose={() => setViewingSale(null)}
-        />
-      </div>
-    </HasPermission>
+      <SaleViewModal sale={viewingSale} isOpen={!!viewingSale} onClose={() => setViewingSale(null)} />
+    </div>
   );
 }

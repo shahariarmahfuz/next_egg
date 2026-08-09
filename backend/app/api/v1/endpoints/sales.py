@@ -47,6 +47,16 @@ async def list_sales(
     )
     pages = math.ceil(total / size) if total > 0 else 0
 
+    # Fetch aggregate totals for the filtered dataset
+    aggregate = await sale_service.get_sale_reports(
+        db,
+        search=search,
+        customer_id=customer_id,
+        payment_status=payment_status,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
     items = [SaleResponse.model_validate(s) for s in sales]
     paginated_data = PaginatedResponse[SaleResponse](
         items=items,
@@ -54,6 +64,7 @@ async def list_sales(
         page=page,
         size=size,
         pages=pages,
+        aggregate=aggregate
     )
 
     return ResponseModel[PaginatedResponse[SaleResponse]](

@@ -1,5 +1,7 @@
 from typing import List
-from fastapi import APIRouter, Depends
+from datetime import datetime
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies.db import get_db
@@ -18,11 +20,13 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/summary", response_model=ResponseModel[DashboardCardsSummary])
 async def get_dashboard_summary(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("dashboard.view")),
 ):
     """Calculates live summary metrics for Total Products, Customers, Suppliers, Sales, Purchases, and Dues."""
-    summary = await dashboard_service.get_dashboard_summary(db)
+    summary = await dashboard_service.get_dashboard_summary(db, start_date=start_date, end_date=end_date)
     return ResponseModel[DashboardCardsSummary](
         success=True,
         message="Dashboard summary retrieved successfully",

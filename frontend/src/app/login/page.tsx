@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, Lock, User, ShieldCheck, AlertCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Lock, User, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,11 +59,6 @@ export default function LoginPage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const fillDemoCredentials = () => {
-    setValue("username", "owner");
-    setValue("password", "Owner@123456");
   };
 
   const brandName = settings.business_name || "Enterprise Hub";
@@ -175,20 +170,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Quick Demo Fill Widget */}
-            <div className="mt-6 pt-4 border-t border-border/50 text-center space-y-2">
-              <p className="text-[11px] text-muted-foreground">Demo System Administrator Account</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={fillDemoCredentials}
-                className="w-full text-xs py-1.5 h-auto flex items-center justify-center gap-1.5"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                Fill Owner Credentials (<code className="">owner</code>)
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>

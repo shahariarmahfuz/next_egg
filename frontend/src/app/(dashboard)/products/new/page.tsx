@@ -30,7 +30,6 @@ export default function NewProductPage() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-categories"] });
       toast.success("Product added successfully.");
-      router.push("/products");
     },
     onError: (err: any) => {
       const msg = err?.message || "Failed to add product.";

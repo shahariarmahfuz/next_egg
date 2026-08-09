@@ -21,6 +21,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     page: int = Field(ge=1, description="Current page number")
     size: int = Field(ge=1, description="Page size limit")
     pages: int = Field(ge=0, description="Total available pages")
+    aggregate: Optional[dict[str, Any]] = Field(default=None, description="Aggregate totals for the filtered dataset")
 
 
 class ErrorDetail(BaseModel):

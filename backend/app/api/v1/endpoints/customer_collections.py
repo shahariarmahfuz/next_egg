@@ -3,6 +3,9 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, or_
+from app.models.customer_collection import CustomerCollection
+from app.models.customer import Customer
 
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
@@ -48,6 +51,35 @@ async def list_collections(
     )
     pages = math.ceil(total / size) if total > 0 else 0
 
+    agg_query = select(
+        func.count(CustomerCollection.id).label("count"),
+        func.coalesce(func.sum(CustomerCollection.amount), 0.0).label("total_amount")
+    )
+    if search:
+        pattern = f"%{search}%"
+        agg_query = agg_query.join(Customer, CustomerCollection.customer_id == Customer.id, isouter=True).where(
+            or_(
+                CustomerCollection.voucher_no.ilike(pattern),
+                CustomerCollection.reference_no.ilike(pattern),
+                Customer.name.ilike(pattern),
+            )
+        )
+    if customer_id:
+        agg_query = agg_query.where(CustomerCollection.customer_id == customer_id)
+    if payment_method:
+        agg_query = agg_query.where(CustomerCollection.payment_method == payment_method)
+    if start_date:
+        agg_query = agg_query.where(CustomerCollection.collection_date >= start_date)
+    if end_date:
+        agg_query = agg_query.where(CustomerCollection.collection_date <= end_date)
+        
+    agg_res = await db.execute(agg_query)
+    agg_row = agg_res.one()
+    aggregate = {
+        "count": agg_row.count,
+        "total_amount": float(agg_row.total_amount),
+    }
+
     items = [CustomerCollectionResponse.model_validate(c) for c in collections]
     paginated_data = PaginatedResponse[CustomerCollectionResponse](
         items=items,
@@ -55,6 +87,7 @@ async def list_collections(
         page=page,
         size=size,
         pages=pages,
+        aggregate=aggregate
     )
 
     return ResponseModel[PaginatedResponse[CustomerCollectionResponse]](

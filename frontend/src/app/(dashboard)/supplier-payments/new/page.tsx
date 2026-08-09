@@ -39,7 +39,7 @@ export default function NewSupplierPaymentPage() {
       queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       toast.success("Supplier Payment added successfully.");
-      router.push("/supplier-payments");
+      // router.push("/supplier-payments");
     } catch (err: any) {
       const msg =
         err.response?.data?.message ||

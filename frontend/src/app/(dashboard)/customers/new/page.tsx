@@ -25,7 +25,6 @@ export default function NewCustomerPage() {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-dues"] });
       toast.success("Customer added successfully.");
-      router.push("/customers");
     },
     onError: (err: any) => {
       const msg = err?.message || "Failed to add customer.";

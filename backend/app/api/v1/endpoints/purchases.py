@@ -1,7 +1,11 @@
 import math
 from typing import Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, or_
+from app.models.purchase import Purchase
+from app.models.supplier import Supplier
 
 from app.dependencies.auth import get_current_user
 from app.dependencies.db import get_db
@@ -26,15 +30,51 @@ async def list_purchases(
     search: Optional[str] = Query(None),
     supplier_id: Optional[str] = Query(None),
     payment_status: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("purchase.view")),
 ):
     """Server-side paginated purchase order directory with search and status filtering."""
     skip = (page - 1) * size
     purchases, total = await purchase_service.get_purchases_paginated(
-        db, skip=skip, limit=size, search=search, supplier_id=supplier_id, payment_status=payment_status
+        db, skip=skip, limit=size, search=search, supplier_id=supplier_id, payment_status=payment_status, start_date=start_date, end_date=end_date
     )
     pages = math.ceil(total / size) if total > 0 else 0
+
+    agg_query = select(
+        func.count(Purchase.id).label("count"),
+        func.coalesce(func.sum(Purchase.grand_total), 0.0).label("total_amount"),
+        func.coalesce(func.sum(Purchase.paid_amount), 0.0).label("paid_amount"),
+        func.coalesce(func.sum(Purchase.due_amount), 0.0).label("due_amount")
+    )
+    if search:
+        pattern = f"%{search}%"
+        agg_query = agg_query.join(Supplier, Purchase.supplier_id == Supplier.id, isouter=True).where(
+            or_(
+                Purchase.purchase_no.ilike(pattern),
+                Purchase.invoice_no.ilike(pattern),
+                Supplier.name.ilike(pattern),
+                Supplier.supplier_code.ilike(pattern),
+            )
+        )
+    if supplier_id:
+        agg_query = agg_query.where(Purchase.supplier_id == supplier_id)
+    if payment_status:
+        agg_query = agg_query.where(Purchase.payment_status == payment_status)
+    if start_date:
+        agg_query = agg_query.where(Purchase.purchase_date >= start_date)
+    if end_date:
+        agg_query = agg_query.where(Purchase.purchase_date <= end_date)
+        
+    agg_res = await db.execute(agg_query)
+    agg_row = agg_res.one()
+    aggregate = {
+        "count": agg_row.count,
+        "total_amount": float(agg_row.total_amount),
+        "paid_amount": float(agg_row.paid_amount),
+        "due_amount": float(agg_row.due_amount),
+    }
 
     items = [PurchaseResponse.model_validate(p) for p in purchases]
     paginated_data = PaginatedResponse[PurchaseResponse](
@@ -43,6 +83,7 @@ async def list_purchases(
         page=page,
         size=size,
         pages=pages,
+        aggregate=aggregate
     )
 
     return ResponseModel[PaginatedResponse[PurchaseResponse]](

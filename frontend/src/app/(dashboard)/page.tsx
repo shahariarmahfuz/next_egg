@@ -27,10 +27,11 @@ import {
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
 export default function DashboardPage() {
+  const today = new Date().toLocaleDateString('en-CA'); // Gets YYYY-MM-DD in local time
   // Independent query 1: Cards summary
   const { data: summaryQueryData, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ["dashboard-summary"],
-    queryFn: () => dashboardService.getSummary(),
+    queryKey: ["dashboard-summary", today],
+    queryFn: () => dashboardService.getSummary(today, today),
   });
 
   const summary: DashboardCardsSummary = summaryQueryData?.data || {

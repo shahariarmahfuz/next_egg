@@ -26,6 +26,7 @@ export interface PaginatedResult<T> {
   page: number;
   size: number;
   pages: number;
+  aggregate?: Record<string, number>;
 }
 
 export interface HealthCheckData {

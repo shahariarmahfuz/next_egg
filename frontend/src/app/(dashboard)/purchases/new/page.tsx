@@ -39,7 +39,6 @@ export default function NewPurchasePage() {
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Purchase added successfully.");
-      router.push("/purchases");
     },
     onError: (err: any) => {
       const msg = err?.message || "Failed to add purchase.";

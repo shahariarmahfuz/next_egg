@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 const userUpdateSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
-  phone: z.string().min(5, "Phone number is required"),
+  phone: z.string().optional().or(z.literal("")),
   password: z.string().optional().or(z.literal("")),
   role_id: z.string().min(1, "Role selection is required"),
   status: z.string(),
@@ -55,7 +55,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
       reset({
         full_name: user.full_name,
         email: user.email || "",
-        phone: user.phone,
+        phone: user.phone || "",
         password: "",
         role_id: user.role_id,
         status: user.status,
@@ -72,7 +72,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
       const payload: UserUpdatePayload = {
         full_name: values.full_name,
         email: values.email || undefined,
-        phone: values.phone,
+        phone: values.phone || undefined,
         role_id: values.role_id,
         status: values.status,
       };
@@ -125,7 +125,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium">Phone Number *</label>
+              <label className="text-xs font-medium">Phone Number</label>
               <Input {...register("phone")} />
               {errors.phone && <p className="text-[11px] text-destructive">{errors.phone.message}</p>}
             </div>

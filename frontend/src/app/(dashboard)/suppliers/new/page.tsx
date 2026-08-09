@@ -25,7 +25,6 @@ export default function NewSupplierPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       toast.success("Supplier added successfully.");
-      router.push("/suppliers");
     },
     onError: (err: any) => {
       const msg = err?.message || "Failed to add supplier.";
