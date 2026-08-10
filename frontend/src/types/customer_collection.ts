@@ -51,10 +51,12 @@ export interface CustomerFinancialSummary {
   customer_id: string;
   customer_code: string;
   name: string;
-  phone: string;
+  phone?: string;
+  opening_balance: number;
   current_due: number;
   total_sales: number;
   total_paid: number;
+  total_returns: number;
   remaining_due: number;
 }
 

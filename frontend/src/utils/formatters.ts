@@ -17,15 +17,18 @@ function applySeparators(valueStr: string, thousandSep: string, decimalSep: stri
 /**
  * Format raw numbers as localized currency strings based on Business Settings
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | undefined | null): string {
   const { settings } = useSettingsStore.getState();
   const { currency, thousand_separator, decimal_separator } = settings;
+
+  // Safely handle null/undefined/NaN values to prevent 'NaN' display
+  const safeAmount = (amount == null || isNaN(amount)) ? 0 : amount;
 
   // Format number using standard US format first to get thousands and decimal correctly
   const numStr = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: currency.decimal_places,
-  }).format(amount);
+  }).format(safeAmount);
 
   const localizedNum = applySeparators(numStr, thousand_separator, decimal_separator);
 
@@ -39,15 +42,18 @@ export function formatCurrency(amount: number): string {
 /**
  * Format raw numbers with thousand and decimal separators
  */
-export function formatNumber(amount: number, forceDecimals?: number): string {
+export function formatNumber(amount: number | undefined | null, forceDecimals?: number): string {
   const { settings } = useSettingsStore.getState();
   const { currency, thousand_separator, decimal_separator } = settings;
   const decimals = forceDecimals !== undefined ? forceDecimals : currency.decimal_places;
 
+  // Safely handle null/undefined/NaN values
+  const safeAmount = (amount == null || isNaN(amount)) ? 0 : amount;
+
   const numStr = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: decimals,
-  }).format(amount);
+  }).format(safeAmount);
 
   return applySeparators(numStr, thousand_separator, decimal_separator);
 }

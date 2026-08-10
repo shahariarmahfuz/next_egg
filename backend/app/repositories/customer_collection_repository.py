@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from app.models.customer import Customer
 from app.models.customer_collection import CustomerCollection
 from app.models.sale import Sale
+from app.models.sale_return import SaleReturn
 from app.repositories.base import BaseRepository
 from app.schemas.customer_collection import CustomerCollectionCreate, CustomerCollectionUpdate
 
@@ -112,11 +113,20 @@ class CustomerCollectionRepository(
         self, db: AsyncSession, customer_id: str
     ) -> Optional[dict]:
         """
-        Calculates financial stats for a given customer:
-        - Current Due (customer.current_balance)
-        - Total Sales (sum of Sale.grand_total)
-        - Total Paid (sum of Sale.paid_amount + sum of CustomerCollection.amount)
-        - Remaining Due (customer.current_balance)
+        Calculates financial stats for a given customer using a consistent
+        single source of truth:
+
+        - current_due: customer.current_balance (authoritative running balance)
+        - total_sales: SUM(Sale.grand_total) for this customer
+        - total_paid: SUM(CustomerCollection.amount) — only actual collection payments
+        - total_returns: SUM(SaleReturn.grand_total) for this customer
+        - opening_balance: customer.opening_balance
+        - remaining_due: same as current_due (current_balance is authoritative)
+
+        NOTE: total_paid must NOT include Sale.paid_amount. The sale's paid_amount
+        is the portion paid at the time of sale — it was already subtracted from
+        the due_amount that was added to customer.current_balance. Including it
+        would double-count payments relative to the authoritative current_balance.
         """
         # Fetch customer
         cust_query = select(Customer).where(Customer.id == customer_id)
@@ -125,36 +135,42 @@ class CustomerCollectionRepository(
         if not customer:
             return None
 
-        # Total Sales sum
+        # Total Sales (grand_total only — do NOT include paid_amount here)
         sales_query = select(
             func.coalesce(func.sum(Sale.grand_total), 0.0),
-            func.coalesce(func.sum(Sale.paid_amount), 0.0),
         ).where(Sale.customer_id == customer_id)
         sales_res = await db.execute(sales_query)
-        row = sales_res.first()
-        total_sales_grand = float(row[0]) if row else 0.0
-        total_sales_paid = float(row[1]) if row else 0.0
+        total_sales_grand = float(sales_res.scalar() or 0.0)
 
-        # Total Collections sum
+        # Total Collections (only actual collection payments from customers)
         col_query = select(func.coalesce(func.sum(CustomerCollection.amount), 0.0)).where(
             CustomerCollection.customer_id == customer_id
         )
         col_res = await db.execute(col_query)
         total_collections = float(col_res.scalar() or 0.0)
 
+        # Total Sale Returns
+        returns_query = select(
+            func.coalesce(func.sum(SaleReturn.grand_total), 0.0)
+        ).where(SaleReturn.customer_id == customer_id)
+        returns_res = await db.execute(returns_query)
+        total_returns = float(returns_res.scalar() or 0.0)
+
         total_sales = round(total_sales_grand, 2)
-        total_paid = round(total_sales_paid + total_collections, 2)
-        current_due = round(customer.current_balance, 2)
+        total_paid = round(total_collections, 2)
+        current_due = round(float(customer.current_balance), 2)
         remaining_due = current_due
 
         return {
             "customer_id": customer.id,
             "customer_code": customer.customer_code,
             "name": customer.name,
-            "phone": customer.phone,
+            "phone": customer.phone or "",
+            "opening_balance": round(float(customer.opening_balance), 2),
             "current_due": current_due,
             "total_sales": total_sales,
             "total_paid": total_paid,
+            "total_returns": round(total_returns, 2),
             "remaining_due": remaining_due,
         }
 

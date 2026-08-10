@@ -85,10 +85,12 @@ class CustomerFinancialSummary(BaseModel):
     customer_id: str
     customer_code: str
     name: str
-    phone: str
+    phone: Optional[str] = ""
+    opening_balance: float = 0.0
     current_due: float
     total_sales: float
     total_paid: float
+    total_returns: float = 0.0
     remaining_due: float
 
 

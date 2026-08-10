@@ -43,7 +43,7 @@ export default function CollectionsReportPage() {
   const collections: CustomerCollectionItem[] = collectionsData?.data?.items || [];
   const totalPages = collectionsData?.data?.pages || 1;
   const pageSize = 15;
-  const aggregate = collectionsData?.data?.aggregate || { total_amount: 0, paid_amount: 0, due_amount: 0 };
+  const aggregate = collectionsData?.data?.aggregate || { total_amount: 0, count: 0 };
 
   const getMethodBadge = (method: string) => {
     switch (method?.toLowerCase()) {
@@ -82,7 +82,7 @@ export default function CollectionsReportPage() {
         <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Collected</div>
-            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(aggregate.paid_amount || aggregate.total_amount)}</div>
+            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(aggregate.total_amount)}</div>
           </CardContent>
         </Card>
       </div>
