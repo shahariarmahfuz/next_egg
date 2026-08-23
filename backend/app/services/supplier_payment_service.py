@@ -42,11 +42,6 @@ class SupplierPaymentService:
             if payment_in.amount <= 0:
                 raise BadRequestException("Supplier payment amount must be greater than zero.")
 
-            if payment_in.amount > supplier.current_balance:
-                raise BadRequestException(
-                    f"Payment amount (${payment_in.amount:.2f}) cannot exceed current supplier due balance (${supplier.current_balance:.2f})."
-                )
-
             # 3. Generate Voucher Number
             payment_no = await supplier_payment_repository.generate_payment_no(db)
             pay_date = payment_in.payment_date or datetime.now(timezone.utc)
@@ -119,12 +114,6 @@ class SupplierPaymentService:
 
                 old_amount = payment.amount
                 new_amount = payment_in.amount
-
-                max_allowed_payment = supplier.current_balance + old_amount
-                if new_amount > max_allowed_payment:
-                    raise BadRequestException(
-                        f"Updated payment amount (${new_amount:.2f}) cannot exceed maximum allowed payment limit (${max_allowed_payment:.2f})."
-                    )
 
                 # Update supplier current_balance
                 supplier.current_balance = supplier.current_balance + old_amount - new_amount

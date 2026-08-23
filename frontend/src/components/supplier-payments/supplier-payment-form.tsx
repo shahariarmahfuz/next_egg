@@ -105,17 +105,6 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
   };
 
   const handleFormSubmit = async (values: SupplierPaymentFormValues) => {
-    const currentDue = financialSummary?.current_due || 0;
-    const maxAllowed = initialData ? currentDue + initialData.amount : currentDue;
-
-    if (values.amount > maxAllowed) {
-      setError("amount", {
-        type: "manual",
-        message: `Payment amount (${formatCurrency(values.amount)}) cannot exceed supplier current due (${formatCurrency(maxAllowed)})`,
-      });
-      return;
-    }
-
     await onSubmit(values);
   };
 

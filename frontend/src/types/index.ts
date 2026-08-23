@@ -16,6 +16,20 @@ export * from "./supplier";
 export * from "./supplier_payment";
 export * from "./user";
 
+export interface CustomerFinancialSummary {
+  customer_id: string;
+  name: string;
+  customer_code: string;
+  phone: string;
+  opening_balance: number;
+  current_due: number;
+  advance_balance: number;
+  total_sales: number;
+  total_paid: number;
+  total_returns: number;
+  remaining_due: number;
+}
+
 export interface LoginRequest {
   username: string;
   password: string;

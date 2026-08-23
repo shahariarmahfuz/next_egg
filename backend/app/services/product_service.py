@@ -1,5 +1,5 @@
 from typing import Optional, Sequence
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions.custom import ConflictException, NotFoundException
@@ -75,6 +75,55 @@ class ProductService:
 
         update_data = product_in.model_dump(exclude_unset=True)
         return await product_repository.update(db, db_obj=product, obj_in=update_data)
+
+    async def correct_stock(
+        self, db: AsyncSession, product_id: str, new_stock: float
+    ) -> Product:
+        """
+        Corrects product stock directly.
+        Updates product.current_stock and adds/consumes InventoryBatches to match the new stock total.
+        """
+        product = await product_repository.get_by_id(db, id=product_id)
+        if not product:
+            raise NotFoundException(f"Product with ID '{product_id}' not found.")
+            
+        diff = new_stock - product.current_stock
+        if diff == 0:
+            return product
+            
+        if diff > 0:
+            # Increase stock -> Create a new pseudo-batch
+            batch = InventoryBatch(
+                product_id=product.id,
+                purchase_id=None,
+                quantity=diff,
+                remaining_quantity=diff,
+                unit_cost=product.opening_stock_unit_cost,
+            )
+            db.add(batch)
+        else:
+            # Decrease stock -> Consume existing batches FIFO
+            qty_to_deduct = abs(diff)
+            batch_query = select(InventoryBatch).where(
+                InventoryBatch.product_id == product.id,
+                InventoryBatch.remaining_quantity > 0
+            ).order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
+            
+            batch_result = await db.execute(batch_query)
+            available_batches = batch_result.scalars().all()
+            for b in available_batches:
+                if qty_to_deduct <= 0:
+                    break
+                deduct = min(b.remaining_quantity, qty_to_deduct)
+                b.remaining_quantity -= deduct
+                qty_to_deduct -= deduct
+                db.add(b)
+                
+        product.current_stock = new_stock
+        db.add(product)
+        await db.commit()
+        await db.refresh(product)
+        return product
 
     async def delete_product(self, db: AsyncSession, product_id: str) -> bool:
         product = await product_repository.get_by_id(db, id=product_id)

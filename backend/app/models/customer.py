@@ -18,6 +18,7 @@ class Customer(TimestampedBaseModel):
     
     opening_balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     current_balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    advance_balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     credit_limit: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="active", index=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

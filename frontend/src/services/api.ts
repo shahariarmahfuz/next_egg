@@ -163,6 +163,10 @@ export const productService = {
     return http.patch<ProductItem>(`/products/${id}/status`, { status });
   },
 
+  correctStock: async (id: string, payload: { actual_stock: number }) => {
+    return http.patch<ProductItem>(`/products/${id}/correct-stock`, payload);
+  },
+
   deleteProduct: async (id: string) => {
     return http.delete<{ id: string }>(`/products/${id}`);
   },

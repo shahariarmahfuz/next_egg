@@ -27,11 +27,10 @@ import {
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
 export default function DashboardPage() {
-  const today = new Date().toLocaleDateString('en-CA'); // Gets YYYY-MM-DD in local time
   // Independent query 1: Cards summary
   const { data: summaryQueryData, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ["dashboard-summary", today],
-    queryFn: () => dashboardService.getSummary(today, today),
+    queryKey: ["dashboard-summary"],
+    queryFn: () => dashboardService.getSummary(),
   });
 
   const summary: DashboardCardsSummary = summaryQueryData?.data || {
@@ -52,10 +51,9 @@ export default function DashboardPage() {
   const { settings } = useSettingsStore();
 
   return (
-    <HasPermission code="dashboard.view">
-      <div className="space-y-6">
-        <PageHeader
-          title={`${settings.business_name || "Enterprise"} Dashboard`}
+    <div className="space-y-6">
+      <PageHeader
+        title={`${settings.business_name || "Enterprise"} Dashboard`}
           description="Real-time operational summary, sales metrics, customer & supplier balances, and recent sales transactions."
         />
 
@@ -237,8 +235,7 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
       </div>
-    </HasPermission>
+    </div>
   );
 }

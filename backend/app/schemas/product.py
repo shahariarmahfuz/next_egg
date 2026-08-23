@@ -51,6 +51,10 @@ class ProductStatusUpdate(BaseModel):
     status: str = Field(..., description="active or inactive")
 
 
+class ProductStockCorrection(BaseModel):
+    actual_stock: float = Field(..., ge=0.0, description="The actual physical stock quantity")
+
+
 class ProductResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

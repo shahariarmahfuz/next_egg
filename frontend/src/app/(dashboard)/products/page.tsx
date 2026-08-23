@@ -10,6 +10,7 @@ import {
   Trash2,
   Eye,
   AlertTriangle,
+  SlidersHorizontal,
 } from "lucide-react";
 import { productService } from "@/services/api";
 import { ProductItem } from "@/types";
@@ -21,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
 import { ProductViewModal } from "@/components/products/product-view-modal";
+import { ProductStockCorrectionModal } from "@/components/products/product-stock-correction-modal";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
 
@@ -34,6 +36,7 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [viewingProduct, setViewingProduct] = useState<ProductItem | null>(null);
+  const [correctingStockProduct, setCorrectingStockProduct] = useState<ProductItem | null>(null);
   const [hardDeletingProduct, setHardDeletingProduct] = useState<ProductItem | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
@@ -247,6 +250,15 @@ export default function ProductsPage() {
                               <Edit className="h-3.5 w-3.5" />
                             </Link>
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setCorrectingStockProduct(product)}
+                            title="Correct Stock"
+                          >
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                          </Button>
                         </HasPermission>
                         <HasPermission code="product.delete">
                           <Button
@@ -313,6 +325,13 @@ export default function ProductsPage() {
         product={viewingProduct}
         isOpen={!!viewingProduct}
         onClose={() => setViewingProduct(null)}
+      />
+
+      {/* Stock Correction Modal */}
+      <ProductStockCorrectionModal
+        product={correctingStockProduct}
+        isOpen={!!correctingStockProduct}
+        onClose={() => setCorrectingStockProduct(null)}
       />
 
       {/* Controlled Hard Delete Confirmation Modal */}

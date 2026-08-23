@@ -54,7 +54,7 @@ export default function NewCollectionPage() {
 
   return (
     <HasPermission code="collection.create">
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 py-4">
         <PageHeader
           title="Add Customer Collection"
           description="Record payment dues received from customer accounts and automatically adjust customer outstanding balance."

@@ -34,7 +34,7 @@ import {
 
 import { customerService, collectionService } from "@/services/api";
 import { CustomerItem, CustomerFinancialSummary, CustomerCollectionItem } from "@/types";
-import { formatCurrency } from "./collection-export-utils";
+import { formatCurrency } from "@/utils/formatters";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 
@@ -92,7 +92,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
     watch,
     setError,
     clearErrors,
-    formState: { errors },
+    formState: { errors, isSubmitted },
   } = useForm<CollectionFormValues>({
     resolver: zodResolver(collectionFormSchema),
     defaultValues: {
@@ -106,47 +106,23 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
     },
   });
 
-  const watchedAmount = watch("amount");
+  const watchedAmount = watch("amount") || 0;
   const currentDueAvailable = financialSummary?.current_due ?? (initialData?.customer?.current_balance || 0);
-  const maxAllowedAmount = initialData ? currentDueAvailable + initialData.amount : currentDueAvailable;
+  const advanceAmount = watchedAmount > currentDueAvailable ? watchedAmount - currentDueAvailable : 0;
 
   useEffect(() => {
-    if (selectedCustomer?.id && financialSummary) {
-      if (watchedAmount > maxAllowedAmount) {
-        setError("amount", {
-          type: "manual",
-          message: `Amount cannot exceed current due (${formatCurrency(maxAllowedAmount)})`,
-        });
-      } else if (watchedAmount <= 0) {
-        setError("amount", {
-          type: "manual",
-          message: "Collection amount must be greater than zero",
-        });
-      } else {
-        clearErrors("amount");
-      }
+    // Clear all stale validation errors when customer changes
+    if (selectedCustomer?.id) {
+      clearErrors();
     }
-  }, [watchedAmount, financialSummary, maxAllowedAmount, selectedCustomer?.id, setError, clearErrors]);
+  }, [selectedCustomer?.id, clearErrors]);
 
   const handleFormSubmit = async (values: CollectionFormValues) => {
-    if (financialSummary && values.amount > maxAllowedAmount) {
-      setError("amount", {
-        type: "manual",
-        message: `Amount cannot exceed current due (${formatCurrency(maxAllowedAmount)})`,
-      });
-      return;
-    }
     await onSubmit(values);
   };
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 w-full max-w-full pb-4">
-      {Object.keys(errors).length > 0 && (
-        <div className="p-4 rounded-xl bg-destructive/15 text-destructive border border-destructive/30 text-xs flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span>Please fix the form errors before submitting.</span>
-        </div>
-      )}
 
       {/* Collection Information Card (Mirrors Sales Information from sale-form.tsx) */}
       <Card className="glass-card w-full">
@@ -182,6 +158,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
                   </div>
                 ) : (
                   <Button
+                    type="button"
                     variant="outline"
                     role="combobox"
                     aria-expanded={openCustomerPopover}
@@ -219,7 +196,8 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
                               value={`${cust.name} ${cust.customer_code || ""} ${cust.phone || ""} ${cust.id}`}
                               onSelect={() => {
                                 setSelectedCustomer(cust);
-                                setValue("customer_id", cust.id, { shouldValidate: true });
+                                setValue("customer_id", cust.id);
+                                clearErrors();
                                 setOpenCustomerPopover(false);
                                 setCustomerSearch("");
                               }}
@@ -301,6 +279,19 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
               </CardContent>
             </Card>
 
+            <Card className="glass-card border-blue-500/30 bg-blue-500/5">
+              <CardContent className="p-4">
+                <span className="text-xs text-blue-600 font-semibold block mb-1">Advance / Credit</span>
+                {isSummaryLoading ? (
+                  <Skeleton className="h-7 w-24" />
+                ) : (
+                  <span className="text-2xl font-extrabold text-blue-500">
+                    {formatCurrency((financialSummary as any)?.advance_balance || 0)}
+                  </span>
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="glass-card">
               <CardContent className="p-4">
                 <span className="text-xs text-muted-foreground font-semibold block mb-1">Total Sales</span>
@@ -366,6 +357,11 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
               />
               {errors.amount && (
                 <p className="text-xs text-destructive">{errors.amount.message}</p>
+              )}
+              {!errors.amount && advanceAmount > 0 && (
+                <p className="text-xs text-blue-500 font-medium mt-1">
+                  {formatCurrency(advanceAmount)} will be added as customer advance.
+                </p>
               )}
             </div>
 

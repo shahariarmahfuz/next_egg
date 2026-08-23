@@ -159,6 +159,7 @@ class CustomerCollectionRepository(
         total_sales = round(total_sales_grand, 2)
         total_paid = round(total_collections, 2)
         current_due = round(float(customer.current_balance), 2)
+        advance_balance = round(float(customer.advance_balance), 2)
         remaining_due = current_due
 
         return {
@@ -168,6 +169,7 @@ class CustomerCollectionRepository(
             "phone": customer.phone or "",
             "opening_balance": round(float(customer.opening_balance), 2),
             "current_due": current_due,
+            "advance_balance": advance_balance,
             "total_sales": total_sales,
             "total_paid": total_paid,
             "total_returns": round(total_returns, 2),

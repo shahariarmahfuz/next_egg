@@ -12,6 +12,7 @@ from app.schemas.product import (
     ProductResponse,
     ProductStatusUpdate,
     ProductUpdate,
+    ProductStockCorrection,
 )
 from app.services.product_service import product_service
 
@@ -126,6 +127,22 @@ async def update_product_status(
     return ResponseModel[ProductResponse](
         success=True,
         message="Product status updated",
+        data=ProductResponse.model_validate(product),
+    )
+
+
+@router.patch("/{product_id}/correct-stock", response_model=ResponseModel[ProductResponse])
+async def correct_product_stock(
+    product_id: str,
+    correction_in: ProductStockCorrection,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("product.edit")),
+):
+    """Correct product stock without creating a sale or purchase."""
+    product = await product_service.correct_stock(db, product_id, correction_in.actual_stock)
+    return ResponseModel[ProductResponse](
+        success=True,
+        message="Stock updated successfully.",
         data=ProductResponse.model_validate(product),
     )
 
