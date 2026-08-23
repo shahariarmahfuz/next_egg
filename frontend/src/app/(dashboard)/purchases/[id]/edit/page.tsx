@@ -3,6 +3,7 @@
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { productService, purchaseService, supplierService } from "@/services/api";
 import { PurchaseForm, PurchaseFormValues } from "@/components/purchases/purchase-form";
 import { HasPermission } from "@/providers/auth-provider";
@@ -48,7 +49,15 @@ export default function EditPurchasePage({ params }: { params: Promise<{ id: str
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
       queryClient.invalidateQueries({ queryKey: ["purchase", id] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      toast.success("Purchase order updated successfully.");
       router.push("/purchases");
+    },
+    onError: (err: any) => {
+      const msg = err?.message || "Failed to update purchase order.";
+      toast.error(msg);
     },
   });
 

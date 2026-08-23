@@ -42,40 +42,6 @@ async def list_purchases(
     )
     pages = math.ceil(total / size) if total > 0 else 0
 
-    agg_query = select(
-        func.count(Purchase.id).label("count"),
-        func.coalesce(func.sum(Purchase.grand_total), 0.0).label("total_amount"),
-        func.coalesce(func.sum(Purchase.paid_amount), 0.0).label("paid_amount"),
-        func.coalesce(func.sum(Purchase.due_amount), 0.0).label("due_amount")
-    )
-    if search:
-        pattern = f"%{search}%"
-        agg_query = agg_query.join(Supplier, Purchase.supplier_id == Supplier.id, isouter=True).where(
-            or_(
-                Purchase.purchase_no.ilike(pattern),
-                Purchase.invoice_no.ilike(pattern),
-                Supplier.name.ilike(pattern),
-                Supplier.supplier_code.ilike(pattern),
-            )
-        )
-    if supplier_id:
-        agg_query = agg_query.where(Purchase.supplier_id == supplier_id)
-    if payment_status:
-        agg_query = agg_query.where(Purchase.payment_status == payment_status)
-    if start_date:
-        agg_query = agg_query.where(Purchase.purchase_date >= start_date)
-    if end_date:
-        agg_query = agg_query.where(Purchase.purchase_date <= end_date)
-        
-    agg_res = await db.execute(agg_query)
-    agg_row = agg_res.one()
-    aggregate = {
-        "count": agg_row.count,
-        "total_amount": float(agg_row.total_amount),
-        "paid_amount": float(agg_row.paid_amount),
-        "due_amount": float(agg_row.due_amount),
-    }
-
     items = [PurchaseResponse.model_validate(p) for p in purchases]
     paginated_data = PaginatedResponse[PurchaseResponse](
         items=items,
@@ -83,7 +49,7 @@ async def list_purchases(
         page=page,
         size=size,
         pages=pages,
-        aggregate=aggregate
+        aggregate=None
     )
 
     return ResponseModel[PaginatedResponse[PurchaseResponse]](

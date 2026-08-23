@@ -104,6 +104,11 @@ class PurchaseService:
         )
 
         db.add(purchase)
+        
+        # Financial effect: update supplier ledger (balance)
+        supplier.current_balance += due
+        db.add(supplier)
+
         await db.flush()
 
         for item_data in purchase_in.items:
@@ -131,10 +136,46 @@ class PurchaseService:
         if not purchase:
             raise NotFoundException(f"Purchase order with ID '{purchase_id}' not found.")
 
-        # Update basic fields if items are not modified
         if purchase_in.items is None:
-            update_data = purchase_in.model_dump(exclude_unset=True)
-            return await purchase_repository.update(db, db_obj=purchase, obj_in=update_data)
+            old_due = purchase.due_amount
+            
+            # Recalculate basic financial fields
+            if purchase_in.discount_amount is not None:
+                purchase.discount_amount = purchase_in.discount_amount
+            if purchase_in.tax_amount is not None:
+                purchase.tax_amount = purchase_in.tax_amount
+            if purchase_in.paid_amount is not None:
+                purchase.paid_amount = purchase_in.paid_amount
+                
+            purchase.grand_total = max(0.0, purchase.subtotal - purchase.discount_amount + purchase.tax_amount)
+            if purchase.paid_amount > purchase.grand_total:
+                purchase.paid_amount = purchase.grand_total
+                
+            purchase.due_amount = max(0.0, purchase.grand_total - purchase.paid_amount)
+            if purchase.due_amount <= 0:
+                purchase.payment_status = "paid"
+            elif purchase.paid_amount > 0:
+                purchase.payment_status = "partial"
+            else:
+                purchase.payment_status = "unpaid"
+                
+            if purchase_in.invoice_no is not None:
+                purchase.invoice_no = purchase_in.invoice_no
+            if purchase_in.notes is not None:
+                purchase.notes = purchase_in.notes
+            if purchase_in.purchase_date is not None:
+                purchase.purchase_date = purchase_in.purchase_date
+
+            db.add(purchase)
+            
+            # Update supplier ledger based on the difference
+            supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
+            if supplier:
+                supplier.current_balance = supplier.current_balance - old_due + purchase.due_amount
+                db.add(supplier)
+                
+            await db.flush()
+            return purchase
 
         # Re-evaluate stock changes
         # Step 1: Revert previous stock increases
@@ -200,6 +241,8 @@ class PurchaseService:
         else:
             payment_status = "unpaid"
 
+        old_due = purchase.due_amount
+
         purchase.subtotal = subtotal
         purchase.discount_amount = discount_amount
         purchase.tax_amount = tax_amount
@@ -214,6 +257,13 @@ class PurchaseService:
             purchase.notes = purchase_in.notes
 
         db.add(purchase)
+
+        # Update supplier ledger based on the difference
+        supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
+        if supplier:
+            supplier.current_balance = supplier.current_balance - old_due + due
+            db.add(supplier)
+
         await db.flush()
         return await purchase_repository.get_by_id_loaded(db, purchase.id) or purchase
 
@@ -382,6 +432,14 @@ class PurchaseService:
             await db.execute(delete(ProductReturnItem).where(ProductReturnItem.product_return_id.in_(return_ids)))
             await db.execute(delete(ProductReturn).where(ProductReturn.id.in_(return_ids)))
 
+        supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
+
+        sp_q = select(SupplierPayment).where(SupplierPayment.purchase_id == purchase_id)
+        sp_res = await db.execute(sp_q)
+        for sp in sp_res.scalars():
+            if supplier:
+                supplier.current_balance += sp.amount
+                
         await db.execute(delete(SupplierPayment).where(SupplierPayment.purchase_id == purchase_id))
 
         for item in purchase.items:
@@ -390,7 +448,6 @@ class PurchaseService:
                 product.current_stock -= item.quantity
                 db.add(product)
 
-        supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
         if supplier:
             supplier.current_balance -= purchase.due_amount
             db.add(supplier)
