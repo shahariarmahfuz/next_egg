@@ -107,8 +107,12 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
   });
 
   const watchedAmount = watch("amount") || 0;
-  const currentDueAvailable = financialSummary?.current_due ?? (initialData?.customer?.current_balance || 0);
-  const advanceAmount = watchedAmount > currentDueAvailable ? watchedAmount - currentDueAvailable : 0;
+  const currentBalance = financialSummary?.current_due ?? (initialData?.customer?.current_balance || 0);
+  // Using signed balance: if currentBalance is positive, we collect up to that as due.
+  // The new balance after collection will be: currentBalance - watchedAmount.
+  // If resulting balance is negative, it represents an advance.
+  const resultingBalance = currentBalance - watchedAmount;
+  const advanceCreated = resultingBalance < 0 ? Math.abs(resultingBalance) : 0;
 
   useEffect(() => {
     // Clear all stale validation errors when customer changes
@@ -268,27 +272,22 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="glass-card border-amber-500/30 bg-amber-500/5">
               <CardContent className="p-4">
-                <span className="text-xs text-amber-600 font-semibold block mb-1">Current Due</span>
+                <span className="text-xs text-amber-600 font-semibold block mb-1">Current Balance</span>
                 {isSummaryLoading ? (
                   <Skeleton className="h-7 w-24" />
                 ) : (
-                  <span className="text-2xl font-extrabold text-amber-500">
-                    {formatCurrency(financialSummary?.current_due)}
+                  <span className={`text-2xl font-extrabold ${
+                    (financialSummary?.current_due ?? 0) > 0 ? "text-amber-500" :
+                    (financialSummary?.current_due ?? 0) < 0 ? "text-blue-500" : "text-emerald-500"
+                  }`}>
+                    {(financialSummary?.current_due ?? 0) < 0 && "-"}
+                    {formatCurrency(Math.abs(financialSummary?.current_due ?? 0))}
                   </span>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card border-blue-500/30 bg-blue-500/5">
-              <CardContent className="p-4">
-                <span className="text-xs text-blue-600 font-semibold block mb-1">Advance / Credit</span>
-                {isSummaryLoading ? (
-                  <Skeleton className="h-7 w-24" />
-                ) : (
-                  <span className="text-2xl font-extrabold text-blue-500">
-                    {formatCurrency((financialSummary as any)?.advance_balance || 0)}
-                  </span>
-                )}
+                {/* Status indicator text */}
+                {!isSummaryLoading && (financialSummary?.current_due ?? 0) > 0 && <span className="text-xs text-amber-600 block mt-1 font-medium">Due</span>}
+                {!isSummaryLoading && (financialSummary?.current_due ?? 0) < 0 && <span className="text-xs text-blue-600 block mt-1 font-medium">Advance</span>}
+                {!isSummaryLoading && (financialSummary?.current_due ?? 0) === 0 && <span className="text-xs text-emerald-600 block mt-1 font-medium">Paid</span>}
               </CardContent>
             </Card>
 
@@ -358,9 +357,9 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
               {errors.amount && (
                 <p className="text-xs text-destructive">{errors.amount.message}</p>
               )}
-              {!errors.amount && advanceAmount > 0 && (
+              {!errors.amount && advanceCreated > 0 && (
                 <p className="text-xs text-blue-500 font-medium mt-1">
-                  {formatCurrency(advanceAmount)} will be added as customer advance.
+                  The resulting customer balance will be -{formatCurrency(advanceCreated)} (Advance).
                 </p>
               )}
             </div>

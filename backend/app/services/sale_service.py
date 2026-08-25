@@ -144,17 +144,8 @@ class SaleService:
             product.current_stock -= item_data["quantity"]
             db.add(product)
 
-        # 7. Update Customer Current Balance & Apply Advance (if any)
-        new_due = due_amount
-        if customer.advance_balance > 0 and new_due > 0:
-            if customer.advance_balance >= new_due:
-                customer.advance_balance -= new_due
-                new_due = 0.0
-            else:
-                new_due -= customer.advance_balance
-                customer.advance_balance = 0.0
-
-        customer.current_balance += new_due
+        # 7. Update Customer Current Balance
+        customer.current_balance += due_amount
         db.add(customer)
 
         await db.commit()
@@ -299,43 +290,19 @@ class SaleService:
         if old_customer_id == sale.customer_id:
             customer = await customer_repository.get_by_id(db, id=sale.customer_id)
             if customer:
-                # Reverse old_due
-                if customer.current_balance >= old_due:
-                    customer.current_balance -= old_due
-                else:
-                    remaining_reverse = old_due - customer.current_balance
-                    customer.current_balance = 0.0
-                    customer.advance_balance += remaining_reverse
-                
-                # Apply new_due
-                if new_due > 0:
-                    if customer.advance_balance >= new_due:
-                        customer.advance_balance -= new_due
-                    else:
-                        remaining_due = new_due - customer.advance_balance
-                        customer.advance_balance = 0.0
-                        customer.current_balance += remaining_due
+                customer.current_balance -= old_due
+                customer.current_balance += new_due
                 db.add(customer)
         else:
             # Reverse due on old customer
             old_customer = await customer_repository.get_by_id(db, id=old_customer_id)
             if old_customer:
-                if old_customer.current_balance >= old_due:
-                    old_customer.current_balance -= old_due
-                else:
-                    remaining_reverse = old_due - old_customer.current_balance
-                    old_customer.current_balance = 0.0
-                    old_customer.advance_balance += remaining_reverse
+                old_customer.current_balance -= old_due
                 db.add(old_customer)
             # Add due to new customer
             new_customer = await customer_repository.get_by_id(db, id=sale.customer_id)
             if new_customer:
-                if new_customer.advance_balance >= new_due:
-                    new_customer.advance_balance -= new_due
-                else:
-                    remaining_due = new_due - new_customer.advance_balance
-                    new_customer.advance_balance = 0.0
-                    new_customer.current_balance += remaining_due
+                new_customer.current_balance += new_due
                 db.add(new_customer)
 
         await db.commit()
@@ -376,12 +343,7 @@ class SaleService:
         # 2. Adjust Customer Due Balance (Reverse the sale due)
         customer = await customer_repository.get_by_id(db, id=sale.customer_id)
         if customer:
-            if customer.current_balance >= sale.due_amount:
-                customer.current_balance -= sale.due_amount
-            else:
-                remaining_reverse = sale.due_amount - customer.current_balance
-                customer.current_balance = 0.0
-                customer.advance_balance += remaining_reverse
+            customer.current_balance -= sale.due_amount
             db.add(customer)
 
         # 3. Delete Sale Record
@@ -442,12 +404,7 @@ class SaleService:
         # 4. Adjust Customer Due Balance (Reverse the sale due)
         customer = await customer_repository.get_by_id(db, id=sale.customer_id)
         if customer:
-            if customer.current_balance >= sale.due_amount:
-                customer.current_balance -= sale.due_amount
-            else:
-                remaining_reverse = sale.due_amount - customer.current_balance
-                customer.current_balance = 0.0
-                customer.advance_balance += remaining_reverse
+            customer.current_balance -= sale.due_amount
             db.add(customer)
 
         # 5. Delete Sale Record

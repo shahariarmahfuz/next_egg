@@ -56,17 +56,9 @@ class CustomerCollectionService:
             db.add(collection)
             await db.flush()
 
-            # 6. Update Customer Current Due & Advance Balances
+            # 6. Update Customer Current Due Balance
             received_amount = collection_in.amount
-            if customer.current_balance > 0:
-                if received_amount <= customer.current_balance:
-                    customer.current_balance -= received_amount
-                else:
-                    advance_amount = received_amount - customer.current_balance
-                    customer.current_balance = 0.0
-                    customer.advance_balance += advance_amount
-            else:
-                customer.advance_balance += received_amount
+            customer.current_balance -= received_amount
             
             db.add(customer)
 
@@ -78,7 +70,6 @@ class CustomerCollectionService:
                 "amount": collection_in.amount,
                 "payment_method": collection_in.payment_method,
                 "new_due_balance": customer.current_balance,
-                "new_advance_balance": customer.advance_balance,
             })
             log_entry = ActivityLog(
                 user_id=user_id,
@@ -123,30 +114,8 @@ class CustomerCollectionService:
                 raise BadRequestException("Collection amount must be greater than zero.")
 
             # Net balance adjustment (Reverse old amount, Apply new amount)
-            # Revert old amount logic:
-            if old_amount > 0:
-                # To reverse, we add back to due or subtract from advance depending on how it was applied
-                # Actually, simpler: reconstruct balance natively by adding old_amount to due/advance
-                # Since we don't know exactly how it was split, we can just treat reversing old_amount
-                # as if they bought something or just deduct from advance first, then add to due.
-                if customer.advance_balance >= old_amount:
-                    customer.advance_balance -= old_amount
-                else:
-                    remaining_reversal = old_amount - customer.advance_balance
-                    customer.advance_balance = 0.0
-                    customer.current_balance += remaining_reversal
-            
-            # Apply new amount logic:
-            if new_amount > 0:
-                if customer.current_balance > 0:
-                    if new_amount <= customer.current_balance:
-                        customer.current_balance -= new_amount
-                    else:
-                        advance_amount = new_amount - customer.current_balance
-                        customer.current_balance = 0.0
-                        customer.advance_balance += advance_amount
-                else:
-                    customer.advance_balance += new_amount
+            customer.current_balance += old_amount
+            customer.current_balance -= new_amount
             
             db.add(customer)
 
@@ -173,7 +142,6 @@ class CustomerCollectionService:
                 "old_amount": old_amount,
                 "new_amount": new_amount,
                 "recalculated_due": customer.current_balance,
-                "recalculated_advance": customer.advance_balance,
             })
             log_entry = ActivityLog(
                 user_id=user_id,
@@ -206,12 +174,7 @@ class CustomerCollectionService:
             customer = await customer_repository.get_by_id(db, id=collection.customer_id)
             if customer:
                 # Restore customer due/advance (Revert the collection)
-                if customer.advance_balance >= collection.amount:
-                    customer.advance_balance -= collection.amount
-                else:
-                    remaining_reversal = collection.amount - customer.advance_balance
-                    customer.advance_balance = 0.0
-                    customer.current_balance += remaining_reversal
+                customer.current_balance += collection.amount
                 db.add(customer)
 
             # Audit Log
@@ -220,7 +183,6 @@ class CustomerCollectionService:
                 "customer_id": collection.customer_id,
                 "restored_amount": collection.amount,
                 "updated_due": customer.current_balance if customer else None,
-                "updated_advance": customer.advance_balance if customer else None,
             })
             log_entry = ActivityLog(
                 user_id=user_id,

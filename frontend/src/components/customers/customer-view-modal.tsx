@@ -69,11 +69,15 @@ export function CustomerViewModal({ customer, isOpen, onClose }: CustomerViewMod
             <span className="">{formatCurrency(customer.opening_balance)}</span>
           </div>
 
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground font-medium">Current Outstanding Due:</span>
-            <span className={`font-bold text-sm ${hasDue ? "text-amber-500" : "text-emerald-500"}`}>
-              {formatCurrency(customer.current_balance)}
-            </span>
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Current Balance</span>
+            <div className={`text-base font-extrabold ${customer.current_balance > 0 ? "text-amber-500" : customer.current_balance < 0 ? "text-blue-500" : "text-emerald-500"}`}>
+              {customer.current_balance < 0 && "-"}
+              {formatCurrency(Math.abs(customer.current_balance))}
+              {customer.current_balance > 0 && <span className="text-xs text-amber-600 ml-1 font-medium">(Due)</span>}
+              {customer.current_balance < 0 && <span className="text-xs text-blue-600 ml-1 font-medium">(Advance)</span>}
+              {customer.current_balance === 0 && <span className="text-xs text-emerald-600 ml-1 font-medium">(Paid)</span>}
+            </div>
           </div>
 
           <div className="flex justify-between items-center pt-2 border-t">

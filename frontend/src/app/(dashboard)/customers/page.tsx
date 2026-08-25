@@ -223,9 +223,21 @@ export default function CustomersPage() {
 
                       {/* 6. Current Due */}
                       <td className="px-3 py-2 align-middle whitespace-nowrap">
-                        <span className={`font-semibold ${hasDue ? "text-amber-500" : "text-emerald-500"}`}>
-                          {formatCurrency(customer.current_balance)}
-                        </span>
+                        {customer.current_balance > 0 && (
+                          <span className="font-semibold text-amber-500">
+                            {formatCurrency(customer.current_balance)}
+                          </span>
+                        )}
+                        {customer.current_balance === 0 && (
+                          <span className="font-semibold text-emerald-500">
+                            {formatCurrency(0)} <span className="text-xs font-normal opacity-80">(Paid)</span>
+                          </span>
+                        )}
+                        {customer.current_balance < 0 && (
+                          <span className="font-semibold text-blue-500">
+                            {formatCurrency(customer.current_balance)} <span className="text-xs font-normal opacity-80 text-blue-400">Advance</span>
+                          </span>
+                        )}
                       </td>
 
                       {/* 7. Status */}

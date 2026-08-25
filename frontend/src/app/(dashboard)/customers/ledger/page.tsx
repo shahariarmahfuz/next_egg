@@ -530,15 +530,19 @@ export default function CustomerLedgerPage() {
                 </CardContent>
               </Card>
 
-              {/* Card 6: Current Due */}
+              {/* Card 6: Current Balance */}
               <Card className="glass-card border-amber-500/30 bg-amber-500/10">
                 <CardContent className="p-3.5">
                   <span className="text-[10px] text-amber-600 font-semibold uppercase block mb-1">
-                    Current Due Balance
+                    Current Balance
                   </span>
-                  <span className="text-lg font-extrabold text-amber-500 ">
-                    {formatCurrency(summary.current_due)}
+                  <span className={`text-lg font-extrabold ${summary.current_due > 0 ? "text-amber-500" : summary.current_due < 0 ? "text-blue-500" : "text-emerald-500"}`}>
+                    {summary.current_due < 0 && "-"}
+                    {formatCurrency(Math.abs(summary.current_due))}
                   </span>
+                  {summary.current_due > 0 && <span className="text-[10px] text-amber-600 ml-1 font-medium">(Due)</span>}
+                  {summary.current_due < 0 && <span className="text-[10px] text-blue-600 ml-1 font-medium">(Advance)</span>}
+                  {summary.current_due === 0 && <span className="text-[10px] text-emerald-600 ml-1 font-medium">(Paid)</span>}
                 </CardContent>
               </Card>
             </div>
