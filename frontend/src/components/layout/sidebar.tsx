@@ -78,7 +78,7 @@ export function SidebarContent({
 
   const { settings } = useSettingsStore();
 
-  const brandName = settings.business_short_name || settings.business_name || "Enterprise Hub";
+  const brandName = settings.business_name || "Enterprise Hub";
   const initial = brandName.charAt(0).toUpperCase();
 
   return (

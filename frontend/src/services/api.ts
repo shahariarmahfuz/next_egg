@@ -733,4 +733,14 @@ export const farmService = {
   },
 };
 
+export const profileService = {
+  getProfile: async () => {
+    return http.get<UserItem>("/profile");
+  },
+  updateProfile: async (payload: { full_name?: string; profile_logo_url?: string | null }) => {
+    return http.put<UserItem>("/profile", payload);
+  },
+};
+
+
 

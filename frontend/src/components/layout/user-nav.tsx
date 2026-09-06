@@ -14,7 +14,7 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 
 export function UserNav() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
 
   if (!user) {
     return (
@@ -29,9 +29,17 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-9 w-9 rounded-full bg-primary/10 border border-primary/20 hover:bg-primary/20 p-0 flex items-center justify-center font-bold text-primary text-sm"
+          className="relative h-9 w-9 rounded-full overflow-hidden bg-primary/10 border border-primary/20 hover:bg-primary/20 p-0 flex items-center justify-center font-bold text-primary text-sm shadow-sm"
         >
-          {user.full_name?.charAt(0).toUpperCase() || "U"}
+          {user.profile_logo_url ? (
+            <img
+              src={user.profile_logo_url}
+              alt={user.full_name}
+              className="h-full w-full object-cover rounded-full"
+            />
+          ) : (
+            user.full_name?.charAt(0).toUpperCase() || "U"
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -48,17 +56,27 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/users" className="flex items-center cursor-pointer">
-            <User className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-            User Profiles
+          <Link href="/profile" className="flex items-center cursor-pointer font-medium">
+            <User className="mr-2 h-3.5 w-3.5 text-primary" />
+            My Profile
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/roles" className="flex items-center cursor-pointer">
-            <KeyRound className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-            Role Permissions
-          </Link>
-        </DropdownMenuItem>
+        {hasPermission("user.view") && (
+          <DropdownMenuItem asChild>
+            <Link href="/users" className="flex items-center cursor-pointer">
+              <User className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+              User Management
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {hasPermission("role.view") && (
+          <DropdownMenuItem asChild>
+            <Link href="/roles" className="flex items-center cursor-pointer">
+              <KeyRound className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+              Role Permissions
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => logout()}

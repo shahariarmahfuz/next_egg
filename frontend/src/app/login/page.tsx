@@ -73,8 +73,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in-50 zoom-in-95 duration-500">
         {/* Brand Header */}
         <div className="text-center space-y-2 flex flex-col items-center">
-          {settings.business_logo ? (
-            <img src={settings.business_logo} alt={brandName} className="h-16 w-16 rounded-2xl object-contain bg-white shadow-lg shadow-primary/30" />
+          {settings.login_logo_url || settings.business_logo ? (
+            <img src={settings.login_logo_url || settings.business_logo} alt={brandName} className="h-16 w-16 rounded-2xl object-contain bg-white shadow-lg shadow-primary/30" />
           ) : (
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/30">
               {initial}

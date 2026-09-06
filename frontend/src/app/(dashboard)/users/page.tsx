@@ -20,6 +20,30 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle } from "lucide-react";
 
+function UserAvatar({ name, url }: { name: string; url?: string | null }) {
+  const [error, setError] = useState(false);
+  const initials = (name || "U").slice(0, 2).toUpperCase();
+
+  if (url && !error) {
+    return (
+      <div className="relative h-8 w-8 rounded-full overflow-hidden bg-primary/10 border border-primary/20 shrink-0">
+        <img
+          src={url}
+          alt={name}
+          className="h-full w-full object-cover"
+          onError={() => setError(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-primary text-xs shrink-0">
+      {initials}
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -186,8 +210,13 @@ export default function UsersPage() {
                         {serialNumber}
                       </td>
                       <td className="px-3 py-2 align-middle">
-                        <div className="font-semibold text-foreground">{user.full_name}</div>
-                        <div className="text-[11px] text-muted-foreground">@{user.username}</div>
+                        <div className="flex items-center gap-3">
+                          <UserAvatar name={user.full_name || user.username} url={user.profile_logo_url} />
+                          <div>
+                            <div className="font-semibold text-foreground">{user.full_name}</div>
+                            <div className="text-[11px] text-muted-foreground">@{user.username}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-3 py-2 align-middle whitespace-nowrap">
                         <Badge variant={user.role?.code === "owner" ? "default" : "outline"} className="capitalize text-[10px] py-0 px-2 h-5">

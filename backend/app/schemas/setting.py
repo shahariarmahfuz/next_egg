@@ -21,6 +21,14 @@ class SettingResponse(SettingBase):
 
 class BusinessSettingsResponse(BaseModel):
     business_name: Optional[str] = None
+    business_logo: Optional[str] = None
+    app_icon_url: Optional[str] = None
+    favicon_url: Optional[str] = None
+    login_logo_url: Optional[str] = None
+    business_address: Optional[str] = None
+    business_phone: Optional[str] = None
+    business_email: Optional[str] = None
+    website: Optional[str] = None
     timezone: Optional[str] = None
     date_format: Optional[str] = None
     time_format: Optional[str] = None
@@ -32,6 +40,14 @@ class BusinessSettingsResponse(BaseModel):
 
 class BusinessSettingsUpdate(BaseModel):
     business_name: Optional[str] = None
+    business_logo: Optional[str] = None
+    app_icon_url: Optional[str] = None
+    favicon_url: Optional[str] = None
+    login_logo_url: Optional[str] = None
+    business_address: Optional[str] = None
+    business_phone: Optional[str] = None
+    business_email: Optional[str] = None
+    website: Optional[str] = None
     timezone: Optional[str] = None
     date_format: Optional[str] = None
     time_format: Optional[str] = None

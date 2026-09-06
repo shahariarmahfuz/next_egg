@@ -11,8 +11,10 @@ export interface Currency {
 
 export interface BusinessSettings {
   business_name: string;
-  business_short_name: string;
   business_logo: string;
+  app_icon_url?: string;
+  favicon_url?: string;
+  login_logo_url?: string;
   business_address: string;
   business_phone: string;
   business_email: string;
@@ -26,9 +28,11 @@ export interface BusinessSettings {
 }
 
 const defaultSettings: BusinessSettings = {
-  business_name: "Business",
-  business_short_name: "Biz",
+  business_name: "Next Egg Enterprise",
   business_logo: "",
+  app_icon_url: "",
+  favicon_url: "",
+  login_logo_url: "",
   business_address: "",
   business_phone: "",
   business_email: "",

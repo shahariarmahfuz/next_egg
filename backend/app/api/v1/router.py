@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     supplier_payments,
     suppliers,
     users,
+    profile,
 )
 
 api_router = APIRouter()
@@ -28,6 +29,7 @@ api_router = APIRouter()
 # Register Endpoint Routers
 api_router.include_router(health.router, tags=["Health"])
 api_router.include_router(auth.router)
+api_router.include_router(profile.router)
 api_router.include_router(users.router)
 api_router.include_router(roles.router)
 api_router.include_router(permissions.router)

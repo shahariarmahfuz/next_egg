@@ -10,6 +10,7 @@ class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=30)
     status: str = Field("active", description="User status: active, inactive, suspended")
+    profile_logo_url: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -24,6 +25,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=6)
     role_id: Optional[str] = None
     status: Optional[str] = None
+    profile_logo_url: Optional[str] = None
 
 
 class UserResponse(UserBase):
@@ -34,3 +36,8 @@ class UserResponse(UserBase):
     role: Optional[RoleResponse] = None
     created_at: datetime
     updated_at: datetime
+
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = Field(None, min_length=2, max_length=150)
+    profile_logo_url: Optional[str] = None

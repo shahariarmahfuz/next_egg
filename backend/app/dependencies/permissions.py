@@ -20,8 +20,8 @@ class RequirePermission:
             self.required_permissions = permissions
 
     async def __call__(self, current_user: User = Depends(get_current_user)) -> User:
-        # Owner, Admin, and Super Admin roles bypass all permission checks
-        if current_user.role and current_user.role.code in ["owner", "admin", "super_admin"]:
+        # Owner and Super Admin roles bypass all permission checks
+        if current_user.role and current_user.role.code in ["owner", "super_admin"]:
             return current_user
 
         if not current_user.role or not current_user.role.permissions:

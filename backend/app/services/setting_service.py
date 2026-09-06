@@ -1,6 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.exceptions.custom import ForbiddenException
+from app.models.user import User
 from app.repositories.setting_repository import setting_repository
 from app.schemas.setting import BusinessSettingsResponse, BusinessSettingsUpdate, SettingCreate
+
+BRANDING_KEYS = {"business_logo", "app_icon_url", "favicon_url", "login_logo_url"}
 
 class SettingService:
     async def get_business_settings(self, db: AsyncSession) -> BusinessSettingsResponse:
@@ -9,6 +13,14 @@ class SettingService:
         
         response = BusinessSettingsResponse(
             business_name=settings_dict.get("business_name"),
+            business_logo=settings_dict.get("business_logo"),
+            app_icon_url=settings_dict.get("app_icon_url"),
+            favicon_url=settings_dict.get("favicon_url"),
+            login_logo_url=settings_dict.get("login_logo_url"),
+            business_address=settings_dict.get("business_address"),
+            business_phone=settings_dict.get("business_phone"),
+            business_email=settings_dict.get("business_email"),
+            website=settings_dict.get("website"),
             timezone=settings_dict.get("timezone"),
             date_format=settings_dict.get("date_format"),
             time_format=settings_dict.get("time_format"),
@@ -21,8 +33,17 @@ class SettingService:
                 
         return response
 
-    async def update_business_settings(self, db: AsyncSession, obj_in: BusinessSettingsUpdate) -> BusinessSettingsResponse:
+    async def update_business_settings(
+        self, db: AsyncSession, obj_in: BusinessSettingsUpdate, current_user: User
+    ) -> BusinessSettingsResponse:
         update_data = obj_in.model_dump(exclude_unset=True)
+
+        # OWNER-ONLY BRANDING ENFORCEMENT
+        branding_modified = any(k in update_data for k in BRANDING_KEYS)
+        if branding_modified:
+            if not current_user.role or current_user.role.code != "owner":
+                raise ForbiddenException("Only the Owner is authorized to modify business branding settings.")
+
         for key, value in update_data.items():
             if value is None:
                 continue

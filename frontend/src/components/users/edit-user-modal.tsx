@@ -11,8 +11,18 @@ import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+const urlValidator = z
+  .string()
+  .refine(
+    (val) => !val || val.trim() === "" || /^https?:\/\/.+/i.test(val.trim()),
+    { message: "Must be a valid URL starting with http:// or https://" }
+  )
+  .optional()
+  .or(z.literal(""));
+
 const userUpdateSchema = z.object({
   full_name: z.string().min(2, "Full name must be at least 2 characters"),
+  profile_logo_url: urlValidator,
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   password: z.string().optional().or(z.literal("")),
@@ -54,6 +64,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
     if (user) {
       reset({
         full_name: user.full_name,
+        profile_logo_url: user.profile_logo_url || "",
         email: user.email || "",
         phone: user.phone || "",
         password: "",
@@ -71,6 +82,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
       setErrorMsg(null);
       const payload: UserUpdatePayload = {
         full_name: values.full_name,
+        profile_logo_url: values.profile_logo_url !== undefined ? (values.profile_logo_url || null) : undefined,
         email: values.email || undefined,
         phone: values.phone || undefined,
         role_id: values.role_id,
@@ -129,6 +141,13 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
               <Input {...register("phone")} />
               {errors.phone && <p className="text-[11px] text-destructive">{errors.phone.message}</p>}
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Profile Logo URL (Optional)</label>
+            <Input {...register("profile_logo_url")} placeholder="https://example.com/avatar.jpg" />
+            <p className="text-[10px] text-muted-foreground">Provide a direct public image link (no file upload required).</p>
+            {errors.profile_logo_url && <p className="text-[11px] text-destructive">{errors.profile_logo_url.message}</p>}
           </div>
 
           <div className="space-y-1">

@@ -13,6 +13,7 @@ interface AuthContextType {
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
   hasPermission: (code: string | string[]) => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -111,7 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     hasPermission,
-  }), [user, permissions, isLoading, login, logout, hasPermission]);
+    refreshUser: fetchCurrentUser,
+  }), [user, permissions, isLoading, login, logout, hasPermission, fetchCurrentUser]);
 
   return (
     <AuthContext.Provider value={contextValue}>

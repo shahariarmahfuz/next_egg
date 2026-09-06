@@ -9,6 +9,7 @@ export interface UserItem {
   role_id: string;
   role?: RoleItem;
   status: "active" | "inactive" | "suspended";
+  profile_logo_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -21,6 +22,7 @@ export interface UserCreatePayload {
   password: string;
   role_id: string;
   status: string;
+  profile_logo_url?: string | null;
 }
 
 export interface UserUpdatePayload {
@@ -30,4 +32,10 @@ export interface UserUpdatePayload {
   password?: string;
   role_id?: string;
   status?: string;
+  profile_logo_url?: string | null;
+}
+
+export interface UserProfileUpdatePayload {
+  full_name?: string;
+  profile_logo_url?: string | null;
 }

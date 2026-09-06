@@ -49,3 +49,28 @@ async def get_current_user(
         raise ForbiddenException(f"User account is {user.status}")
 
     return user
+
+
+async def get_optional_current_user(
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    """
+    Resolves authenticated user if valid token exists; returns None otherwise.
+    """
+    token_str = token or request.cookies.get("access_token")
+    if not token_str:
+        return None
+
+    try:
+        payload = decode_token(token_str)
+        user_id: str = payload.get("sub")
+        if not user_id:
+            return None
+        user = await user_repository.get_by_id_with_role(db, user_id)
+        if not user or user.status != "active":
+            return None
+        return user
+    except Exception:
+        return None

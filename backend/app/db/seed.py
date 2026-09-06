@@ -147,6 +147,14 @@ DEFAULT_PERMISSIONS = [
     # Role Management module
     {"code": "role.view", "name": "View Roles", "module": "role", "description": "View roles and permission matrices"},
     {"code": "role.edit", "name": "Edit Roles", "module": "role", "description": "Create roles and assign permissions"},
+
+    # Profile module
+    {"code": "profile.view", "name": "View Profile", "module": "profile", "description": "View user profile details"},
+    {"code": "profile.edit", "name": "Edit Profile", "module": "profile", "description": "Modify own profile name and profile logo URL"},
+
+    # Settings module
+    {"code": "settings.view", "name": "View Settings", "module": "settings", "description": "Access business and system settings"},
+    {"code": "settings.edit", "name": "Edit Settings", "module": "settings", "description": "Modify business settings and preferences"},
 ]
 
 DEFAULT_ROLES = [
@@ -212,6 +220,7 @@ async def seed_initial_data(db: AsyncSession) -> None:
         "expense.view", "expense.create",
         "reports.view",
         "farm.view", "farm.production", "farm.delivery", "farm.waste", "farm.report",
+        "profile.view", "profile.edit",
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
 

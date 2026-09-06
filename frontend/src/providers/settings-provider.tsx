@@ -39,7 +39,25 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     if (isLoaded && settings.business_name) {
       document.title = settings.business_name;
     }
-  }, [settings.business_name, isLoaded]);
+    if (isLoaded && settings.favicon_url) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = settings.favicon_url;
+    }
+    if (isLoaded && settings.app_icon_url) {
+      let appleLink: HTMLLinkElement | null = document.querySelector("link[rel='apple-touch-icon']");
+      if (!appleLink) {
+        appleLink = document.createElement("link");
+        appleLink.rel = "apple-touch-icon";
+        document.head.appendChild(appleLink);
+      }
+      appleLink.href = settings.app_icon_url;
+    }
+  }, [settings.business_name, settings.favicon_url, settings.app_icon_url, isLoaded]);
 
   // Wait until settings are loaded to prevent hydration mismatch with formats
   if (!isLoaded) {

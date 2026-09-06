@@ -21,7 +21,7 @@ export function PrintableInvoice({
 
   const businessInfo = {
     name: settings.business_name || "Enterprise POS Systems Ltd.",
-    logoText: settings.business_short_name || "ENTERPRISE",
+    logoText: settings.business_name || "ENTERPRISE",
     address: settings.business_address || "Level 8, Commerce Tower, Tech Zone, Dhaka 1212",
     phone: settings.business_phone || "+880 1711-000999",
     email: settings.business_email || "billing@enterprisepos.com",

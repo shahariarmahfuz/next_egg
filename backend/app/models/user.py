@@ -14,6 +14,7 @@ class User(TimestampedBaseModel):
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    profile_logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     
     role_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False, index=True
