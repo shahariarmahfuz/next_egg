@@ -27,7 +27,8 @@ export interface SaleItem {
   paid_amount: number;
   due_amount: number;
   payment_status: "paid" | "partial" | "unpaid";
-  notes?: string;
+  notes?: string | null;
+  note?: string | null;
   created_at: string;
   updated_at: string;
   customer?: CustomerItem;
@@ -48,7 +49,8 @@ export interface SaleCreatePayload {
   discount_amount?: number;
   tax_amount?: number;
   paid_amount?: number;
-  notes?: string;
+  notes?: string | null;
+  note?: string | null;
   items: SaleItemCreatePayload[];
 }
 
@@ -58,7 +60,8 @@ export interface SaleUpdatePayload {
   discount_amount?: number;
   tax_amount?: number;
   paid_amount?: number;
-  notes?: string;
+  notes?: string | null;
+  note?: string | null;
   items?: SaleItemCreatePayload[];
 }
 

@@ -133,7 +133,7 @@ export function PrintableInvoice({
         {/* Footer */}
         <div className="pt-3 border-t border-black border-dashed text-center space-y-1 text-[9px]">
           <div className="font-bold">*** THANK YOU FOR YOUR BUSINESS ***</div>
-          {sale.notes && <div className="italic">Note: {sale.notes}</div>}
+          {(sale.notes || sale.note) && <div className="italic">Note: {sale.notes || sale.note}</div>}
           <div className="text-[8px] text-gray-600 pt-1">{businessInfo.poweredBy}</div>
         </div>
       </div>
@@ -341,10 +341,10 @@ export function PrintableInvoice({
       {/* Financial Summary & Signatures */}
       <div className="grid grid-cols-2 gap-8 pt-4">
         <div className="space-y-4">
-          {sale.notes && (
+          {(sale.notes || sale.note) && (
             <div className="p-3 rounded-lg bg-gray-50 border text-xs text-gray-600 space-y-1">
               <span className="font-bold text-gray-700 block">Terms & Notes:</span>
-              <p>{sale.notes}</p>
+              <p>{sale.notes || sale.note}</p>
             </div>
           )}
 

@@ -254,6 +254,7 @@ export function SaleForm() {
         tax_amount: taxAmount,
         paid_amount: paidAmount,
         notes: notes.trim() || undefined,
+        note: notes.trim() || undefined,
       };
 
       const res = await createSaleMutation.mutateAsync(payload);
@@ -745,14 +746,14 @@ export function SaleForm() {
                 </div>
               )}
 
-              {/* Notes */}
+              {/* Note */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-foreground block">Order Notes</label>
+                <label className="text-xs font-semibold text-foreground block">Note (Optional)</label>
                 <textarea
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Enter remarks or payment terms..."
+                  placeholder="Enter remarks, delivery requests, or sale notes..."
                   className="w-full rounded-md border border-input bg-background/50 p-2 text-xs"
                 />
               </div>

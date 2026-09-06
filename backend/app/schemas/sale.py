@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.customer import CustomerResponse
 from app.schemas.product import ProductResponse
@@ -42,7 +42,16 @@ class SaleCreate(BaseModel):
     tax_amount: float = Field(0.0, ge=0.0, description="Overall order tax ($)")
     paid_amount: float = Field(0.0, ge=0.0, description="Amount paid by customer ($)")
     notes: Optional[str] = None
+    note: Optional[str] = None
     items: List[SaleItemCreate] = Field(..., min_length=1, description="List of products sold")
+
+    @model_validator(mode="after")
+    def sync_note_fields(self) -> "SaleCreate":
+        if self.note is not None and self.notes is None:
+            self.notes = self.note
+        elif self.notes is not None and self.note is None:
+            self.note = self.notes
+        return self
 
     @field_validator("items")
     def validate_items(cls, v: List[SaleItemCreate]) -> List[SaleItemCreate]:
@@ -58,7 +67,16 @@ class SaleUpdate(BaseModel):
     tax_amount: Optional[float] = Field(None, ge=0.0)
     paid_amount: Optional[float] = Field(None, ge=0.0)
     notes: Optional[str] = None
+    note: Optional[str] = None
     items: Optional[List[SaleItemCreate]] = Field(None, min_length=1)
+
+    @model_validator(mode="after")
+    def sync_note_fields(self) -> "SaleUpdate":
+        if self.note is not None and self.notes is None:
+            self.notes = self.note
+        elif self.notes is not None and self.note is None:
+            self.note = self.notes
+        return self
 
 
 class SaleResponse(BaseModel):
@@ -77,10 +95,19 @@ class SaleResponse(BaseModel):
     due_amount: float
     payment_status: str
     notes: Optional[str] = None
+    note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     customer: Optional[CustomerResponse] = None
     items: List[SaleItemResponse] = []
+
+    @model_validator(mode="after")
+    def sync_note_fields(self) -> "SaleResponse":
+        if self.note is None and self.notes is not None:
+            self.note = self.notes
+        elif self.notes is None and self.note is not None:
+            self.notes = self.note
+        return self
 
 
 class SaleReportSummary(BaseModel):

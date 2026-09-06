@@ -81,7 +81,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       setOrderDiscount(sale.discount_amount);
       setTaxAmount(sale.tax_amount);
       setPaidAmount(sale.paid_amount);
-      setNotes(sale.notes || "");
+      setNotes(sale.notes || sale.note || "");
       if (sale.sale_date) {
         setSaleDate(new Date(sale.sale_date).toISOString().split("T")[0]);
       }
@@ -212,7 +212,8 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
         discount_amount: orderDiscount,
         tax_amount: taxAmount,
         paid_amount: paidAmount,
-        notes: notes || undefined,
+        notes: notes.trim(),
+        note: notes.trim(),
         items: lineItems.map((item) => ({
           product_id: item.product.id,
           quantity: item.quantity,
@@ -513,11 +514,12 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                 </div>
 
                 <div className="pt-2 border-t">
-                  <label className="text-[11px] font-medium text-muted-foreground">Notes</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Note (Optional)</label>
                   <textarea
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Enter remarks, delivery requests, or sale notes..."
                     className="flex w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs ring-offset-background"
                   />
                 </div>

@@ -102,7 +102,7 @@ class SaleService:
             paid_amount=sale_in.paid_amount,
             due_amount=due_amount,
             payment_status=payment_status,
-            notes=sale_in.notes,
+            notes=(sale_in.notes or sale_in.note).strip() if (sale_in.notes or sale_in.note) and (sale_in.notes or sale_in.note).strip() else None,
         )
         db.add(sale)
         await db.flush()
@@ -174,8 +174,9 @@ class SaleService:
 
         if sale_in.sale_date:
             sale.sale_date = sale_in.sale_date
-        if sale_in.notes is not None:
-            sale.notes = sale_in.notes
+        if "notes" in sale_in.model_fields_set or "note" in sale_in.model_fields_set:
+            raw_note = sale_in.notes if "notes" in sale_in.model_fields_set else sale_in.note
+            sale.notes = raw_note.strip() if raw_note and raw_note.strip() else None
 
         # Process Line Items Update if provided
         if sale_in.items is not None:
