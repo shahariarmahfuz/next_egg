@@ -17,6 +17,7 @@ from app.models.supplier_payment import SupplierPayment
 from app.models.user import User
 from app.models.inventory_batch import InventoryBatch
 from app.models.currency import Currency
+from app.models.farm_transaction import FarmTransaction
 
 __all__ = [
     "Base",
@@ -46,4 +47,5 @@ __all__ = [
     "InventoryBatch",
     "BalanceAdjustment",
     "Currency",
+    "FarmTransaction",
 ]

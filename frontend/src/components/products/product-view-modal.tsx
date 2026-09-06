@@ -28,7 +28,18 @@ export function ProductViewModal({ product, isOpen, onClose }: ProductViewModalP
               <Package className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-foreground">{product.name}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-foreground">{product.name}</h2>
+                {product.product_type === "FARM" ? (
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 text-[10px]">
+                    Farm Product (Tracking Only)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                    Normal Product
+                  </Badge>
+                )}
+              </div>
               <span className="text-xs text-muted-foreground">{product.product_code}</span>
             </div>
           </div>
@@ -99,15 +110,19 @@ export function ProductViewModal({ product, isOpen, onClose }: ProductViewModalP
             </span>
           </div>
 
-          <div className="flex justify-between items-center pt-2 border-t">
-            <span className="text-muted-foreground font-medium">Opening Stock Unit Cost:</span>
-            <span className="text-foreground">{formatCurrency(product.opening_stock_unit_cost)}</span>
-          </div>
+          {product.product_type !== "FARM" && (
+            <>
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="text-muted-foreground font-medium">Opening Stock Unit Cost:</span>
+                <span className="text-foreground">{formatCurrency(product.opening_stock_unit_cost)}</span>
+              </div>
 
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground font-medium">Selling Price (Retail):</span>
-            <span className="font-bold text-primary">{formatCurrency(product.selling_price)}</span>
-          </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">Selling Price (Retail):</span>
+                <span className="font-bold text-primary">{formatCurrency(product.selling_price)}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {product.notes && (

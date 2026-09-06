@@ -43,7 +43,7 @@ class ProductService:
 
         product = await product_repository.create(db, obj_in=product_data)
 
-        if product.opening_stock > 0:
+        if product.product_type != "FARM" and product.opening_stock > 0:
             batch = InventoryBatch(
                 product_id=product.id,
                 purchase_id=None,
@@ -81,7 +81,7 @@ class ProductService:
     ) -> Product:
         """
         Corrects product stock directly.
-        Updates product.current_stock and adds/consumes InventoryBatches to match the new stock total.
+        Updates product.current_stock and adds/consumes InventoryBatches to match the new stock total (for non-FARM products).
         """
         product = await product_repository.get_by_id(db, id=product_id)
         if not product:
@@ -91,34 +91,35 @@ class ProductService:
         if diff == 0:
             return product
             
-        if diff > 0:
-            # Increase stock -> Create a new pseudo-batch
-            batch = InventoryBatch(
-                product_id=product.id,
-                purchase_id=None,
-                quantity=diff,
-                remaining_quantity=diff,
-                unit_cost=product.opening_stock_unit_cost,
-            )
-            db.add(batch)
-        else:
-            # Decrease stock -> Consume existing batches FIFO
-            qty_to_deduct = abs(diff)
-            batch_query = select(InventoryBatch).where(
-                InventoryBatch.product_id == product.id,
-                InventoryBatch.remaining_quantity > 0
-            ).order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
-            
-            batch_result = await db.execute(batch_query)
-            available_batches = batch_result.scalars().all()
-            for b in available_batches:
-                if qty_to_deduct <= 0:
-                    break
-                deduct = min(b.remaining_quantity, qty_to_deduct)
-                b.remaining_quantity -= deduct
-                qty_to_deduct -= deduct
-                db.add(b)
+        if product.product_type != "FARM":
+            if diff > 0:
+                # Increase stock -> Create a new pseudo-batch
+                batch = InventoryBatch(
+                    product_id=product.id,
+                    purchase_id=None,
+                    quantity=diff,
+                    remaining_quantity=diff,
+                    unit_cost=product.opening_stock_unit_cost,
+                )
+                db.add(batch)
+            else:
+                # Decrease stock -> Consume existing batches FIFO
+                qty_to_deduct = abs(diff)
+                batch_query = select(InventoryBatch).where(
+                    InventoryBatch.product_id == product.id,
+                    InventoryBatch.remaining_quantity > 0
+                ).order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
                 
+                batch_result = await db.execute(batch_query)
+                available_batches = batch_result.scalars().all()
+                for b in available_batches:
+                    if qty_to_deduct <= 0:
+                        break
+                    deduct = min(b.remaining_quantity, qty_to_deduct)
+                    b.remaining_quantity -= deduct
+                    qty_to_deduct -= deduct
+                    db.add(b)
+                    
         product.current_stock = new_stock
         db.add(product)
         await db.commit()
@@ -141,12 +142,15 @@ class ProductService:
         2. PurchaseItem
         3. SaleReturnItem
         4. ProductReturnItem
-        5. Product record
+        5. FarmTransaction
+        6. Product record
         """
         product = await product_repository.get_by_id(db, id=product_id)
         if not product:
             raise NotFoundException(f"Product with ID '{product_id}' not found.")
 
+        from app.models.farm_transaction import FarmTransaction
+        await db.execute(delete(FarmTransaction).where(FarmTransaction.product_id == product_id))
         await db.execute(delete(SaleItem).where(SaleItem.product_id == product_id))
         await db.execute(delete(PurchaseItem).where(PurchaseItem.product_id == product_id))
         await db.execute(delete(SaleReturnItem).where(SaleReturnItem.product_id == product_id))
@@ -172,9 +176,10 @@ class ProductService:
         category: Optional[str] = None,
         brand: Optional[str] = None,
         status: Optional[str] = None,
+        product_type: Optional[str] = None,
     ) -> tuple[Sequence[Product], int]:
         return await product_repository.get_filtered(
-            db, skip=skip, limit=limit, search=search, category=category, brand=brand, status=status
+            db, skip=skip, limit=limit, search=search, category=category, brand=brand, status=status, product_type=product_type
         )
 
     async def get_categories(self, db: AsyncSession) -> list[str]:

@@ -21,7 +21,7 @@ export default function NewPurchasePage() {
   // Fetch Products
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ["all-products-dropdown"],
-    queryFn: () => productService.getProducts({ size: 500 }),
+    queryFn: () => productService.getProducts({ size: 500, product_type: "NORMAL" }),
   });
 
   const suppliers = suppliersData?.data?.items || [];

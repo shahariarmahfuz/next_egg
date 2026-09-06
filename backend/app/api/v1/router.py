@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
+    farm,
     auth,
     balance_adjustments,
     currencies,
@@ -36,6 +37,7 @@ api_router.include_router(suppliers.router)
 api_router.include_router(purchases.router)
 api_router.include_router(customers.router)
 api_router.include_router(sales.router)
+api_router.include_router(farm.router, prefix="/farm", tags=["Farm"])
 api_router.include_router(customer_collections.router)
 api_router.include_router(sale_returns.router)
 api_router.include_router(product_returns.router)

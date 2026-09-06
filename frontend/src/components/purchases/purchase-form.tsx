@@ -159,11 +159,11 @@ export function PurchaseForm({
   // Fetch Products Search
   const { data: productSearchData, isLoading: isProductLoading } = useQuery({
     queryKey: ["products-search", debouncedProductQuery],
-    queryFn: () => productService.getProducts({ search: debouncedProductQuery, status: "active", size: 20 }),
+    queryFn: () => productService.getProducts({ search: debouncedProductQuery, status: "active", product_type: "NORMAL", size: 20 }),
   });
 
   const supplierSuggestions: SupplierItem[] = supplierSearchData?.data?.items || suppliers;
-  const productSuggestions: ProductItem[] = productSearchData?.data?.items || products;
+  const productSuggestions: ProductItem[] = productSearchData?.data?.items || products.filter(p => p.product_type !== "FARM");
 
   // Sync default selected supplier if suppliers list loads later
   useEffect(() => {
@@ -180,6 +180,10 @@ export function PurchaseForm({
 
   // Add Product to Purchase Line Items
   const handleSelectProduct = (product: ProductItem) => {
+    if (product.product_type === "FARM") {
+      setErrorMsg(`"${product.name}" is a Farm Product (Quantity Tracking Only) and cannot be purchased via regular purchases.`);
+      return;
+    }
     const existingIndex = lineItems.findIndex((item) => item.product.id === product.id);
 
     if (existingIndex >= 0) {

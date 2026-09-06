@@ -14,10 +14,11 @@ export default function NewProductPage() {
   const createMutation = useMutation({
     mutationFn: (values: ProductFormValues) =>
       productService.createProduct({
+        product_type: values.product_type,
         name: values.name,
         unit: values.unit,
-        opening_stock_unit_cost: values.opening_stock_unit_cost,
-        selling_price: values.selling_price,
+        opening_stock_unit_cost: values.product_type === "FARM" ? 0 : values.opening_stock_unit_cost,
+        selling_price: values.product_type === "FARM" ? 0 : values.selling_price,
         product_code: values.product_code || undefined,
         category: values.category || undefined,
         brand: values.brand || undefined,
@@ -30,6 +31,7 @@ export default function NewProductPage() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-categories"] });
       toast.success("Product added successfully.");
+      router.push("/products");
     },
     onError: (err: any) => {
       const msg = err?.message || "Failed to add product.";

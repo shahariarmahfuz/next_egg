@@ -8,6 +8,7 @@ class Product(TimestampedBaseModel):
     Product Entity.
     """
     __tablename__ = "products"
+    product_type: Mapped[str] = mapped_column(String(20), default="NORMAL", index=True, server_default="NORMAL", nullable=False)
 
     product_code: Mapped[str] = mapped_column(
         String(50), unique=True, index=True, nullable=False

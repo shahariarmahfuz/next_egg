@@ -94,7 +94,7 @@ export function SaleForm() {
   // Fetch Products Search
   const { data: productSearchData, isLoading: isProductLoading } = useQuery({
     queryKey: ["products-search", debouncedProductQuery],
-    queryFn: () => productService.getProducts({ search: debouncedProductQuery, status: "active", size: 20 }),
+    queryFn: () => productService.getProducts({ search: debouncedProductQuery, status: "active", product_type: "NORMAL", size: 20 }),
     enabled: true,
   });
 
@@ -109,6 +109,10 @@ export function SaleForm() {
 
   // Add Product to Invoice
   const handleSelectProduct = (product: ProductItem) => {
+    if (product.product_type === "FARM") {
+      setErrorMsg(`"${product.name}" is a Farm Product (Quantity Tracking Only) and cannot be sold via regular sales.`);
+      return;
+    }
     const existingIndex = lineItems.findIndex((item) => item.product.id === product.id);
 
     if (existingIndex >= 0) {

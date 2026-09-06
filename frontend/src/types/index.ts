@@ -4,6 +4,7 @@ export * from "./customer";
 export * from "./customer_collection";
 export * from "./dashboard";
 export * from "./expense";
+export * from "./farm";
 export * from "./nav";
 export * from "./permission";
 export * from "./product";

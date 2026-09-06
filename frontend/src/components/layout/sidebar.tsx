@@ -74,6 +74,7 @@ export function SidebarContent({
   const isSupplierActive = pathname.startsWith("/suppliers") && !pathname.startsWith("/supplier-payments");
   const isSupplierPaymentActive = pathname.startsWith("/supplier-payments");
   const isExpenseActive = pathname.startsWith("/expenses");
+  const isFarmActive = pathname.startsWith("/farm");
 
   const { settings } = useSettingsStore();
 
@@ -948,6 +949,101 @@ export function SidebarContent({
                   <PackageSearch className="h-3.5 w-3.5" />
                   <span>Product List / Manage</span>
                 </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Farm Module */}
+        {hasPermission(["farm.view", "farm.production", "farm.delivery", "farm.waste", "farm.report"]) && (
+          <div className="space-y-1">
+            <button
+              onClick={() => toggleGroup("farm")}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group",
+                isFarmActive
+                  ? "bg-accent/80 text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              )}
+              title={collapsed ? "Farm Module" : undefined}
+            >
+              <div className="flex items-center space-x-3">
+                <Activity className="h-5 w-5 shrink-0 text-emerald-500" />
+                {!collapsed && <span>Farm Tracking</span>}
+              </div>
+              {!collapsed && (
+                <ChevronDown
+                  className={cn("h-4 w-4 transition-transform duration-200", isGroupOpen("farm") ? "rotate-180" : "")}
+                />
+              )}
+            </button>
+            {isGroupOpen("farm") && !collapsed && (
+              <div className="pl-9 space-y-1 animate-in fade-in-50">
+                {hasPermission("farm.view") && (
+                  <Link
+                    href="/farm"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                    <span>Dashboard</span>
+                  </Link>
+                )}
+                {hasPermission("farm.production") && (
+                  <Link
+                    href="/farm/production"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/production" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <PlusCircle className="h-3.5 w-3.5" />
+                    <span>Production</span>
+                  </Link>
+                )}
+                {hasPermission("farm.delivery") && (
+                  <Link
+                    href="/farm/delivery"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/delivery" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <Truck className="h-3.5 w-3.5" />
+                    <span>Delivery</span>
+                  </Link>
+                )}
+                {hasPermission("farm.waste") && (
+                  <Link
+                    href="/farm/waste"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/waste" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    <span>Waste / Loss</span>
+                  </Link>
+                )}
+                {hasPermission("farm.report") && (
+                  <Link
+                    href="/farm/report"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/report" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    <span>Farm Report</span>
+                  </Link>
+                )}
               </div>
             )}
           </div>

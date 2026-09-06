@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const productSchema = z.object({
+  product_type: z.enum(["NORMAL", "FARM"]),
   name: z.string().min(2, "Product name must be at least 2 characters").max(200),
   unit: z.string().min(1, "Unit of measurement is required e.g. pcs, kg"),
   opening_stock_unit_cost: z.coerce.number().min(0, "Opening stock unit cost cannot be negative"),
@@ -47,10 +48,12 @@ export function ProductForm({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
+      product_type: initialData?.product_type || "NORMAL",
       name: initialData?.name || "",
       unit: initialData?.unit || "pcs",
       opening_stock_unit_cost: initialData?.opening_stock_unit_cost ?? 0,
@@ -66,11 +69,18 @@ export function ProductForm({
     },
   });
 
+  const productType = watch("product_type");
+
   const handleFormSubmit = async (values: ProductFormValues) => {
     try {
       setIsSubmitting(true);
       setErrorMsg(null);
-      await onSubmit(values);
+      const cleanValues: ProductFormValues = {
+        ...values,
+        opening_stock_unit_cost: values.product_type === "FARM" ? 0 : values.opening_stock_unit_cost,
+        selling_price: values.product_type === "FARM" ? 0 : values.selling_price,
+      };
+      await onSubmit(cleanValues);
     } catch (err: any) {
       const msg = err.message || "Failed to save product.";
       setErrorMsg(msg);
@@ -113,6 +123,21 @@ export function ProductForm({
           {/* General Metadata */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold border-b pb-2 text-foreground">General Information</h3>
+
+            {!isEdit && (
+              <div className="grid grid-cols-1 gap-4 mb-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">Product Type *</label>
+                  <select
+                    {...register("product_type")}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  >
+                    <option value="NORMAL">Normal Product</option>
+                    <option value="FARM">Farm Product (Tracking Only)</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5 md:col-span-2">
@@ -158,17 +183,21 @@ export function ProductForm({
             <h3 className="text-sm font-semibold border-b pb-2 text-foreground">Pricing & Stock Control</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Opening Stock Unit Cost ($) *</label>
-                <Input {...register("opening_stock_unit_cost")} type="number" step="0.01" min="0" />
-                {errors.opening_stock_unit_cost && <p className="text-[11px] text-destructive">{errors.opening_stock_unit_cost.message}</p>}
-              </div>
+              {productType !== "FARM" && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Opening Stock Unit Cost ($) *</label>
+                    <Input {...register("opening_stock_unit_cost")} type="number" step="0.01" min="0" />
+                    {errors.opening_stock_unit_cost && <p className="text-[11px] text-destructive">{errors.opening_stock_unit_cost.message}</p>}
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Default Selling Price ($) *</label>
-                <Input {...register("selling_price")} type="number" step="0.01" min="0" />
-                {errors.selling_price && <p className="text-[11px] text-destructive">{errors.selling_price.message}</p>}
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Default Selling Price ($) *</label>
+                    <Input {...register("selling_price")} type="number" step="0.01" min="0" />
+                    {errors.selling_price && <p className="text-[11px] text-destructive">{errors.selling_price.message}</p>}
+                  </div>
+                </>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium">Opening Stock</label>

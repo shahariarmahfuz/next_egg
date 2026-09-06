@@ -6,14 +6,15 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 class ProductCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=200, description="Product Name")
     unit: str = Field(..., min_length=1, max_length=30, description="Measurement unit e.g. pcs, kg, box")
-    opening_stock_unit_cost: float = Field(..., ge=0.0, description="Opening stock unit cost ($)")
-    selling_price: float = Field(..., ge=0.0, description="Default selling price ($)")
+    opening_stock_unit_cost: float = Field(0.0, ge=0.0, description="Opening stock unit cost ($)")
+    selling_price: float = Field(0.0, ge=0.0, description="Default selling price ($)")
     product_code: Optional[str] = Field(None, max_length=50, description="Optional custom product code")
     category: Optional[str] = Field(None, max_length=100)
     brand: Optional[str] = Field(None, max_length=100)
     barcode: Optional[str] = Field(None, max_length=100)
     opening_stock: float = Field(0.0, ge=0.0, description="Initial stock level upon product creation")
     minimum_stock: float = Field(0.0, ge=0.0, description="Low stock alert threshold")
+    product_type: str = "NORMAL"
     notes: Optional[str] = None
 
     @field_validator("name")
@@ -43,6 +44,7 @@ class ProductUpdate(BaseModel):
     opening_stock_unit_cost: Optional[float] = Field(None, ge=0.0)
     selling_price: Optional[float] = Field(None, ge=0.0)
     minimum_stock: Optional[float] = Field(None, ge=0.0)
+    product_type: Optional[str] = None
     status: Optional[str] = Field(None, description="active / inactive")
     notes: Optional[str] = None
 
@@ -70,6 +72,7 @@ class ProductResponse(BaseModel):
     opening_stock_unit_cost: float
     selling_price: float
     minimum_stock: float
+    product_type: str = "NORMAL"
     status: str
     notes: Optional[str] = None
     created_at: datetime

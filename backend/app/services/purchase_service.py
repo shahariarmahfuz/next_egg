@@ -45,6 +45,8 @@ class PurchaseService:
             product = await product_repository.get_by_id(db, id=item_data.product_id)
             if not product:
                 raise NotFoundException(f"Product with ID '{item_data.product_id}' not found.")
+            if product.product_type == "FARM":
+                raise BadRequestException(f"Farm products cannot be purchased via regular purchases (Product: {product.name}).")
 
             line_total = (item_data.quantity * item_data.unit_price) - item_data.discount
             if line_total < 0:
@@ -197,6 +199,8 @@ class PurchaseService:
             product = await product_repository.get_by_id(db, id=item_data.product_id)
             if not product:
                 raise NotFoundException(f"Product with ID '{item_data.product_id}' not found.")
+            if product.product_type == "FARM":
+                raise BadRequestException(f"Farm products cannot be purchased via regular purchases (Product: {product.name}).")
 
             line_total = (item_data.quantity * item_data.unit_price) - item_data.discount
             if line_total < 0:

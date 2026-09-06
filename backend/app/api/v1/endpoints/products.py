@@ -27,13 +27,14 @@ async def list_products(
     category: Optional[str] = Query(None),
     brand: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    product_type: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("product.view")),
 ):
     """Server-side paginated product catalog directory with search, category, brand, and status filtering."""
     skip = (page - 1) * size
     products, total = await product_service.get_products_paginated(
-        db, skip=skip, limit=size, search=search, category=category, brand=brand, status=status
+        db, skip=skip, limit=size, search=search, category=category, brand=brand, status=status, product_type=product_type
     )
     pages = math.ceil(total / size) if total > 0 else 0
 

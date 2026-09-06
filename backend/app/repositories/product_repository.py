@@ -46,6 +46,7 @@ class ProductRepository(BaseRepository[Product, ProductCreate, ProductUpdate]):
         category: Optional[str] = None,
         brand: Optional[str] = None,
         status: Optional[str] = None,
+        product_type: Optional[str] = None,
     ) -> tuple[Sequence[Product], int]:
         query = select(Product)
 
@@ -69,6 +70,9 @@ class ProductRepository(BaseRepository[Product, ProductCreate, ProductUpdate]):
 
         if status:
             query = query.where(Product.status == status)
+
+        if product_type:
+            query = query.where(Product.product_type == product_type.upper())
 
         # Count query
         count_query = select(func.count()).select_from(query.subquery())

@@ -19,6 +19,13 @@ import {
   ExpenseFilters,
   ExpenseInput,
   ExpenseReportSummary,
+  FarmDashboardKPIs,
+  FarmDeliveryPayload,
+  FarmProductionPayload,
+  FarmReportResponse,
+  FarmStockItem,
+  FarmTransactionItem,
+  FarmWastePayload,
   HealthCheckData,
   LoginRequest,
   LowStockProductItem,
@@ -143,6 +150,7 @@ export const productService = {
     search?: string;
     category?: string;
     status?: string;
+    product_type?: string;
   }) => {
     return http.get<PaginatedResult<ProductItem>>("/products", params);
   },
@@ -665,4 +673,64 @@ export const expenseService = {
     return http.get<ExpenseReportSummary>(`/expenses/report/summary${queryString ? `?${queryString}` : ""}`);
   },
 };
+
+export const farmService = {
+  createProduction: async (payload: FarmProductionPayload) => {
+    return http.post<FarmTransactionItem>("/farm/production", payload);
+  },
+
+  getProductionHistory: async (params?: {
+    page?: number;
+    size?: number;
+    start_date?: string;
+    end_date?: string;
+    product_id?: string;
+  }) => {
+    return http.get<PaginatedResult<FarmTransactionItem>>("/farm/production", params);
+  },
+
+  createDelivery: async (payload: FarmDeliveryPayload) => {
+    return http.post<FarmTransactionItem>("/farm/delivery", payload);
+  },
+
+  getDeliveryHistory: async (params?: {
+    page?: number;
+    size?: number;
+    start_date?: string;
+    end_date?: string;
+    product_id?: string;
+  }) => {
+    return http.get<PaginatedResult<FarmTransactionItem>>("/farm/delivery", params);
+  },
+
+  createWaste: async (payload: FarmWastePayload) => {
+    return http.post<FarmTransactionItem>("/farm/waste", payload);
+  },
+
+  getWasteHistory: async (params?: {
+    page?: number;
+    size?: number;
+    start_date?: string;
+    end_date?: string;
+    product_id?: string;
+  }) => {
+    return http.get<PaginatedResult<FarmTransactionItem>>("/farm/waste", params);
+  },
+
+  getDashboard: async () => {
+    return http.get<FarmDashboardKPIs>("/farm/dashboard");
+  },
+
+  getStockOverview: async () => {
+    return http.get<FarmStockItem[]>("/farm/stock");
+  },
+
+  getFarmReport: async (params?: {
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    return http.get<FarmReportResponse>("/farm/report", params);
+  },
+};
+
 

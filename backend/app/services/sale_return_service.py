@@ -102,6 +102,8 @@ class SaleReturnService:
                 product = await product_repository.get_by_id(db, id=item_in.product_id)
                 if not product:
                     raise NotFoundException(f"Product with ID '{item_in.product_id}' not found.")
+                if product.product_type == "FARM":
+                    raise BadRequestException(f"Farm products cannot be returned through regular sale returns (Product: {product.name}).")
 
                 if item_in.quantity <= 0:
                     raise BadRequestException(f"Return quantity for product '{product.name}' must be greater than zero.")
@@ -265,6 +267,8 @@ class SaleReturnService:
                     product = await product_repository.get_by_id(db, id=item_in.product_id)
                     if not product:
                         raise NotFoundException(f"Product with ID '{item_in.product_id}' not found.")
+                    if product.product_type == "FARM":
+                        raise BadRequestException(f"Farm products cannot be returned through regular sale returns (Product: {product.name}).")
 
                     if item_in.quantity <= 0:
                         raise BadRequestException("Returned quantity must be greater than zero.")

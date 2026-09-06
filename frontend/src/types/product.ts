@@ -1,5 +1,8 @@
+export type ProductType = "NORMAL" | "FARM";
+
 export interface ProductItem {
   id: string;
+  product_type: ProductType;
   product_code: string;
   name: string;
   category?: string;
@@ -20,20 +23,22 @@ export interface ProductItem {
 }
 
 export interface ProductCreatePayload {
+  product_type?: ProductType;
   product_code?: string;
   name: string;
   category?: string;
   brand?: string;
   barcode?: string;
   unit: string;
-  opening_stock_unit_cost: number;
-  selling_price: number;
+  opening_stock_unit_cost?: number;
+  selling_price?: number;
   opening_stock: number;
   minimum_stock: number;
   notes?: string;
 }
 
 export interface ProductUpdatePayload {
+  product_type?: ProductType;
   name?: string;
   category?: string;
   brand?: string;

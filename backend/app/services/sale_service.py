@@ -46,6 +46,8 @@ class SaleService:
             product = await product_repository.get_by_id(db, id=item_in.product_id)
             if not product:
                 raise NotFoundException(f"Product with ID '{item_in.product_id}' not found.")
+            if product.product_type == "FARM":
+                raise BadRequestException(f"Farm products cannot be sold via regular sales (Product: {product.name}).")
             if product.status != "active":
                 raise BadRequestException(f"Product '{product.name}' is inactive and cannot be sold.")
 
@@ -211,6 +213,8 @@ class SaleService:
                 product = await product_repository.get_by_id(db, id=item_in.product_id)
                 if not product:
                     raise NotFoundException(f"Product with ID '{item_in.product_id}' not found.")
+                if product.product_type == "FARM":
+                    raise BadRequestException(f"Farm products cannot be sold via regular sales (Product: {product.name}).")
 
                 if product.current_stock < item_in.quantity:
                     raise BadRequestException(
