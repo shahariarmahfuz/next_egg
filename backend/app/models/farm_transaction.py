@@ -24,3 +24,11 @@ class FarmTransaction(TimestampedBaseModel):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     product = relationship("Product", backref="farm_transactions")
+
+    @property
+    def note(self) -> str | None:
+        return self.notes
+
+    @note.setter
+    def note(self, value: str | None) -> None:
+        self.notes = value

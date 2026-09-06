@@ -92,7 +92,7 @@ export function FarmTransactionForm({ type, onSuccess, redirectOnSuccess = false
           tray_count: data.tray_count && data.tray_count > 0 ? data.tray_count : undefined,
           units_per_tray: data.units_per_tray && data.units_per_tray > 0 ? data.units_per_tray : undefined,
           quantity: data.quantity,
-          notes: data.notes || undefined,
+          notes: data.notes?.trim() || undefined,
         });
         toast.success(`Production of ${data.quantity} recorded successfully!`);
       } else if (type === "DELIVERY") {
@@ -103,7 +103,7 @@ export function FarmTransactionForm({ type, onSuccess, redirectOnSuccess = false
           units_per_tray: data.units_per_tray && data.units_per_tray > 0 ? data.units_per_tray : undefined,
           quantity: data.quantity,
           destination: data.destination || undefined,
-          notes: data.notes || undefined,
+          notes: data.notes?.trim() || undefined,
         });
         toast.success(`Delivery of ${data.quantity} recorded successfully!`);
       } else if (type === "WASTE") {
@@ -112,7 +112,7 @@ export function FarmTransactionForm({ type, onSuccess, redirectOnSuccess = false
           transaction_date: data.transaction_date,
           quantity: data.quantity,
           reason: data.reason || undefined,
-          notes: data.notes || undefined,
+          notes: data.notes?.trim() || undefined,
         });
         toast.success(`Waste of ${data.quantity} recorded successfully!`);
       }

@@ -11,12 +11,14 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { FarmTransactionForm } from "@/components/farm/farm-transaction-form";
+import { FarmViewModal } from "@/components/farm/farm-view-modal";
 import { farmService } from "@/services/api";
 import { FarmTransactionItem } from "@/types";
 import { toast } from "sonner";
@@ -28,6 +30,7 @@ export default function FarmWastePage() {
   const [pageSize] = useState(10);
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [viewingTxn, setViewingTxn] = useState<FarmTransactionItem | null>(null);
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
@@ -136,20 +139,21 @@ export default function FarmWastePage() {
                       <th className="px-4 py-3">Reason</th>
                       <th className="px-4 py-3 text-right text-rose-600">Quantity Lost</th>
                       <th className="px-4 py-3">Notes</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {loading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <tr key={i}>
-                          <td colSpan={5} className="p-3">
+                          <td colSpan={6} className="p-3">
                             <Skeleton className="h-6 w-full" />
                           </td>
                         </tr>
                       ))
                     ) : history.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                        <td colSpan={6} className="p-8 text-center text-muted-foreground">
                           No waste entries recorded yet. Use the form on the left to record waste.
                         </td>
                       </tr>
@@ -179,8 +183,19 @@ export default function FarmWastePage() {
                           <td className="px-4 py-3 text-right font-bold text-rose-600">
                             -{item.quantity} {item.unit || "units"}
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">
+                          <td className="px-4 py-3 text-muted-foreground max-w-xs truncate" title={item.notes || undefined}>
                             {item.notes || "-"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              onClick={() => setViewingTxn(item)}
+                              title="View Details"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
                           </td>
                         </tr>
                       ))
@@ -223,6 +238,12 @@ export default function FarmWastePage() {
           </Card>
         </div>
       </div>
+
+      <FarmViewModal
+        transaction={viewingTxn}
+        isOpen={!!viewingTxn}
+        onClose={() => setViewingTxn(null)}
+      />
     </div>
   );
 }

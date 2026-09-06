@@ -223,7 +223,7 @@ class ExpenseService:
             expense_date=data.expense_date,
             payment_method=data.payment_method,
             reference_no=data.reference_no.strip() if data.reference_no else None,
-            description=data.description.strip() if data.description else None,
+            description=(data.notes or data.note or data.description or "").strip() or None,
             created_by_id=user_id,
         )
 
@@ -391,8 +391,9 @@ class ExpenseService:
         if data.reference_no is not None:
             expense.reference_no = data.reference_no.strip() if data.reference_no else None
 
-        if data.description is not None:
-            expense.description = data.description.strip() if data.description else None
+        if any(f in data.model_fields_set for f in ("description", "notes", "note")):
+            val = data.notes if data.notes is not None else (data.note if data.note is not None else data.description)
+            expense.description = val.strip() if (val and val.strip()) else None
 
         await db.commit()
         await db.refresh(expense)

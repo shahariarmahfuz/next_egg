@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.customer import CustomerResponse
 
@@ -31,6 +31,15 @@ class CustomerCollectionCreate(BaseModel):
     reference_no: Optional[str] = Field(None, max_length=100, description="Optional payment reference number")
     sale_id: Optional[str] = Field(None, description="Optional linked Sale UUID")
     notes: Optional[str] = Field(None, description="Optional collection notes")
+    note: Optional[str] = Field(None, description="Optional collection note alias")
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
     @field_validator("amount")
     def validate_amount(cls, v: float) -> float:
@@ -52,6 +61,15 @@ class CustomerCollectionUpdate(BaseModel):
     reference_no: Optional[str] = Field(None, max_length=100)
     sale_id: Optional[str] = None
     notes: Optional[str] = None
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
     @field_validator("amount")
     def validate_amount(cls, v: Optional[float]) -> Optional[float]:
@@ -73,8 +91,17 @@ class CustomerCollectionResponse(BaseModel):
     reference_no: Optional[str] = None
     collection_date: datetime
     notes: Optional[str] = None
+    note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
     customer: Optional[CustomerResponse] = None
     user: Optional[UserNestedResponse] = None

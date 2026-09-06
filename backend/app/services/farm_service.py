@@ -61,7 +61,7 @@ class FarmService:
             tray_count=obj_in.tray_count,
             units_per_tray=obj_in.units_per_tray,
             quantity=obj_in.quantity,
-            notes=obj_in.notes,
+            notes=(obj_in.notes or obj_in.note or "").strip() or None,
         )
         created = await farm_repository.create_transaction(db, txn)
         return self.format_transaction(created)
@@ -76,16 +76,22 @@ class FarmService:
             units_per_tray=obj_in.units_per_tray,
             quantity=obj_in.quantity,
             destination=obj_in.destination,
-            notes=obj_in.notes,
+            notes=(obj_in.notes or obj_in.note or "").strip() or None,
         )
         created = await farm_repository.create_transaction(db, txn)
         return self.format_transaction(created)
 
     async def create_waste(self, db: AsyncSession, obj_in: FarmWasteCreate) -> FarmTransactionResponse:
         await self._update_product_stock(db, obj_in.product_id, -obj_in.quantity)
-        waste_notes = obj_in.notes
-        if obj_in.reason:
-            waste_notes = f"[{obj_in.reason}] {obj_in.notes or ''}".strip()
+        note_text = (obj_in.notes or obj_in.note or "").strip()
+        waste_notes = None
+        if obj_in.reason and note_text:
+            waste_notes = f"[{obj_in.reason}] {note_text}"
+        elif obj_in.reason:
+            waste_notes = f"[{obj_in.reason}]"
+        elif note_text:
+            waste_notes = note_text
+
         txn = FarmTransaction(
             product_id=obj_in.product_id,
             transaction_type=FarmTransactionType.WASTE,

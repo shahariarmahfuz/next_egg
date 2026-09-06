@@ -31,7 +31,8 @@ export default function NewSupplierPaymentPage() {
         payment_method: values.payment_method,
         reference_no: values.reference_no || null,
         payment_date: new Date(values.payment_date).toISOString(),
-        notes: values.notes || null,
+        notes: values.notes?.trim() ? values.notes.trim() : null,
+        note: values.notes?.trim() ? values.notes.trim() : null,
       };
 
       await supplierPaymentService.createSupplierPayment(payload);

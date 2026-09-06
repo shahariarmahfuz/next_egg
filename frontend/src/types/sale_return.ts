@@ -26,6 +26,8 @@ export interface SaleReturnItem {
   grand_total: number;
   refund_amount: number;
   reason?: string | null;
+  notes?: string | null;
+  note?: string | null;
   created_at: string;
   updated_at: string;
 
@@ -47,12 +49,16 @@ export interface SaleReturnCreatePayload {
   return_date?: string | null;
   refund_amount?: number;
   reason?: string | null;
+  notes?: string | null;
+  note?: string | null;
   items: SaleReturnItemCreatePayload[];
 }
 
 export interface SaleReturnUpdatePayload {
   refund_amount?: number;
   reason?: string | null;
+  notes?: string | null;
+  note?: string | null;
   items?: SaleReturnItemCreatePayload[];
 }
 

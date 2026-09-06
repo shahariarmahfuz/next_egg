@@ -44,3 +44,19 @@ class Expense(TimestampedBaseModel):
     # Relationships
     category: Mapped["ExpenseCategory"] = relationship("ExpenseCategory", back_populates="expenses", lazy="selectin")
     created_by: Mapped["User"] = relationship("User", lazy="selectin")
+
+    @property
+    def notes(self) -> str | None:
+        return self.description
+
+    @notes.setter
+    def notes(self, value: str | None) -> None:
+        self.description = value
+
+    @property
+    def note(self) -> str | None:
+        return self.description
+
+    @note.setter
+    def note(self, value: str | None) -> None:
+        self.description = value

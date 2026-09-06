@@ -29,7 +29,8 @@ export function CollectionEditModal({ collection, isOpen, onClose, onSuccess }: 
         payment_method: values.payment_method,
         collection_date: new Date(values.collection_date).toISOString(),
         reference_no: values.reference_no || null,
-        notes: values.notes || null,
+        notes: values.notes?.trim() ? values.notes.trim() : null,
+        note: values.notes?.trim() ? values.notes.trim() : null,
       };
       await collectionService.updateCollection(collection.id, payload);
       onSuccess();

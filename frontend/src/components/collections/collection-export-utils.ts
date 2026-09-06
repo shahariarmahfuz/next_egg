@@ -207,7 +207,7 @@ export function printVoucherWindow(collection: CustomerCollectionItem) {
           <div class="amount-val">$${collection.amount.toFixed(2)}</div>
         </div>
 
-        ${collection.notes ? `<div class="card"><div class="card-title">Notes / Remarks</div><div style="font-size: 13px;">${collection.notes}</div></div>` : ""}
+        ${(collection.notes || (collection as any).note) ? `<div class="card"><div class="card-title">Note</div><div style="font-size: 13px; white-space: pre-wrap; word-break: break-word;">${collection.notes || (collection as any).note}</div></div>` : ""}
 
         <div style="display: flex; justify-content: space-between; margin-top: 50px;">
           <div class="sig-line">Customer Signature</div>

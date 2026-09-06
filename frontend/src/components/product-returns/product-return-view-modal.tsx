@@ -114,13 +114,15 @@ export function ProductReturnViewModal({ productReturn, isOpen, onClose }: Produ
             </div>
           </div>
 
-          {/* Reason */}
-          {productReturn.reason && (
-            <div className="p-3 rounded-lg border bg-card/60 space-y-1">
-              <span className="text-xs text-muted-foreground block font-semibold flex items-center gap-1">
+          {/* Reason / Notes */}
+          {Boolean(productReturn.notes || (productReturn as any).note || productReturn.reason) && (
+            <div className="p-3.5 rounded-xl bg-muted/30 border border-border/60 text-xs space-y-1.5">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-primary" /> Return Reason & Notes
               </span>
-              <p className="text-xs text-foreground leading-relaxed">{productReturn.reason}</p>
+              <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed break-words">
+                {productReturn.notes || (productReturn as any).note || productReturn.reason}
+              </p>
             </div>
           )}
         </div>

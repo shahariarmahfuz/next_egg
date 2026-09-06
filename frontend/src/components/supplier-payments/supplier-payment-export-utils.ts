@@ -215,7 +215,7 @@ export function printSupplierPaymentVoucher(pay: SupplierPaymentItem) {
           </div>
         </div>
 
-        ${pay.notes ? `<div class="card"><div class="card-title">Notes / Description</div><div style="font-size: 13px;">${pay.notes}</div></div>` : ""}
+        ${(pay.notes || (pay as any).note) ? `<div class="card"><div class="card-title">Note</div><div style="font-size: 13px; white-space: pre-wrap; word-break: break-word;">${pay.notes || (pay as any).note}</div></div>` : ""}
 
         <div style="display: flex; justify-content: space-between; margin-top: 50px;">
           <div class="sig-line">Prepared By</div>

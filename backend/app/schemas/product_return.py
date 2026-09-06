@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.customer_collection import UserNestedResponse
 from app.schemas.product import ProductResponse
@@ -52,7 +52,18 @@ class ProductReturnCreate(BaseModel):
     return_date: Optional[datetime] = Field(None, description="Return Transaction Date")
     refund_received: float = Field(0.0, ge=0.0, description="Cash refund amount received from supplier ($)")
     reason: Optional[str] = Field(None, description="Return reason / notes")
+    notes: Optional[str] = None
+    note: Optional[str] = None
     items: List[ProductReturnItemCreate] = Field(..., min_length=1, description="List of returned line items")
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        val = self.notes if self.notes is not None else (self.note if self.note is not None else self.reason)
+        if val is not None:
+            self.reason = val
+            self.notes = val
+            self.note = val
+        return self
 
     @field_validator("items")
     def validate_items(cls, v: List[ProductReturnItemCreate]) -> List[ProductReturnItemCreate]:
@@ -64,7 +75,18 @@ class ProductReturnCreate(BaseModel):
 class ProductReturnUpdate(BaseModel):
     refund_received: Optional[float] = Field(None, ge=0.0)
     reason: Optional[str] = None
+    notes: Optional[str] = None
+    note: Optional[str] = None
     items: Optional[List[ProductReturnItemCreate]] = None
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        val = self.notes if self.notes is not None else (self.note if self.note is not None else self.reason)
+        if val is not None:
+            self.reason = val
+            self.notes = val
+            self.note = val
+        return self
 
 
 class ProductReturnResponse(BaseModel):
@@ -79,8 +101,19 @@ class ProductReturnResponse(BaseModel):
     grand_total: float
     refund_received: float
     reason: Optional[str] = None
+    notes: Optional[str] = None
+    note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        val = self.notes if self.notes is not None else (self.note if self.note is not None else self.reason)
+        if val is not None:
+            self.reason = val
+            self.notes = val
+            self.note = val
+        return self
 
     supplier: Optional[SupplierResponse] = None
     purchase: Optional[PurchaseNestedResponse] = None

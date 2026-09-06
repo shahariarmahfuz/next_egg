@@ -101,7 +101,7 @@ class PurchaseService:
             paid_amount=paid,
             due_amount=due,
             payment_status=payment_status,
-            notes=purchase_in.notes,
+            notes=purchase_in.notes.strip() if (purchase_in.notes and purchase_in.notes.strip()) else None,
             items=purchase_items,
         )
 
@@ -257,8 +257,9 @@ class PurchaseService:
 
         if purchase_in.invoice_no is not None:
             purchase.invoice_no = purchase_in.invoice_no
-        if purchase_in.notes is not None:
-            purchase.notes = purchase_in.notes
+        if "notes" in purchase_in.model_fields_set or "note" in purchase_in.model_fields_set:
+            val = purchase_in.notes if purchase_in.notes is not None else purchase_in.note
+            purchase.notes = val.strip() if (val and val.strip()) else None
 
         db.add(purchase)
 

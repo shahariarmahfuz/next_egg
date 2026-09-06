@@ -26,13 +26,24 @@ export interface ProductReturnItem {
   grand_total: number;
   refund_received: number;
   reason?: string | null;
+  notes?: string | null;
+  note?: string | null;
   created_at: string;
   updated_at: string;
 
   supplier?: SupplierItem;
-  purchase?: Partial<PurchaseModelItem>;
+  purchase?: PurchaseNestedResponse;
   user?: Partial<UserItem>;
   items: ProductReturnItemModel[];
+}
+
+export interface PurchaseNestedResponse {
+  id: string;
+  purchase_no: string;
+  invoice_no?: string | null;
+  grand_total: number;
+  paid_amount: number;
+  due_amount: number;
 }
 
 export interface ProductReturnItemCreatePayload {
@@ -48,12 +59,16 @@ export interface ProductReturnCreatePayload {
   return_date?: string | null;
   refund_received?: number;
   reason?: string | null;
+  notes?: string | null;
+  note?: string | null;
   items: ProductReturnItemCreatePayload[];
 }
 
 export interface ProductReturnUpdatePayload {
   refund_received?: number;
   reason?: string | null;
+  notes?: string | null;
+  note?: string | null;
   items?: ProductReturnItemCreatePayload[];
 }
 

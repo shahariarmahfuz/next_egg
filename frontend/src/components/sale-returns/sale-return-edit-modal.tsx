@@ -34,7 +34,8 @@ export function SaleReturnEditModal({ saleReturn, isOpen, onClose, onSuccess }: 
 
       const payload: SaleReturnUpdatePayload = {
         refund_amount: values.refund_amount,
-        reason: values.reason || null,
+        reason: values.reason?.trim() ? values.reason.trim() : null,
+        notes: values.reason?.trim() ? values.reason.trim() : null,
         items: selectedItems,
       };
 

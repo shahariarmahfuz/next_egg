@@ -32,7 +32,8 @@ export default function NewCollectionPage() {
         collection_date: new Date(values.collection_date).toISOString(),
         reference_no: values.reference_no || null,
         sale_id: values.sale_id || null,
-        notes: values.notes || null,
+        notes: values.notes?.trim() ? values.notes.trim() : null,
+        note: values.notes?.trim() ? values.notes.trim() : null,
       };
 
       await collectionService.createCollection(payload);

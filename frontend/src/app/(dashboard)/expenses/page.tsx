@@ -151,7 +151,7 @@ export default function ManageExpensesPage() {
       expense_date: exp.expense_date.split("T")[0],
       payment_method: exp.payment_method,
       reference_no: exp.reference_no || "",
-      description: exp.description || "",
+      description: exp.description || exp.notes || (exp as any).note || "",
     });
   };
 
@@ -167,6 +167,9 @@ export default function ManageExpensesPage() {
       id: editingExpense.id,
       payload: {
         ...editData,
+        description: editData.description !== undefined ? editData.description.trim() : undefined,
+        notes: editData.description !== undefined ? editData.description.trim() : undefined,
+        note: editData.description !== undefined ? editData.description.trim() : undefined,
         expense_date: editData.expense_date ? new Date(editData.expense_date).toISOString() : undefined,
       },
     });
@@ -511,11 +514,13 @@ export default function ManageExpensesPage() {
                   </span>
                 </div>
 
-                {viewingExpense.description && (
-                  <div className="text-xs space-y-1">
-                    <span className="text-muted-foreground block font-semibold">Notes / Description:</span>
-                    <p className="p-2.5 rounded bg-muted/30 text-foreground italic border">
-                      {viewingExpense.description}
+                {Boolean(viewingExpense.notes || (viewingExpense as any).note || viewingExpense.description) && (
+                  <div className="p-3.5 rounded-xl bg-muted/30 border border-border/60 text-xs space-y-1.5">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-primary" /> Note / Description
+                    </span>
+                    <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed break-words">
+                      {viewingExpense.notes || (viewingExpense as any).note || viewingExpense.description}
                     </p>
                   </div>
                 )}

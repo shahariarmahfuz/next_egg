@@ -34,6 +34,14 @@ class Purchase(TimestampedBaseModel):
         "PurchaseItem", back_populates="purchase", cascade="all, delete-orphan", lazy="selectin"
     )
 
+    @property
+    def note(self) -> str | None:
+        return self.notes
+
+    @note.setter
+    def note(self, value: str | None) -> None:
+        self.notes = value
+
     __table_args__ = (
         Index("idx_purchase_no", "purchase_no"),
         Index("idx_purchase_supplier_date", "supplier_id", "purchase_date"),

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from app.schemas.product import ProductResponse
 from app.schemas.supplier import SupplierResponse
 
@@ -42,7 +42,16 @@ class PurchaseCreate(BaseModel):
     tax_amount: float = Field(0.0, ge=0.0)
     paid_amount: float = Field(0.0, ge=0.0)
     notes: Optional[str] = None
+    note: Optional[str] = None
     items: List[PurchaseItemCreate] = Field(..., min_length=1, description="Purchase line items")
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
     @field_validator("items")
     def validate_items(cls, v: List[PurchaseItemCreate]) -> List[PurchaseItemCreate]:
@@ -59,7 +68,16 @@ class PurchaseUpdate(BaseModel):
     tax_amount: Optional[float] = Field(None, ge=0.0)
     paid_amount: Optional[float] = Field(None, ge=0.0)
     notes: Optional[str] = None
+    note: Optional[str] = None
     items: Optional[List[PurchaseItemCreate]] = Field(None, min_length=1)
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
 
 class PurchaseResponse(BaseModel):
@@ -80,9 +98,18 @@ class PurchaseResponse(BaseModel):
     due_amount: float
     payment_status: str
     notes: Optional[str] = None
+    note: Optional[str] = None
     items: List[PurchaseItemResponse] = []
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
 
 class PurchaseReportSummary(BaseModel):

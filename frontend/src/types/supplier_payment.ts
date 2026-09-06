@@ -13,6 +13,7 @@ export interface SupplierPaymentItem {
   reference_no?: string | null;
   payment_date: string;
   notes?: string | null;
+  note?: string | null;
   created_at: string;
   updated_at: string;
 
@@ -29,6 +30,7 @@ export interface SupplierPaymentCreatePayload {
   reference_no?: string | null;
   payment_date?: string | null;
   notes?: string | null;
+  note?: string | null;
 }
 
 export interface SupplierPaymentUpdatePayload {
@@ -37,6 +39,7 @@ export interface SupplierPaymentUpdatePayload {
   reference_no?: string | null;
   payment_date?: string | null;
   notes?: string | null;
+  note?: string | null;
 }
 
 export interface SupplierFinancialSummary {

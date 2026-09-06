@@ -34,6 +34,14 @@ class SupplierPayment(TimestampedBaseModel):
     purchase: Mapped["Purchase | None"] = relationship("Purchase", lazy="selectin")
     user: Mapped["User"] = relationship("User", lazy="selectin")
 
+    @property
+    def note(self) -> str | None:
+        return self.notes
+
+    @note.setter
+    def note(self, value: str | None) -> None:
+        self.notes = value
+
     __table_args__ = (
         CheckConstraint("amount > 0", name="chk_spay_amount_positive"),
         Index("idx_spay_no", "payment_no"),

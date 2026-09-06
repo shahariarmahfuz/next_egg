@@ -20,6 +20,7 @@ export interface CustomerCollectionItem {
   reference_no?: string | null;
   collection_date: string;
   notes?: string | null;
+  note?: string | null;
   created_at: string;
   updated_at: string;
 
@@ -36,6 +37,7 @@ export interface CustomerCollectionCreatePayload {
   reference_no?: string | null;
   sale_id?: string | null;
   notes?: string | null;
+  note?: string | null;
 }
 
 export interface CustomerCollectionUpdatePayload {
@@ -45,6 +47,7 @@ export interface CustomerCollectionUpdatePayload {
   reference_no?: string | null;
   sale_id?: string | null;
   notes?: string | null;
+  note?: string | null;
 }
 
 export interface CustomerFinancialSummary {

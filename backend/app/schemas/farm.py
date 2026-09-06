@@ -11,9 +11,14 @@ class FarmProductionCreate(BaseModel):
     units_per_tray: Optional[float] = Field(None, ge=0)
     quantity: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
+    note: Optional[str] = None
 
     @model_validator(mode="after")
     def compute_and_validate_quantity(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
         if self.tray_count and self.units_per_tray and self.tray_count > 0 and self.units_per_tray > 0:
             if not self.quantity or self.quantity <= 0:
                 self.quantity = float(self.tray_count * self.units_per_tray)
@@ -30,9 +35,14 @@ class FarmDeliveryCreate(BaseModel):
     quantity: Optional[float] = Field(None, ge=0)
     destination: Optional[str] = None
     notes: Optional[str] = None
+    note: Optional[str] = None
 
     @model_validator(mode="after")
     def compute_and_validate_quantity(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
         if self.tray_count and self.units_per_tray and self.tray_count > 0 and self.units_per_tray > 0:
             if not self.quantity or self.quantity <= 0:
                 self.quantity = float(self.tray_count * self.units_per_tray)
@@ -47,6 +57,15 @@ class FarmWasteCreate(BaseModel):
     quantity: float = Field(..., gt=0, description="Wasted quantity must be greater than 0")
     reason: Optional[str] = None
     notes: Optional[str] = None
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
 
 class FarmTransactionResponse(BaseModel):
@@ -61,10 +80,19 @@ class FarmTransactionResponse(BaseModel):
     quantity: float
     destination: Optional[str] = None
     notes: Optional[str] = None
+    note: Optional[str] = None
     created_at: datetime
     product_name: Optional[str] = None
     product_code: Optional[str] = None
     unit: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
 
 class FarmDashboardKPIs(BaseModel):

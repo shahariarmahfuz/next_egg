@@ -244,7 +244,7 @@ export function printSaleReturnVoucher(ret: SaleReturnItem) {
           <div class="detail-row" style="font-size: 15px; font-weight: bold; border-top: 1px solid #fcd34d; padding-top: 6px;"><span class="detail-label">Net Credit Adjusted against Due:</span><span class="detail-value" style="color: #b45309;">$${(ret.grand_total - ret.refund_amount).toFixed(2)}</span></div>
         </div>
 
-        ${ret.reason ? `<div class="card"><div class="card-title">Return Reason</div><div style="font-size: 13px;">${ret.reason}</div></div>` : ""}
+        ${(ret.notes || (ret as any).note || ret.reason) ? `<div class="card"><div class="card-title">Return Reason & Notes</div><div style="font-size: 13px; white-space: pre-wrap; word-break: break-word;">${ret.notes || (ret as any).note || ret.reason}</div></div>` : ""}
 
         <div style="display: flex; justify-content: space-between; margin-top: 50px;">
           <div class="sig-line">Customer Signature</div>

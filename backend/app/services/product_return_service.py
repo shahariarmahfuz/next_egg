@@ -164,7 +164,7 @@ class ProductReturnService:
                 return_date=ret_date,
                 grand_total=return_grand_total,
                 refund_received=return_in.refund_received,
-                reason=return_in.reason,
+                reason=(return_in.notes or return_in.note or return_in.reason or "").strip() or None,
             )
             db.add(product_return)
             await db.flush()
@@ -262,9 +262,7 @@ class ProductReturnService:
 
             # 2. Process new items if provided
             if return_in.items is not None:
-                for old_item in list(product_return.items):
-                    await db.delete(old_item)
-                await db.flush()
+                product_return.items.clear()
 
                 prev_returns = {}
                 if purchase:
@@ -273,6 +271,7 @@ class ProductReturnService:
                     )
 
                 new_grand_total = 0.0
+                new_items: list[ProductReturnItem] = []
                 for item_in in return_in.items:
                     product = await product_repository.get_by_id(db, id=item_in.product_id)
                     if not product:
@@ -310,18 +309,20 @@ class ProductReturnService:
                         unit_price=item_in.unit_price,
                         total_price=item_total,
                     )
-                    db.add(ret_item)
+                    new_items.append(ret_item)
 
                     # Decrease stock with new return quantity
                     product.current_stock -= item_in.quantity
                     db.add(product)
 
+                product_return.items = new_items
                 product_return.grand_total = round(new_grand_total, 2)
 
             if return_in.refund_received is not None:
                 product_return.refund_received = return_in.refund_received
-            if return_in.reason is not None:
-                product_return.reason = return_in.reason
+            if any(f in return_in.model_fields_set for f in ("reason", "notes", "note")):
+                val = return_in.notes if return_in.notes is not None else (return_in.note if return_in.note is not None else return_in.reason)
+                product_return.reason = val.strip() if (val and val.strip()) else None
 
             db.add(product_return)
 

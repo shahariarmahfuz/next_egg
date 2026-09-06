@@ -51,7 +51,7 @@ class CustomerCollectionService:
                 payment_method=collection_in.payment_method,
                 reference_no=collection_in.reference_no,
                 collection_date=col_date,
-                notes=collection_in.notes,
+                notes=collection_in.notes.strip() if (collection_in.notes and collection_in.notes.strip()) else None,
             )
             db.add(collection)
             await db.flush()
@@ -128,8 +128,9 @@ class CustomerCollectionService:
                 collection.reference_no = collection_in.reference_no
             if collection_in.collection_date is not None:
                 collection.collection_date = collection_in.collection_date
-            if collection_in.notes is not None:
-                collection.notes = collection_in.notes
+            if any(f in collection_in.model_fields_set for f in ("notes", "note")):
+                val = collection_in.notes if collection_in.notes is not None else collection_in.note
+                collection.notes = val.strip() if (val and val.strip()) else None
             if collection_in.sale_id is not None:
                 collection.sale_id = collection_in.sale_id
 

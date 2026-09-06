@@ -112,7 +112,7 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
         ? new Date(initialData.return_date).toISOString().slice(0, 16)
         : new Date().toISOString().slice(0, 16),
       refund_amount: initialData?.refund_amount || 0,
-      reason: initialData?.reason || "",
+      reason: initialData?.notes || initialData?.reason || "",
       items: [],
     },
   });

@@ -56,7 +56,7 @@ class SupplierPaymentService:
                 payment_method=payment_in.payment_method,
                 reference_no=payment_in.reference_no,
                 payment_date=pay_date,
-                notes=payment_in.notes,
+                notes=payment_in.notes.strip() if (payment_in.notes and payment_in.notes.strip()) else None,
             )
             db.add(supplier_payment)
 
@@ -126,8 +126,9 @@ class SupplierPaymentService:
                 payment.reference_no = payment_in.reference_no
             if payment_in.payment_date is not None:
                 payment.payment_date = payment_in.payment_date
-            if payment_in.notes is not None:
-                payment.notes = payment_in.notes
+            if any(f in payment_in.model_fields_set for f in ("notes", "note")):
+                val = payment_in.notes if payment_in.notes is not None else payment_in.note
+                payment.notes = val.strip() if (val and val.strip()) else None
 
             db.add(payment)
 

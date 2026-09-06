@@ -107,6 +107,8 @@ export default function AddExpensePage() {
       payment_method: paymentMethod,
       reference_no: referenceNo.trim() || undefined,
       description: description.trim() || undefined,
+      notes: description.trim() || undefined,
+      note: description.trim() || undefined,
     });
   };
 

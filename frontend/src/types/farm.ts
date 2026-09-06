@@ -13,6 +13,7 @@ export interface FarmTransactionItem {
   quantity: number;
   destination?: string | null;
   notes?: string | null;
+  note?: string | null;
   created_at: string;
 }
 
@@ -61,6 +62,7 @@ export interface FarmProductionPayload {
   units_per_tray?: number;
   quantity?: number;
   notes?: string;
+  note?: string;
 }
 
 export interface FarmDeliveryPayload {
@@ -73,6 +75,7 @@ export interface FarmDeliveryPayload {
   vehicle_number?: string;
   driver_name?: string;
   notes?: string;
+  note?: string;
 }
 
 export interface FarmWastePayload {
@@ -81,4 +84,5 @@ export interface FarmWastePayload {
   quantity: number;
   reason?: string;
   notes?: string;
+  note?: string;
 }

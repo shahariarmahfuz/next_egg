@@ -93,7 +93,7 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
       payment_date: initialData?.payment_date
         ? new Date(initialData.payment_date).toISOString().slice(0, 16)
         : new Date().toISOString().slice(0, 16),
-      notes: initialData?.notes || "",
+      notes: initialData?.notes || (initialData as any)?.note || "",
     },
   });
 

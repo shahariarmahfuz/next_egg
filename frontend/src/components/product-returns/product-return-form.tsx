@@ -110,7 +110,7 @@ export function ProductReturnForm({ initialData, onSubmit, isSubmitting }: Produ
         ? new Date(initialData.return_date).toISOString().slice(0, 16)
         : new Date().toISOString().slice(0, 16),
       refund_received: initialData?.refund_received || 0,
-      reason: initialData?.reason || "",
+      reason: initialData?.notes || initialData?.reason || "",
       items: [],
     },
   });

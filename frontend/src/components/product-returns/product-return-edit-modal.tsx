@@ -35,7 +35,8 @@ export function ProductReturnEditModal({ productReturn, isOpen, onClose, onSucce
 
       const payload: ProductReturnUpdatePayload = {
         refund_received: values.refund_received,
-        reason: values.reason || null,
+        reason: values.reason?.trim() ? values.reason.trim() : null,
+        notes: values.reason?.trim() ? values.reason.trim() : null,
         items: selectedItems,
       };
 

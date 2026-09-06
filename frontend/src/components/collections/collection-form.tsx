@@ -102,7 +102,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
       payment_method: initialData?.payment_method || "cash",
       reference_no: initialData?.reference_no || "",
       sale_id: initialData?.sale_id || "",
-      notes: initialData?.notes || "",
+      notes: initialData?.notes || (initialData as any)?.note || "",
     },
   });
 

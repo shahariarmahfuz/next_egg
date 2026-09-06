@@ -142,7 +142,7 @@ export function PurchaseForm({
   const [paidAmount, setPaidAmount] = useState<number>(
     initialData?.paid_amount ?? 0
   );
-  const [notes, setNotes] = useState<string>(initialData?.notes || "");
+  const [notes, setNotes] = useState<string>(initialData?.notes || (initialData as any)?.note || "");
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -296,7 +296,7 @@ export function PurchaseForm({
       discount_amount: discountAmount,
       tax_amount: taxAmount,
       paid_amount: paidAmount,
-      notes: notes.trim() || undefined,
+      notes: isEdit ? notes.trim() : (notes.trim() || undefined),
       items: lineItems.map((item) => ({
         product_id: item.product.id,
         quantity: item.quantity,

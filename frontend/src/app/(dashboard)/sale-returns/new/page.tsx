@@ -38,7 +38,8 @@ export default function NewSaleReturnPage() {
         customer_id: values.customer_id,
         return_date: new Date(values.return_date).toISOString(),
         refund_amount: values.refund_amount,
-        reason: values.reason || null,
+        reason: values.reason?.trim() ? values.reason.trim() : null,
+        notes: values.reason?.trim() ? values.reason.trim() : null,
         items: selectedItems,
       };
 

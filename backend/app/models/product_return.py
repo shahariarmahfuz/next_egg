@@ -36,6 +36,22 @@ class ProductReturn(TimestampedBaseModel):
         "ProductReturnItem", back_populates="product_return", cascade="all, delete-orphan", lazy="selectin"
     )
 
+    @property
+    def notes(self) -> str | None:
+        return self.reason
+
+    @notes.setter
+    def notes(self, value: str | None) -> None:
+        self.reason = value
+
+    @property
+    def note(self) -> str | None:
+        return self.reason
+
+    @note.setter
+    def note(self, value: str | None) -> None:
+        self.reason = value
+
     __table_args__ = (
         Index("idx_pret_no", "return_no"),
         Index("idx_pret_supplier", "supplier_id"),

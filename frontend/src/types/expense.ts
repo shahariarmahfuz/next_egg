@@ -24,6 +24,8 @@ export interface Expense {
   payment_method: string;
   reference_no?: string;
   description?: string;
+  notes?: string;
+  note?: string;
   created_by_id: string;
   created_by_name?: string;
   created_at: string;
@@ -37,6 +39,8 @@ export interface ExpenseInput {
   payment_method: string;
   reference_no?: string;
   description?: string;
+  notes?: string;
+  note?: string;
 }
 
 export interface ExpenseReportSummary {

@@ -39,6 +39,14 @@ class Sale(TimestampedBaseModel):
         "SaleItem", back_populates="sale", cascade="all, delete-orphan", lazy="selectin"
     )
 
+    @property
+    def note(self) -> str | None:
+        return self.notes
+
+    @note.setter
+    def note(self, value: str | None) -> None:
+        self.notes = value
+
     __table_args__ = (
         Index("idx_sale_invoice_no", "invoice_no"),
         Index("idx_sale_customer_date", "customer_id", "sale_date"),

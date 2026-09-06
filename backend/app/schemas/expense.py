@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # Category Schemas
@@ -37,6 +37,17 @@ class ExpenseBase(BaseModel):
     payment_method: str = Field(default="Cash")
     reference_no: Optional[str] = None
     description: Optional[str] = None
+    notes: Optional[str] = None
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        val = self.notes if self.notes is not None else (self.note if self.note is not None else self.description)
+        if val is not None:
+            self.description = val
+            self.notes = val
+            self.note = val
+        return self
 
 
 class ExpenseCreate(ExpenseBase):
@@ -50,6 +61,17 @@ class ExpenseUpdate(BaseModel):
     payment_method: Optional[str] = None
     reference_no: Optional[str] = None
     description: Optional[str] = None
+    notes: Optional[str] = None
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        val = self.notes if self.notes is not None else (self.note if self.note is not None else self.description)
+        if val is not None:
+            self.description = val
+            self.notes = val
+            self.note = val
+        return self
 
 
 class ExpenseResponse(ExpenseBase):

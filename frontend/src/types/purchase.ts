@@ -45,6 +45,7 @@ export interface PurchaseItem {
   due_amount: number;
   payment_status: "paid" | "partial" | "unpaid";
   notes?: string;
+  note?: string;
   items: PurchaseItemDetail[];
   created_at: string;
   updated_at: string;
@@ -59,6 +60,7 @@ export interface PurchaseCreatePayload {
   tax_amount: number;
   paid_amount: number;
   notes?: string;
+  note?: string;
   items: PurchaseItemPayload[];
 }
 
@@ -70,6 +72,7 @@ export interface PurchaseUpdatePayload {
   tax_amount?: number;
   paid_amount?: number;
   notes?: string;
+  note?: string;
   items?: PurchaseItemPayload[];
 }
 

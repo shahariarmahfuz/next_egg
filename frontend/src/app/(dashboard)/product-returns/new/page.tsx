@@ -39,7 +39,8 @@ export default function NewProductReturnPage() {
         supplier_id: values.supplier_id,
         return_date: new Date(values.return_date).toISOString(),
         refund_received: values.refund_received,
-        reason: values.reason || null,
+        reason: values.reason?.trim() ? values.reason.trim() : null,
+        notes: values.reason?.trim() ? values.reason.trim() : null,
         items: selectedItems,
       };
 

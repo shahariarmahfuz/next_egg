@@ -132,12 +132,14 @@ export function PurchaseViewModal({ purchase, isOpen, onClose }: PurchaseViewMod
           </div>
         </div>
 
-        {purchase.notes && (
-          <div className="p-3 rounded-xl bg-muted/20 border text-xs space-y-1">
-            <span className="font-semibold text-muted-foreground flex items-center gap-1">
-              <FileText className="h-3.5 w-3.5" /> Notes
+        {Boolean(purchase.notes || (purchase as any).note) && (
+          <div className="p-3.5 rounded-xl bg-muted/30 border border-border/60 text-xs space-y-1.5">
+            <span className="font-semibold text-foreground flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-primary" /> Note
             </span>
-            <p className="text-foreground">{purchase.notes}</p>
+            <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed break-words">
+              {purchase.notes || (purchase as any).note}
+            </p>
           </div>
         )}
 

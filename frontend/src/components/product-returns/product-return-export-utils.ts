@@ -244,7 +244,7 @@ export function printProductReturnVoucher(ret: ProductReturnItem) {
           <div class="detail-row" style="font-size: 15px; font-weight: bold; border-top: 1px solid #93c5fd; padding-top: 6px;"><span class="detail-label">Net Reduction in Supplier Due Balance:</span><span class="detail-value" style="color: #1d4ed8;">$${(ret.grand_total - ret.refund_received).toFixed(2)}</span></div>
         </div>
 
-        ${ret.reason ? `<div class="card"><div class="card-title font-bold">Return Reason & Notes</div><div style="font-size: 13px;">${ret.reason}</div></div>` : ""}
+        ${(ret.notes || (ret as any).note || ret.reason) ? `<div class="card"><div class="card-title font-bold">Return Reason & Notes</div><div style="font-size: 13px; white-space: pre-wrap; word-break: break-word;">${ret.notes || (ret as any).note || ret.reason}</div></div>` : ""}
 
         <div style="display: flex; justify-content: space-between; margin-top: 50px;">
           <div class="sig-line">Supplier Representative Signature</div>

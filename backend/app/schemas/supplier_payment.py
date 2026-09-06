@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.customer_collection import UserNestedResponse
 from app.schemas.supplier import SupplierResponse
@@ -14,6 +14,15 @@ class SupplierPaymentCreate(BaseModel):
     reference_no: Optional[str] = Field(None, max_length=100, description="Bank transaction ref, cheque #, transaction ID")
     payment_date: Optional[datetime] = Field(None, description="Payment Transaction Date")
     notes: Optional[str] = Field(None, description="Payment notes")
+    note: Optional[str] = Field(None, description="Payment note alias")
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
     @field_validator("amount")
     def validate_amount(cls, v: float) -> float:
@@ -28,6 +37,15 @@ class SupplierPaymentUpdate(BaseModel):
     reference_no: Optional[str] = None
     payment_date: Optional[datetime] = None
     notes: Optional[str] = None
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
 
 class SupplierPaymentResponse(BaseModel):
@@ -43,8 +61,17 @@ class SupplierPaymentResponse(BaseModel):
     reference_no: Optional[str] = None
     payment_date: datetime
     notes: Optional[str] = None
+    note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def sync_notes(self):
+        if self.notes is None and self.note is not None:
+            self.notes = self.note
+        elif self.note is None and self.notes is not None:
+            self.note = self.notes
+        return self
 
     supplier: Optional[SupplierResponse] = None
     user: Optional[UserNestedResponse] = None
