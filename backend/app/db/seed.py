@@ -1,3 +1,4 @@
+import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import logger
 from app.core.security import get_password_hash
@@ -8,6 +9,36 @@ from app.repositories.permission_repository import permission_repository
 from app.repositories.role_repository import role_repository
 from app.repositories.user_repository import user_repository
 from app.db.seeds.settings_seed import seed_settings_and_currencies
+
+DEFAULT_INITIAL_ACCOUNTS = [
+    {
+        "role_code": "owner",
+        "username": "owner",
+        "email": "owner@enterprise.com",
+        "full_name": "System Owner",
+        "phone": "+18005550199",
+        "env_var": "INITIAL_OWNER_PASSWORD",
+        "default_password": "Owner@Argon2Secure2026!",
+    },
+    {
+        "role_code": "admin",
+        "username": "admin",
+        "email": "admin@enterprise.com",
+        "full_name": "System Administrator",
+        "phone": "+18005550101",
+        "env_var": "INITIAL_ADMIN_PASSWORD",
+        "default_password": "Admin@Argon2Secure2026!",
+    },
+    {
+        "role_code": "employee",
+        "username": "employee",
+        "email": "employee@enterprise.com",
+        "full_name": "System Employee",
+        "phone": "+18005550102",
+        "env_var": "INITIAL_EMPLOYEE_PASSWORD",
+        "default_password": "Employee@Argon2Secure2026!",
+    },
+]
 
 DEFAULT_PERMISSIONS = [
     # Dashboard module
@@ -100,6 +131,13 @@ DEFAULT_PERMISSIONS = [
     # Reports module
     {"code": "reports.view", "name": "View Reports", "module": "reports", "description": "Access system reports and analytics"},
 
+    # Farm module
+    {"code": "farm.view", "name": "View Farm", "module": "farm", "description": "Access farm dashboard and stock overview"},
+    {"code": "farm.production", "name": "Record Production", "module": "farm", "description": "Record farm production"},
+    {"code": "farm.delivery", "name": "Record Delivery", "module": "farm", "description": "Record farm delivery / distribution"},
+    {"code": "farm.waste", "name": "Record Waste", "module": "farm", "description": "Record farm waste / loss"},
+    {"code": "farm.report", "name": "View Farm Reports", "module": "farm", "description": "View and export farm reports"},
+
     # User Management module
     {"code": "user.view", "name": "View Users", "module": "user", "description": "View user list and user details"},
     {"code": "user.create", "name": "Create Users", "module": "user", "description": "Create new system users"},
@@ -173,6 +211,7 @@ async def seed_initial_data(db: AsyncSession) -> None:
         "supplier_payment.view", "supplier_payment.create",
         "expense.view", "expense.create",
         "reports.view",
+        "farm.view", "farm.production", "farm.delivery", "farm.waste", "farm.report",
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
 
@@ -184,25 +223,47 @@ async def seed_initial_data(db: AsyncSession) -> None:
     if role_map.get("employee"):
         await role_repository.set_role_permissions(db, role_map["employee"], employee_perms)
 
-    # 4. Seed Initial System Owner Account
-    owner_role = role_map.get("owner")
-    if owner_role:
-        existing_owner = await user_repository.get_by_username(db, "owner")
-        if not existing_owner:
-            owner_user_data = {
-                "full_name": "System Owner",
-                "username": "owner",
-                "email": "owner@enterprise.com",
-                "phone": "+18005550199",
-                "password_hash": get_password_hash("Owner@123456"),
-                "role_id": owner_role.id,
+    # 4. Seed Initial System Accounts (Owner, Admin, Employee) using Argon2id
+    reset_passwords = os.getenv("RESET_DEFAULT_PASSWORDS", "").lower() in ("true", "1", "yes")
+
+    for acc in DEFAULT_INITIAL_ACCOUNTS:
+        role = role_map.get(acc["role_code"])
+        if not role:
+            continue
+
+        raw_pwd = os.getenv(acc["env_var"]) or acc["default_password"]
+        existing_user = await user_repository.get_by_username(db, acc["username"])
+
+        if not existing_user:
+            user_data = {
+                "full_name": acc["full_name"],
+                "username": acc["username"],
+                "email": acc["email"],
+                "phone": acc["phone"],
+                "password_hash": get_password_hash(raw_pwd),
+                "role_id": role.id,
                 "status": "active",
             }
-            await user_repository.create(db, obj_in=owner_user_data)
-            logger.info("Created default system owner account: [username: owner / password: Owner@123456]")
-        elif existing_owner.email == "owner@system.local":
-            existing_owner.email = "owner@enterprise.com"
-            db.add(existing_owner)
+            created_user = await user_repository.create(db, obj_in=user_data)
+            logger.info(
+                f"[SEED] Created initial {acc['role_code'].upper()} account: "
+                f"username='{acc['username']}', email='{acc['email']}', "
+                f"hash='{created_user.password_hash[:30]}...'"
+            )
+        else:
+            if reset_passwords:
+                existing_user.password_hash = get_password_hash(raw_pwd)
+                existing_user.role_id = role.id
+                if not existing_user.email:
+                    existing_user.email = acc["email"]
+                db.add(existing_user)
+                logger.info(
+                    f"[SEED] Updated {acc['role_code'].upper()} account password with Argon2id: "
+                    f"username='{acc['username']}'"
+                )
+            elif existing_user.email == "owner@system.local":
+                existing_user.email = "owner@enterprise.com"
+                db.add(existing_user)
 
     await db.commit()
     

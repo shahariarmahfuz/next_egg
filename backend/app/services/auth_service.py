@@ -3,7 +3,14 @@ from typing import List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import create_access_token, create_refresh_token, decode_token, verify_password
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    get_password_hash,
+    needs_rehash,
+    verify_password,
+)
 from app.exceptions.custom import BadRequestException, UnauthorizedException
 from app.models.user import User
 from app.repositories.permission_repository import permission_repository
@@ -27,6 +34,13 @@ class AuthService:
 
         if user.status != "active":
             raise UnauthorizedException(f"Account is {user.status}. Please contact system administrator.")
+
+        # Transparent upgrade to Argon2id if using legacy bcrypt or outdated parameters
+        if needs_rehash(user.password_hash):
+            user.password_hash = get_password_hash(password)
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
 
         return user
 
