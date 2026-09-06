@@ -91,7 +91,14 @@ export default function ReportsHubPage() {
   >("sales");
 
   return (
-    <HasPermission code={["reports.view", "sales.report.view"]}>
+    <HasPermission
+      code="reports.view"
+      fallback={
+        <div className="p-8 text-center text-destructive font-medium">
+          Access Denied: You do not have permission to view Reports Center.
+        </div>
+      }
+    >
       <div className="space-y-6">
         <PageHeader
           title="Centralized Business Reports & Analytics"

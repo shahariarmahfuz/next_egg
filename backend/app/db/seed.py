@@ -44,7 +44,10 @@ DEFAULT_PERMISSIONS = [
     # Dashboard module
     {"code": "dashboard.view", "name": "View Dashboard", "module": "dashboard", "description": "View business overview dashboard"},
 
-    # Reports Central module
+    # Filtered Dashboard module
+    {"code": "dashboard.filtered.view", "name": "View Filtered Dashboard", "module": "dashboard_filtered", "description": "View date-filtered business performance and analytics"},
+
+    # Reports Center module
     {"code": "reports.view", "name": "View Reports Center", "module": "reports", "description": "View centralized analytics & reporting hub"},
 
     # Sales module
@@ -128,9 +131,6 @@ DEFAULT_PERMISSIONS = [
     {"code": "expense.report.view", "name": "View Expense Report", "module": "expense", "description": "View expense summary and reports"},
     {"code": "expense.report.export", "name": "Export Expense Report", "module": "expense", "description": "Export expense reports to PDF, Excel, CSV"},
 
-    # Reports module
-    {"code": "reports.view", "name": "View Reports", "module": "reports", "description": "Access system reports and analytics"},
-
     # Farm module
     {"code": "farm.view", "name": "View Farm", "module": "farm", "description": "Access farm dashboard and stock overview"},
     {"code": "farm.production", "name": "Record Production", "module": "farm", "description": "Record farm production"},
@@ -145,8 +145,8 @@ DEFAULT_PERMISSIONS = [
     {"code": "user.delete", "name": "Delete Users", "module": "user", "description": "Soft delete user accounts"},
 
     # Role Management module
-    {"code": "role.view", "name": "View Roles", "module": "role", "description": "View roles and permission matrices"},
-    {"code": "role.edit", "name": "Edit Roles", "module": "role", "description": "Create roles and assign permissions"},
+    {"code": "role.view", "name": "View Roles & Permissions", "module": "role", "description": "View roles and permission matrices"},
+    {"code": "role.edit", "name": "Manage Roles & Permissions", "module": "role", "description": "Create roles and assign permissions"},
 
     # Profile module
     {"code": "profile.view", "name": "View Profile", "module": "profile", "description": "View user profile details"},
@@ -193,6 +193,10 @@ async def seed_initial_data(db: AsyncSession) -> None:
             perm = await permission_repository.create(db, obj_in=perm_data)
             permission_map[perm.code] = perm
         else:
+            existing.name = perm_data["name"]
+            existing.module = perm_data["module"]
+            existing.description = perm_data["description"]
+            db.add(existing)
             permission_map[existing.code] = existing
 
     # 2. Seed Fixed System Roles
@@ -210,6 +214,7 @@ async def seed_initial_data(db: AsyncSession) -> None:
 
     # Employee gets operational view and creation perms only (no admin/user/role/edit/delete perms)
     employee_perm_codes = {
+        "dashboard.view",
         "sales.view", "sales.create",
         "customer.view", "customer.create", "customer.due.view",
         "product.view", "product.create",
@@ -218,7 +223,6 @@ async def seed_initial_data(db: AsyncSession) -> None:
         "collection.view", "collection.create",
         "supplier_payment.view", "supplier_payment.create",
         "expense.view", "expense.create",
-        "reports.view",
         "farm.view", "farm.production", "farm.delivery", "farm.waste", "farm.report",
         "profile.view", "profile.edit",
     }

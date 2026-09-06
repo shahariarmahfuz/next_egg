@@ -15,6 +15,48 @@ interface RolePermissionMatrixProps {
   onSaved?: () => void;
 }
 
+const MODULE_DISPLAY_NAMES: Record<string, string> = {
+  dashboard: "Dashboard",
+  dashboard_filtered: "Filtered Dashboard",
+  reports: "Reports Center",
+  role: "Role & Permission Management",
+  user: "User Management",
+  sales: "Sales",
+  sale_return: "Sale Return",
+  customer: "Customer",
+  collection: "Customer Collection",
+  product: "Product",
+  supplier: "Supplier",
+  supplier_payment: "Supplier Payment",
+  purchase: "Purchase",
+  product_return: "Product Return",
+  expense: "Expense",
+  farm: "Farm",
+  profile: "User Profile",
+  settings: "Settings",
+};
+
+const MODULE_ORDER = [
+  "dashboard",
+  "dashboard_filtered",
+  "reports",
+  "role",
+  "user",
+  "sales",
+  "sale_return",
+  "customer",
+  "collection",
+  "product",
+  "supplier",
+  "supplier_payment",
+  "purchase",
+  "product_return",
+  "expense",
+  "farm",
+  "profile",
+  "settings",
+];
+
 export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePermissionMatrixProps) {
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -27,8 +69,17 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
     }
   }, [role]);
 
-  // Group permissions by module
-  const modules = Array.from(new Set(allPermissions.map((p) => p.module)));
+  // Group permissions by module in priority order
+  const distinctModules = Array.from(new Set(allPermissions.map((p) => p.module)));
+  const modules = distinctModules.sort((a, b) => {
+    const idxA = MODULE_ORDER.indexOf(a);
+    const idxB = MODULE_ORDER.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
   const permissionsByModule = modules.reduce((acc, mod) => {
     acc[mod] = allPermissions.filter((p) => p.module === mod);
     return acc;
@@ -145,8 +196,8 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
             <div key={moduleName} className="border rounded-xl p-4 bg-muted/20 space-y-3">
               <div className="flex items-center justify-between border-b pb-2">
                 <div className="flex items-center space-x-2">
-                  <Badge variant="secondary" className="capitalize text-xs font-semibold px-2 py-0.5">
-                    {moduleName} Module
+                  <Badge variant="secondary" className="text-xs font-semibold px-2 py-0.5">
+                    {MODULE_DISPLAY_NAMES[moduleName] || moduleName.replace(/_/g, " ")} Module
                   </Badge>
                   <span className="text-xs text-muted-foreground">({perms.length} permissions)</span>
                 </div>

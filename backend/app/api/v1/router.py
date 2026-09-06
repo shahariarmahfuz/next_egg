@@ -21,6 +21,7 @@ from app.api.v1.endpoints import (
     suppliers,
     users,
     profile,
+    reports,
 )
 
 api_router = APIRouter()
@@ -48,3 +49,4 @@ api_router.include_router(balance_adjustments.router)
 api_router.include_router(expense.router)
 api_router.include_router(currencies.router)
 api_router.include_router(settings.router)
+api_router.include_router(reports.router)

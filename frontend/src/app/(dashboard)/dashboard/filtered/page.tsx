@@ -25,7 +25,7 @@ import { DashboardCardsSummary } from "@/types";
 import { formatCurrency } from "@/utils/formatters";
 
 export default function FilteredDashboardPage() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const today = new Date().toLocaleDateString('en-CA');
   
   const [startDate, setStartDate] = useState(today);
@@ -34,6 +34,7 @@ export default function FilteredDashboardPage() {
   const { data: summaryQueryData, isLoading: isSummaryLoading } = useQuery({
     queryKey: ["dashboard-summary", startDate, endDate],
     queryFn: () => dashboardService.getSummary(startDate, endDate),
+    enabled: hasPermission("dashboard.filtered.view"),
   });
 
   const summary: DashboardCardsSummary = summaryQueryData?.data || {
@@ -52,9 +53,12 @@ export default function FilteredDashboardPage() {
   const isProfitPositive = summary.total_profit >= 0;
   const { settings } = useSettingsStore();
 
-  // Restrict to owner or admin
-  if (user?.role?.code !== 'owner' && user?.role?.code !== 'admin') {
-    return <div className="p-8 text-center text-red-500">Access Denied</div>;
+  if (!hasPermission("dashboard.filtered.view")) {
+    return (
+      <div className="p-8 text-center text-destructive font-medium">
+        Access Denied: You do not have permission to view Filtered Dashboard.
+      </div>
+    );
   }
 
   return (

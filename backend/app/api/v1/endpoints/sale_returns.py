@@ -72,7 +72,7 @@ async def get_sale_return_reports(
     search: Optional[str] = Query(None),
     customer_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("sale_return.report")),
+    current_user: User = Depends(RequirePermission(["reports.view", "sale_return.report"])),
 ):
     """Calculates sale return report metrics and daily breakdown for date ranges."""
     report_data = await sale_return_service.get_sale_return_reports(

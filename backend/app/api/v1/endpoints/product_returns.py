@@ -72,7 +72,7 @@ async def get_product_return_reports(
     search: Optional[str] = Query(None),
     supplier_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("product_return.report")),
+    current_user: User = Depends(RequirePermission(["reports.view", "product_return.report"])),
 ):
     """Calculates product return report metrics and daily breakdown for date ranges."""
     report_data = await product_return_service.get_product_return_reports(

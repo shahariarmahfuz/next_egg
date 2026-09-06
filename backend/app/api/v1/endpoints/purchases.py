@@ -68,7 +68,7 @@ async def get_purchase_reports(
     month: Optional[int] = Query(None, ge=1, le=12, description="Month number for monthly report"),
     year: Optional[int] = Query(None, ge=2020, description="Year for monthly report"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("purchase.report")),
+    current_user: User = Depends(RequirePermission(["reports.view", "purchase.report"])),
 ):
     """Purchase summary report endpoint supporting Today, Date-Wise, Date Range, and Monthly filters."""
     summary = await purchase_service.generate_purchase_report(

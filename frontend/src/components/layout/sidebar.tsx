@@ -121,23 +121,25 @@ export function SidebarContent({
       {/* Navigation Items */}
       <div className="flex-1 overflow-y-auto overscroll-contain py-4 px-3 space-y-1">
         {/* Dashboard Home */}
-        <Link
-          href="/"
-          onClick={onNavigate}
-          className={cn(
-            "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-            pathname === "/"
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-          )}
-          title={collapsed ? "Dashboard" : undefined}
-        >
-          <LayoutDashboard className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>Dashboard</span>}
-        </Link>
+        {hasPermission("dashboard.view") && (
+          <Link
+            href="/"
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
+              pathname === "/"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            )}
+            title={collapsed ? "Dashboard" : undefined}
+          >
+            <LayoutDashboard className="h-5 w-5 shrink-0" />
+            {!collapsed && <span>Dashboard</span>}
+          </Link>
+        )}
 
-        {/* Filtered Dashboard (Owner/Admin Only) */}
-        {(user?.role?.code === 'owner' || user?.role?.code === 'admin') && (
+        {/* Filtered Dashboard */}
+        {hasPermission("dashboard.filtered.view") && (
           <Link
             href="/dashboard/filtered"
             onClick={onNavigate}
@@ -155,7 +157,7 @@ export function SidebarContent({
         )}
 
         {/* Centralized Reports Hub */}
-        {(hasPermission("reports.view") || hasPermission("sales.report.view")) && (
+        {hasPermission("reports.view") && (
           <Link
             href="/reports"
             onClick={onNavigate}

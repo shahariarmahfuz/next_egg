@@ -82,7 +82,7 @@ async def get_sales_reports(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("sales.report.view")),
+    current_user: User = Depends(RequirePermission(["reports.view", "sales.report.view"])),
 ):
     """Generates aggregated sales metrics (total sales, total sale amount, total discount, total paid, total due, total items sold)."""
     summary = await sale_service.get_sale_reports(

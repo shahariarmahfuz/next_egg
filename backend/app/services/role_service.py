@@ -44,25 +44,26 @@ class RoleService:
 
         return await role_repository.get_with_permissions(db, role.id)
 
-    async def update_role(self, db: AsyncSession, role_id: str, role_in: RoleUpdate) -> Role:
+    async def update_role(self, db: AsyncSession, role_id: str, role_in: RoleUpdate, current_user: User = None) -> Role:
         role = await role_repository.get_with_permissions(db, role_id)
         if not role:
             raise NotFoundException(f"Role with ID '{role_id}' not found.")
+
+        if role.code == "owner":
+            raise BadRequestException("Owner role cannot be modified; Owner retains full access.")
 
         update_data = role_in.model_dump(exclude_unset=True, exclude={"permission_ids"})
         if update_data:
             role = await role_repository.update(db, db_obj=role, obj_in=update_data)
 
         if role_in.permission_ids is not None:
-            if role.code == "owner":
-                raise BadRequestException("Owner role permissions cannot be modified; Owner retains full access.")
             permissions = await permission_repository.get_by_ids(db, role_in.permission_ids)
             role = await role_repository.set_role_permissions(db, role, list(permissions))
 
         setattr(role, "user_count", await role_repository.get_user_count_by_role(db, role.id))
         return role
 
-    async def update_role_permissions(self, db: AsyncSession, role_id: str, permission_ids: list[str]) -> Role:
+    async def update_role_permissions(self, db: AsyncSession, role_id: str, permission_ids: list[str], current_user: User = None) -> Role:
         role = await role_repository.get_with_permissions(db, role_id)
         if not role:
             raise NotFoundException(f"Role with ID '{role_id}' not found.")

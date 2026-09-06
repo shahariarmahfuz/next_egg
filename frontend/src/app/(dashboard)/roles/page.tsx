@@ -19,12 +19,14 @@ export default function RolesPage() {
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
+  const { user: currentUser, hasPermission } = useAuth();
+
   // Fetch Roles
   const { data: rolesData, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["roles"],
     queryFn: () => roleService.getRoles(),
+    enabled: hasPermission("role.view"),
   });
-  const { user: currentUser } = useAuth();
 
   const roles: RoleItem[] = (rolesData?.data || []).filter(r => {
     if (currentUser?.role?.code === "admin" && r.code === "owner") return false;
@@ -35,13 +37,22 @@ export default function RolesPage() {
   const { data: permsData, isLoading: isLoadingPerms } = useQuery({
     queryKey: ["permissions"],
     queryFn: () => permissionService.getPermissions(),
+    enabled: hasPermission("role.view"),
   });
   const allPermissions: PermissionItem[] = permsData?.data || [];
 
   const activeRole = roles.find((r) => r.id === selectedRoleId) || roles[0];
 
   return (
-    <div className="space-y-8">
+    <HasPermission
+      code="role.view"
+      fallback={
+        <div className="p-8 text-center text-destructive font-medium">
+          Access Denied: You do not have permission to view Roles & Permissions.
+        </div>
+      }
+    >
+      <div className="space-y-8">
       <PageHeader
         title="Role & Permission Management"
         description="Manage system roles (Owner, Admin, Employee) and configure dynamic permission matrices."
@@ -127,5 +138,6 @@ export default function RolesPage() {
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["roles"] })}
       />
     </div>
+  </HasPermission>
   );
 }

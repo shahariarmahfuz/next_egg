@@ -51,7 +51,15 @@ export default function DashboardPage() {
   const { settings } = useSettingsStore();
 
   return (
-    <div className="space-y-6">
+    <HasPermission
+      code="dashboard.view"
+      fallback={
+        <div className="p-8 text-center text-destructive font-medium">
+          Access Denied: You do not have permission to view Dashboard.
+        </div>
+      }
+    >
+      <div className="space-y-6">
       <PageHeader
         title={`${settings.business_name || "Enterprise"} Dashboard`}
           description="Real-time operational summary, sales metrics, customer & supplier balances, and recent sales transactions."
@@ -235,7 +243,8 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
       </div>
-    </div>
+    </HasPermission>
   );
 }

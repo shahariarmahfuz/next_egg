@@ -66,7 +66,7 @@ async def update_role(
     current_user: User = Depends(RequirePermission("role.edit")),
 ):
     """Update role details and permissions."""
-    role = await role_service.update_role(db, role_id, role_in)
+    role = await role_service.update_role(db, role_id, role_in, current_user)
     return ResponseModel[RoleResponse](
         success=True,
         message="Role updated successfully",
@@ -82,7 +82,7 @@ async def update_role_permissions(
     current_user: User = Depends(RequirePermission("role.edit")),
 ):
     """Role Permission Matrix Editor: Update assigned permission IDs for a role."""
-    role = await role_service.update_role_permissions(db, role_id, permission_in.permission_ids)
+    role = await role_service.update_role_permissions(db, role_id, permission_in.permission_ids, current_user)
     return ResponseModel[RoleResponse](
         success=True,
         message="Role permissions updated successfully",

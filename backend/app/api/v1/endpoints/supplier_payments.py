@@ -121,7 +121,7 @@ async def get_supplier_payment_reports(
     supplier_id: Optional[str] = Query(None),
     payment_method: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("supplier_payment.report")),
+    current_user: User = Depends(RequirePermission(["reports.view", "supplier_payment.report"])),
 ):
     """Calculates supplier payment report metrics, payment channel breakdown, and daily timeline."""
     report_data = await supplier_payment_service.get_supplier_payment_reports(

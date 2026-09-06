@@ -106,7 +106,7 @@ async def get_collection_reports(
     customer_id: Optional[str] = Query(None),
     payment_method: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("collection.report")),
+    current_user: User = Depends(RequirePermission(["reports.view", "collection.report"])),
 ):
     """Calculates collection report metrics and aggregates for date ranges and filters."""
     report_data = await customer_collection_service.get_collection_reports(
