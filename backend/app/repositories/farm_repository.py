@@ -42,6 +42,10 @@ class FarmRepository:
         await db.refresh(farm)
         return farm
 
+    async def delete_farm(self, db: AsyncSession, farm: Farm) -> None:
+        await db.delete(farm)
+        await db.commit()
+
     async def get_farm_balance(self, db: AsyncSession, farm_id: str) -> Dict[str, float]:
         farm = await self.get_farm_by_id(db, farm_id)
         if not farm:
@@ -272,6 +276,13 @@ class FarmRepository:
         await db.commit()
 
     # --- Delivery Operations ---
+    async def create_delivery(self, db: AsyncSession, delivery: FarmDelivery) -> FarmDelivery:
+        db.add(delivery)
+        await db.commit()
+        await db.refresh(delivery)
+        res = await self.get_delivery_by_id(db, delivery.id)
+        return res or delivery
+
     async def create_deliveries_batch(
         self, db: AsyncSession, deliveries: List[FarmDelivery]
     ) -> List[FarmDelivery]:

@@ -22,6 +22,7 @@ from app.schemas.farm import (
     FarmProductionCreate,
     FarmProductionUpdate,
     FarmProductionResponse,
+    FarmDeliveryCreate,
     FarmDeliveryBatchCreate,
     FarmDeliveryUpdate,
     FarmDeliveryResponse,
@@ -122,6 +123,21 @@ async def update_farm_previous_tray(
         success=True,
         message="Previous tray balance updated successfully",
         data=updated,
+    )
+
+
+@router.delete("/farms/{farm_id}", response_model=ResponseModel[dict])
+async def delete_farm(
+    farm_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission(["farm.manage", "farm.create"])),
+):
+    """Delete a farm and all associated records."""
+    await farm_service.delete_farm(db, farm_id=farm_id)
+    return ResponseModel[dict](
+        success=True,
+        message="Farm deleted successfully",
+        data={"id": farm_id},
     )
 
 
@@ -363,13 +379,30 @@ async def delete_farm_production(
 # LEGACY DELIVERY ENDPOINTS
 # ==========================================
 
-@router.post("/delivery", response_model=ResponseModel[List[FarmDeliveryResponse]], status_code=status.HTTP_201_CREATED)
+@router.post("/delivery", response_model=ResponseModel[FarmDeliveryResponse], status_code=status.HTTP_201_CREATED)
 async def create_farm_delivery(
     *,
     db: AsyncSession = Depends(get_db),
-    obj_in: FarmDeliveryBatchCreate,
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.delivery", "farm.delivery.create"])),
+    obj_in: FarmDeliveryCreate,
+    current_user: User = Depends(RequirePermission(["farm.manage", "farm.delivery", "farm.delivery.create", "farm.create"])),
 ):
+    """Record a single farm delivery."""
+    delivery = await farm_service.create_delivery(db, obj_in=obj_in)
+    return ResponseModel[FarmDeliveryResponse](
+        success=True,
+        message="Farm delivery recorded successfully",
+        data=delivery,
+    )
+
+
+@router.post("/delivery/batch", response_model=ResponseModel[List[FarmDeliveryResponse]], status_code=status.HTTP_201_CREATED)
+async def create_farm_delivery_batch(
+    *,
+    db: AsyncSession = Depends(get_db),
+    obj_in: FarmDeliveryBatchCreate,
+    current_user: User = Depends(RequirePermission(["farm.manage", "farm.delivery", "farm.delivery.create", "farm.create"])),
+):
+    """Record multiple delivery destination entries at once."""
     deliveries = await farm_service.create_deliveries_batch(db, obj_in=obj_in)
     return ResponseModel[List[FarmDeliveryResponse]](
         success=True,

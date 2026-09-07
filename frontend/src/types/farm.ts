@@ -134,6 +134,14 @@ export interface FarmDeliveryItem {
   updated_at: string;
 }
 
+export interface FarmDeliveryCreatePayload {
+  farm_id: string;
+  delivery_date: string;
+  destination: string;
+  tray_quantity: number;
+  notes?: string;
+}
+
 export interface FarmDeliveryBatchPayload {
   farm_id: string;
   delivery_date: string;

@@ -29,6 +29,7 @@ import {
   FarmProductionCreatePayload,
   FarmProductionUpdatePayload,
   FarmDeliveryItem,
+  FarmDeliveryCreatePayload,
   FarmDeliveryBatchPayload,
   FarmDeliveryUpdatePayload,
   FarmReportResponse,
@@ -701,6 +702,10 @@ export const farmService = {
     return http.put<FarmBalanceItem>(`/farm/farms/${id}/previous-tray`, { previous_tray });
   },
 
+  deleteFarm: async (id: string) => {
+    return http.delete<{ id: string }>(`/farm/farms/${id}`);
+  },
+
   createEntry: async (payload: FarmDailyEntryCreatePayload) => {
     return http.post<FarmDailyEntryItem>("/farm/entries", payload);
   },
@@ -753,8 +758,8 @@ export const farmService = {
     return http.delete<{ id: string }>(`/farm/production/${id}`);
   },
 
-  createDelivery: async (payload: FarmDeliveryBatchPayload) => {
-    return http.post<FarmDeliveryItem[]>("/farm/delivery", payload);
+  createDelivery: async (payload: FarmDeliveryCreatePayload | FarmDeliveryBatchPayload) => {
+    return http.post<FarmDeliveryItem>("/farm/delivery", payload);
   },
 
   getDeliveries: async (params?: {

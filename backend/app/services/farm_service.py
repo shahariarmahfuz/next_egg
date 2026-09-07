@@ -22,6 +22,7 @@ from app.schemas.farm import (
     FarmProductionCreate,
     FarmProductionUpdate,
     FarmProductionResponse,
+    FarmDeliveryCreate,
     FarmDeliveryBatchCreate,
     FarmDeliveryUpdate,
     FarmDeliveryResponse,
@@ -183,6 +184,10 @@ class FarmService:
             created_at=farm.created_at,
             updated_at=farm.updated_at,
         )
+
+    async def delete_farm(self, db: AsyncSession, farm_id: str) -> None:
+        farm = await self.get_farm_by_id(db, farm_id)
+        await farm_repository.delete_farm(db, farm)
 
     # --- Unified Farm Daily / Transaction Entry Operations ---
     async def create_entry(
@@ -421,7 +426,34 @@ class FarmService:
 
         await farm_repository.delete_production(db, prod)
 
-    # --- Legacy Delivery Operations ---
+    # --- Delivery Operations ---
+    async def create_delivery(
+        self, db: AsyncSession, obj_in: FarmDeliveryCreate
+    ) -> FarmDeliveryResponse:
+        farm = await farm_repository.get_farm_by_id(db, obj_in.farm_id)
+        if not farm:
+            raise NotFoundException(f"Farm with ID '{obj_in.farm_id}' not found.")
+
+        qty = float(obj_in.tray_quantity)
+        bal = await farm_repository.get_farm_balance(db, obj_in.farm_id)
+        current_available = bal["available"]
+
+        if qty > current_available:
+            raise BadRequestException(
+                f"Insufficient trays available. Farm '{farm.name}' currently has {current_available:.1f} available trays, "
+                f"but requested delivery is {qty:.1f} trays."
+            )
+
+        d = FarmDelivery(
+            farm_id=obj_in.farm_id,
+            delivery_date=obj_in.delivery_date,
+            destination=obj_in.destination.strip(),
+            tray_quantity=qty,
+            notes=obj_in.notes.strip() if obj_in.notes else None,
+        )
+        saved = await farm_repository.create_delivery(db, d)
+        return self.format_delivery(saved)
+
     async def create_deliveries_batch(
         self, db: AsyncSession, obj_in: FarmDeliveryBatchCreate
     ) -> List[FarmDeliveryResponse]:

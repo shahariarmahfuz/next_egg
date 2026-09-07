@@ -31,26 +31,6 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
-        source: "/farm/production",
-        destination: "/farm",
-        permanent: false,
-      },
-      {
-        source: "/farm/production/:path*",
-        destination: "/farm",
-        permanent: false,
-      },
-      {
-        source: "/farm/delivery",
-        destination: "/farm",
-        permanent: false,
-      },
-      {
-        source: "/farm/delivery/:path*",
-        destination: "/farm",
-        permanent: false,
-      },
-      {
         source: "/farm/waste",
         destination: "/farm",
         permanent: false,

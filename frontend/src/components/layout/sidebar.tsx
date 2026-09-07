@@ -982,19 +982,6 @@ export function SidebarContent({
             </button>
             {isGroupOpen("farm") && !collapsed && (
               <div className="pl-9 space-y-1 animate-in fade-in-50">
-                {hasPermission(["farm.view", "farm.manage", "farm.create", "farm.production", "farm.delivery"]) && (
-                  <Link
-                    href="/farm"
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                      pathname === "/farm" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                    )}
-                  >
-                    <Layers className="h-3.5 w-3.5 text-emerald-600" />
-                    <span>Farm Management</span>
-                  </Link>
-                )}
                 {hasPermission(["farm.create", "farm.manage"]) && (
                   <Link
                     href="/farm/add"
@@ -1004,8 +991,47 @@ export function SidebarContent({
                       pathname === "/farm/add" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                     )}
                   >
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus className="h-3.5 w-3.5 text-emerald-600" />
                     <span>Add Farm</span>
+                  </Link>
+                )}
+                {hasPermission(["farm.view", "farm.manage", "farm.create"]) && (
+                  <Link
+                    href="/farm"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <Layers className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Manage Farm</span>
+                  </Link>
+                )}
+                {hasPermission(["farm.production", "farm.create", "farm.manage", "farm.view"]) && (
+                  <Link
+                    href="/farm/production"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/production" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <PlusCircle className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Production</span>
+                  </Link>
+                )}
+                {hasPermission(["farm.delivery", "farm.create", "farm.manage", "farm.view"]) && (
+                  <Link
+                    href="/farm/delivery"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/delivery" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <Truck className="h-3.5 w-3.5 text-blue-500" />
+                    <span>Delivery</span>
                   </Link>
                 )}
                 {hasPermission(["farm.report", "farm.view"]) && (
@@ -1017,8 +1043,8 @@ export function SidebarContent({
                       pathname === "/farm/report" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                     )}
                   >
-                    <BarChart3 className="h-3.5 w-3.5 text-blue-500" />
-                    <span>Farm Report</span>
+                    <BarChart3 className="h-3.5 w-3.5 text-indigo-500" />
+                    <span>Production & Delivery Report</span>
                   </Link>
                 )}
               </div>

@@ -148,6 +148,14 @@ class FarmProductionResponse(BaseModel):
     updated_at: datetime
 
 
+class FarmDeliveryCreate(BaseModel):
+    farm_id: str
+    delivery_date: date
+    destination: str = Field(..., min_length=1, max_length=200, description="Store or destination name (e.g. Shop, Ayonal)")
+    tray_quantity: float = Field(..., gt=0, description="Quantity of trays delivered")
+    notes: Optional[str] = None
+
+
 class DeliveryEntryItem(BaseModel):
     destination: str = Field(..., min_length=1, max_length=200, description="Delivery destination or name")
     tray_quantity: float = Field(..., gt=0, description="Quantity of trays delivered")
