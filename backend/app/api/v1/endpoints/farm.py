@@ -194,7 +194,7 @@ async def create_farm_entry(
 @router.get("/entries", response_model=ResponseModel[PaginatedResponse[FarmDailyEntryResponse]])
 async def list_farm_entries(
     page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+    size: int = Query(20, ge=1, le=1000),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     farm_id: Optional[str] = Query(None),
@@ -202,10 +202,11 @@ async def list_farm_entries(
     current_user: User = Depends(RequirePermission(["farm.view", "farm.manage", "farm.create", "farm.production", "farm.delivery"])),
 ):
     """Retrieve paginated daily farm entries with attached deliveries."""
+    clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
     skip = (page - 1) * size
     items, total = await farm_service.get_entries(
         db,
-        farm_id=farm_id,
+        farm_id=clean_farm_id,
         start_date=start_date,
         end_date=end_date,
         skip=skip,
@@ -293,9 +294,10 @@ async def get_farm_report(
         start_date = today
         end_date = today
 
+    clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
     report = await farm_service.get_farm_report(
         db,
-        farm_id=farm_id,
+        farm_id=clean_farm_id,
         start_date=start_date,
         end_date=end_date,
     )
@@ -328,17 +330,18 @@ async def create_farm_production(
 @router.get("/production", response_model=ResponseModel[PaginatedResponse[FarmProductionResponse]])
 async def list_farm_production(
     page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+    size: int = Query(20, ge=1, le=1000),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     farm_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.production", "farm.manage"])),
+    current_user: User = Depends(RequirePermission(["farm.view", "farm.production", "farm.manage", "farm.report"])),
 ):
+    clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
     skip = (page - 1) * size
     items, total = await farm_service.get_productions(
         db,
-        farm_id=farm_id,
+        farm_id=clean_farm_id,
         start_date=start_date,
         end_date=end_date,
         skip=skip,
@@ -440,17 +443,18 @@ async def create_farm_delivery_batch(
 @router.get("/delivery", response_model=ResponseModel[PaginatedResponse[FarmDeliveryResponse]])
 async def list_farm_delivery(
     page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+    size: int = Query(20, ge=1, le=1000),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     farm_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.delivery", "farm.manage"])),
+    current_user: User = Depends(RequirePermission(["farm.view", "farm.delivery", "farm.manage", "farm.report"])),
 ):
+    clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
     skip = (page - 1) * size
     items, total = await farm_service.get_deliveries(
         db,
-        farm_id=farm_id,
+        farm_id=clean_farm_id,
         start_date=start_date,
         end_date=end_date,
         skip=skip,

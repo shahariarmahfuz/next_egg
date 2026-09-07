@@ -142,8 +142,8 @@ class FarmRepository:
         limit: int = 50,
     ) -> Tuple[Sequence[FarmEntry], int]:
         filters = []
-        if farm_id:
-            filters.append(FarmEntry.farm_id == farm_id)
+        if farm_id and farm_id.strip() and farm_id.strip().lower() != "all":
+            filters.append(FarmEntry.farm_id == farm_id.strip())
         if start_date:
             filters.append(FarmEntry.date >= start_date)
         if end_date:
@@ -233,8 +233,8 @@ class FarmRepository:
         limit: int = 50,
     ) -> Tuple[Sequence[FarmProduction], int]:
         filters = []
-        if farm_id:
-            filters.append(FarmProduction.farm_id == farm_id)
+        if farm_id and farm_id.strip() and farm_id.strip().lower() != "all":
+            filters.append(FarmProduction.farm_id == farm_id.strip())
         if start_date:
             filters.append(FarmProduction.production_date >= start_date)
         if end_date:
@@ -319,8 +319,8 @@ class FarmRepository:
         limit: int = 50,
     ) -> Tuple[Sequence[FarmDelivery], int]:
         filters = []
-        if farm_id:
-            filters.append(FarmDelivery.farm_id == farm_id)
+        if farm_id and farm_id.strip() and farm_id.strip().lower() != "all":
+            filters.append(FarmDelivery.farm_id == farm_id.strip())
         if start_date:
             filters.append(FarmDelivery.delivery_date >= start_date)
         if end_date:
@@ -370,10 +370,12 @@ class FarmRepository:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
+        clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
+
         # 1. Fetch Farm Entries (daily entries with production and delivery)
         entry_filters = []
-        if farm_id:
-            entry_filters.append(FarmEntry.farm_id == farm_id)
+        if clean_farm_id:
+            entry_filters.append(FarmEntry.farm_id == clean_farm_id)
         if start_date:
             entry_filters.append(FarmEntry.date >= start_date)
         if end_date:
@@ -390,8 +392,8 @@ class FarmRepository:
 
         # 2. Fetch standalone FarmDeliveries (e.g. legacy ones where entry_id is NULL)
         standalone_deliv_filters = [FarmDelivery.entry_id.is_(None)]
-        if farm_id:
-            standalone_deliv_filters.append(FarmDelivery.farm_id == farm_id)
+        if clean_farm_id:
+            standalone_deliv_filters.append(FarmDelivery.farm_id == clean_farm_id)
         if start_date:
             standalone_deliv_filters.append(FarmDelivery.delivery_date >= start_date)
         if end_date:
@@ -404,8 +406,8 @@ class FarmRepository:
 
         # 3. Fetch standalone FarmProductions (legacy ones)
         prod_filters = []
-        if farm_id:
-            prod_filters.append(FarmProduction.farm_id == farm_id)
+        if clean_farm_id:
+            prod_filters.append(FarmProduction.farm_id == clean_farm_id)
         if start_date:
             prod_filters.append(FarmProduction.production_date >= start_date)
         if end_date:

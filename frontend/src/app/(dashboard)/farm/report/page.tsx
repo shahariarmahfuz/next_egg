@@ -9,6 +9,7 @@ import {
   Layers,
   PlusCircle,
   Truck,
+  BookOpen,
   RefreshCw,
   Sprout,
 } from "lucide-react";
@@ -20,10 +21,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { farmService } from "@/services/api";
 import { FarmBalanceItem, FarmProductionItem, FarmDeliveryItem } from "@/types";
 
-export default function ProductionDeliveryReportPage() {
-  const todayStr = new Date().toISOString().split("T")[0];
+function getLocalToday(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
-  const [selectedDate, setSelectedDate] = useState(todayStr);
+function normalizeDate(val: string): string {
+  if (!val) return "";
+  const trimmed = val.trim();
+  if (/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(trimmed)) {
+    const parts = trimmed.split(/[/-]/);
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return trimmed;
+}
+
+export default function ProductionDeliveryReportPage() {
+  const [selectedDate, setSelectedDate] = useState(getLocalToday);
   const [selectedFarmId, setSelectedFarmId] = useState("");
   const [farms, setFarms] = useState<FarmBalanceItem[]>([]);
   const [productions, setProductions] = useState<FarmProductionItem[]>([]);
@@ -40,38 +57,44 @@ export default function ProductionDeliveryReportPage() {
     }).catch(console.error);
   }, []);
 
-  const fetchReportData = async (date: string, farmId: string) => {
+  const fetchReportData = async (rawDate: string, farmId: string) => {
+    const date = normalizeDate(rawDate);
+    if (!date) return;
     setLoading(true);
     try {
+      const cleanFarmId = farmId && farmId !== "all" ? farmId.trim() : undefined;
       const [prodRes, delivRes] = await Promise.all([
         farmService.getProductions({
           start_date: date,
           end_date: date,
-          farm_id: farmId || undefined,
-          size: 200,
+          farm_id: cleanFarmId,
+          size: 500,
         }),
         farmService.getDeliveries({
           start_date: date,
           end_date: date,
-          farm_id: farmId || undefined,
-          size: 200,
+          farm_id: cleanFarmId,
+          size: 500,
         }),
       ]);
 
-      if (prodRes.success && prodRes.data) {
-        setProductions(prodRes.data.items || []);
+      if (prodRes?.success && prodRes?.data?.items) {
+        setProductions(prodRes.data.items);
       } else {
         setProductions([]);
       }
 
-      if (delivRes.success && delivRes.data) {
-        setDeliveries(delivRes.data.items || []);
+      if (delivRes?.success && delivRes?.data?.items) {
+        setDeliveries(delivRes.data.items);
       } else {
         setDeliveries([]);
       }
     } catch (err: any) {
       console.error("Failed to load report data:", err);
-      toast.error("Failed to load report data");
+      const errorMsg = err?.message || "Failed to load report data";
+      toast.error(errorMsg);
+      setProductions([]);
+      setDeliveries([]);
     } finally {
       setLoading(false);
     }
@@ -126,6 +149,12 @@ export default function ProductionDeliveryReportPage() {
             <Button variant="outline" size="sm" className="text-xs">
               <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
               Delivery
+            </Button>
+          </Link>
+          <Link href="/farm/ledger">
+            <Button variant="outline" size="sm" className="text-xs">
+              <BookOpen className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
+              Farm Ledger
             </Button>
           </Link>
         </div>
