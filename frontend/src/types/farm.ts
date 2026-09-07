@@ -184,3 +184,25 @@ export interface FarmReportResponse {
   kpis: FarmReportKPIs;
   items: FarmReportItem[];
 }
+
+export interface FarmLedgerItem {
+  id?: string | null;
+  date: string;
+  type: 'opening' | 'production' | 'delivery';
+  description: string;
+  production?: number | null;
+  delivery?: number | null;
+  balance: number;
+  notes?: string | null;
+}
+
+export interface FarmLedgerResponse {
+  farm_id: string;
+  farm_name: string;
+  farm_code?: string | null;
+  opening_balance: number;
+  closing_balance: number;
+  total_production: number;
+  total_delivery: number;
+  items: FarmLedgerItem[];
+}

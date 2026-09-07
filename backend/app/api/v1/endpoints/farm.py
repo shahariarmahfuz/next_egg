@@ -27,6 +27,7 @@ from app.schemas.farm import (
     FarmDeliveryUpdate,
     FarmDeliveryResponse,
     FarmReportResponse,
+    FarmLedgerResponse,
 )
 from app.services.farm_service import farm_service
 from app.services.setting_service import setting_service
@@ -138,6 +139,31 @@ async def delete_farm(
         success=True,
         message="Farm deleted successfully",
         data={"id": farm_id},
+    )
+
+
+@router.get("/farms/{farm_id}/ledger", response_model=ResponseModel[FarmLedgerResponse])
+async def get_farm_ledger(
+    farm_id: str,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission(["farm.view", "farm.report", "farm.manage"])),
+):
+    """
+    Retrieve chronological tray movement ledger for a farm with running balance.
+    Opening tray + Production - Delivery = Running balance.
+    """
+    ledger = await farm_service.get_farm_ledger(
+        db,
+        farm_id=farm_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return ResponseModel[FarmLedgerResponse](
+        success=True,
+        message="Farm ledger retrieved successfully",
+        data=ledger,
     )
 
 

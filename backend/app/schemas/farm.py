@@ -220,3 +220,26 @@ class FarmReportKPIs(BaseModel):
 class FarmReportResponse(BaseModel):
     kpis: FarmReportKPIs
     items: List[FarmReportItem]
+
+
+# --- Farm Ledger Schemas ---
+class FarmLedgerItem(BaseModel):
+    id: Optional[str] = None
+    date: str
+    type: str  # 'opening', 'production', 'delivery'
+    description: str
+    production: Optional[float] = None
+    delivery: Optional[float] = None
+    balance: float
+    notes: Optional[str] = None
+
+
+class FarmLedgerResponse(BaseModel):
+    farm_id: str
+    farm_name: str
+    farm_code: Optional[str] = None
+    opening_balance: float
+    closing_balance: float
+    total_production: float
+    total_delivery: float
+    items: List[FarmLedgerItem]

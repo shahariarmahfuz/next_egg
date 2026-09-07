@@ -30,6 +30,7 @@ from app.schemas.farm import (
     FarmReportKPIs,
     FarmReportItem,
     DestinationBreakdown,
+    FarmLedgerResponse,
 )
 
 
@@ -581,6 +582,23 @@ class FarmService:
             for item in data["items"]
         ]
         return FarmReportResponse(kpis=kpis, items=items)
+
+    async def get_farm_ledger(
+        self,
+        db: AsyncSession,
+        farm_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> FarmLedgerResponse:
+        data = await farm_repository.get_farm_ledger_data(
+            db,
+            farm_id=farm_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if not data:
+            raise NotFoundException(f"Farm with ID '{farm_id}' not found")
+        return FarmLedgerResponse(**data)
 
 
 farm_service = FarmService()

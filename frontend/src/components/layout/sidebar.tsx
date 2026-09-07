@@ -1034,6 +1034,19 @@ export function SidebarContent({
                     <span>Delivery</span>
                   </Link>
                 )}
+                {hasPermission(["farm.view", "farm.report", "farm.manage"]) && (
+                  <Link
+                    href="/farm/ledger"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/ledger" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <BookOpen className="h-3.5 w-3.5 text-purple-500" />
+                    <span>Farm Ledger</span>
+                  </Link>
+                )}
                 {hasPermission(["farm.report", "farm.view"]) && (
                   <Link
                     href="/farm/report"

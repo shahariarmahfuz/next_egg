@@ -33,6 +33,7 @@ import {
   FarmDeliveryBatchPayload,
   FarmDeliveryUpdatePayload,
   FarmReportResponse,
+  FarmLedgerResponse,
   HealthCheckData,
   LoginRequest,
   LowStockProductItem,
@@ -790,6 +791,10 @@ export const farmService = {
     end_date?: string;
   }) => {
     return http.get<FarmReportResponse>("/farm/report", params);
+  },
+
+  getFarmLedger: async (farmId: string, params?: { start_date?: string; end_date?: string }) => {
+    return http.get<FarmLedgerResponse>(`/farm/farms/${farmId}/ledger`, params);
   },
 };
 

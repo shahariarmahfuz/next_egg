@@ -509,5 +509,144 @@ class FarmRepository:
             "items": sorted_items,
         }
 
+    async def get_farm_ledger_data(
+        self,
+        db: AsyncSession,
+        farm_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Optional[Dict[str, Any]]:
+        farm = await self.get_farm_by_id(db, farm_id)
+        if not farm:
+            return None
+
+        # 1. Calculate opening balance before start_date
+        initial_balance = float(farm.previous_tray or 0.0)
+
+        if start_date:
+            prior_entry_prod_query = select(func.coalesce(func.sum(FarmEntry.production_trays), 0.0)).where(
+                FarmEntry.farm_id == farm_id,
+                FarmEntry.date < start_date,
+            )
+            prior_entry_prod = float((await db.execute(prior_entry_prod_query)).scalar() or 0.0)
+
+            prior_prod_query = select(func.coalesce(func.sum(FarmProduction.tray_quantity), 0.0)).where(
+                FarmProduction.farm_id == farm_id,
+                FarmProduction.production_date < start_date,
+            )
+            prior_prod = float((await db.execute(prior_prod_query)).scalar() or 0.0)
+
+            prior_deliv_query = select(func.coalesce(func.sum(FarmDelivery.tray_quantity), 0.0)).where(
+                FarmDelivery.farm_id == farm_id,
+                FarmDelivery.delivery_date < start_date,
+            )
+            prior_deliv = float((await db.execute(prior_deliv_query)).scalar() or 0.0)
+
+            initial_balance = initial_balance + prior_entry_prod + prior_prod - prior_deliv
+
+        # 2. Fetch productions in range
+        prod_filters = [FarmProduction.farm_id == farm_id]
+        if start_date:
+            prod_filters.append(FarmProduction.production_date >= start_date)
+        if end_date:
+            prod_filters.append(FarmProduction.production_date <= end_date)
+
+        prods_query = select(FarmProduction).where(and_(*prod_filters))
+        prods = list((await db.execute(prods_query)).scalars().all())
+
+        # Check FarmEntry in range
+        entry_filters = [FarmEntry.farm_id == farm_id]
+        if start_date:
+            entry_filters.append(FarmEntry.date >= start_date)
+        if end_date:
+            entry_filters.append(FarmEntry.date <= end_date)
+        entries_query = select(FarmEntry).where(and_(*entry_filters))
+        entries = list((await db.execute(entries_query)).scalars().all())
+
+        # 3. Fetch deliveries in range
+        deliv_filters = [FarmDelivery.farm_id == farm_id]
+        if start_date:
+            deliv_filters.append(FarmDelivery.delivery_date >= start_date)
+        if end_date:
+            deliv_filters.append(FarmDelivery.delivery_date <= end_date)
+
+        delivs_query = select(FarmDelivery).where(and_(*deliv_filters))
+        delivs = list((await db.execute(delivs_query)).scalars().all())
+
+        # Combine into transactions list
+        tx_list = []
+        for p in prods:
+            tx_list.append((p.production_date, 0, p.created_at, "production", p.id, float(p.tray_quantity), "Production", p.notes))
+
+        for e in entries:
+            if e.production_trays and e.production_trays > 0:
+                tx_list.append((e.date, 0, e.created_at, "production", e.id, float(e.production_trays), "Production", e.notes))
+
+        for d in delivs:
+            desc = f"{d.destination} Delivery" if d.destination else "Delivery"
+            tx_list.append((d.delivery_date, 1, d.created_at, "delivery", d.id, float(d.tray_quantity), desc, d.notes))
+
+        # Sort chronologically by date, then production before delivery, then created_at
+        tx_list.sort(key=lambda x: (x[0], x[1], x[2]))
+
+        # Calculate running balance
+        running_balance = initial_balance
+        items = []
+
+        # First row: Opening Balance
+        items.append({
+            "id": None,
+            "date": "Opening",
+            "type": "opening",
+            "description": "Previous / Opening Tray",
+            "production": None,
+            "delivery": None,
+            "balance": running_balance,
+            "notes": None,
+        })
+
+        total_production = 0.0
+        total_delivery = 0.0
+
+        for tx_date, _, _, tx_type, tx_id, qty, tx_desc, tx_notes in tx_list:
+            formatted_date = tx_date.strftime("%d-%m-%Y") if hasattr(tx_date, "strftime") else str(tx_date)
+            if tx_type == "production":
+                running_balance += qty
+                total_production += qty
+                items.append({
+                    "id": tx_id,
+                    "date": formatted_date,
+                    "type": "production",
+                    "description": tx_desc,
+                    "production": qty,
+                    "delivery": None,
+                    "balance": running_balance,
+                    "notes": tx_notes,
+                })
+            else:
+                running_balance -= qty
+                total_delivery += qty
+                items.append({
+                    "id": tx_id,
+                    "date": formatted_date,
+                    "type": "delivery",
+                    "description": tx_desc,
+                    "production": None,
+                    "delivery": qty,
+                    "balance": running_balance,
+                    "notes": tx_notes,
+                })
+
+        return {
+            "farm_id": farm.id,
+            "farm_name": farm.name,
+            "farm_code": farm.code,
+            "opening_balance": initial_balance,
+            "closing_balance": running_balance,
+            "total_production": total_production,
+            "total_delivery": total_delivery,
+            "items": items,
+        }
+
 
 farm_repository = FarmRepository()
