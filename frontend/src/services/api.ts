@@ -19,13 +19,19 @@ import {
   ExpenseFilters,
   ExpenseInput,
   ExpenseReportSummary,
-  FarmDashboardKPIs,
-  FarmDeliveryPayload,
-  FarmProductionPayload,
+  FarmItem,
+  FarmBalanceItem,
+  FarmPayload,
+  FarmDailyEntryItem,
+  FarmDailyEntryCreatePayload,
+  FarmDailyEntryUpdatePayload,
+  FarmProductionItem,
+  FarmProductionCreatePayload,
+  FarmProductionUpdatePayload,
+  FarmDeliveryItem,
+  FarmDeliveryBatchPayload,
+  FarmDeliveryUpdatePayload,
   FarmReportResponse,
-  FarmStockItem,
-  FarmTransactionItem,
-  FarmWastePayload,
   HealthCheckData,
   LoginRequest,
   LowStockProductItem,
@@ -675,57 +681,106 @@ export const expenseService = {
 };
 
 export const farmService = {
-  createProduction: async (payload: FarmProductionPayload) => {
-    return http.post<FarmTransactionItem>("/farm/production", payload);
+  getFarms: async (status?: string) => {
+    return http.get<FarmBalanceItem[]>("/farm/farms", status ? { status } : undefined);
   },
 
-  getProductionHistory: async (params?: {
+  getFarm: async (id: string) => {
+    return http.get<FarmItem>(`/farm/farms/${id}`);
+  },
+
+  createFarm: async (payload: FarmPayload) => {
+    return http.post<FarmItem>("/farm/farms", payload);
+  },
+
+  updateFarm: async (id: string, payload: Partial<FarmPayload>) => {
+    return http.put<FarmItem>(`/farm/farms/${id}`, payload);
+  },
+
+  updatePreviousTray: async (id: string, previous_tray: number) => {
+    return http.put<FarmBalanceItem>(`/farm/farms/${id}/previous-tray`, { previous_tray });
+  },
+
+  createEntry: async (payload: FarmDailyEntryCreatePayload) => {
+    return http.post<FarmDailyEntryItem>("/farm/entries", payload);
+  },
+
+  getEntries: async (params?: {
     page?: number;
     size?: number;
     start_date?: string;
     end_date?: string;
-    product_id?: string;
+    farm_id?: string;
   }) => {
-    return http.get<PaginatedResult<FarmTransactionItem>>("/farm/production", params);
+    return http.get<PaginatedResult<FarmDailyEntryItem>>("/farm/entries", params);
   },
 
-  createDelivery: async (payload: FarmDeliveryPayload) => {
-    return http.post<FarmTransactionItem>("/farm/delivery", payload);
+  getEntry: async (id: string) => {
+    return http.get<FarmDailyEntryItem>(`/farm/entries/${id}`);
   },
 
-  getDeliveryHistory: async (params?: {
+  updateEntry: async (id: string, payload: FarmDailyEntryUpdatePayload) => {
+    return http.put<FarmDailyEntryItem>(`/farm/entries/${id}`, payload);
+  },
+
+  deleteEntry: async (id: string) => {
+    return http.delete<{ id: string }>(`/farm/entries/${id}`);
+  },
+
+  createProduction: async (payload: FarmProductionCreatePayload) => {
+    return http.post<FarmProductionItem>("/farm/production", payload);
+  },
+
+  getProductions: async (params?: {
     page?: number;
     size?: number;
     start_date?: string;
     end_date?: string;
-    product_id?: string;
+    farm_id?: string;
   }) => {
-    return http.get<PaginatedResult<FarmTransactionItem>>("/farm/delivery", params);
+    return http.get<PaginatedResult<FarmProductionItem>>("/farm/production", params);
   },
 
-  createWaste: async (payload: FarmWastePayload) => {
-    return http.post<FarmTransactionItem>("/farm/waste", payload);
+  getProduction: async (id: string) => {
+    return http.get<FarmProductionItem>(`/farm/production/${id}`);
   },
 
-  getWasteHistory: async (params?: {
+  updateProduction: async (id: string, payload: FarmProductionUpdatePayload) => {
+    return http.put<FarmProductionItem>(`/farm/production/${id}`, payload);
+  },
+
+  deleteProduction: async (id: string) => {
+    return http.delete<{ id: string }>(`/farm/production/${id}`);
+  },
+
+  createDelivery: async (payload: FarmDeliveryBatchPayload) => {
+    return http.post<FarmDeliveryItem[]>("/farm/delivery", payload);
+  },
+
+  getDeliveries: async (params?: {
     page?: number;
     size?: number;
     start_date?: string;
     end_date?: string;
-    product_id?: string;
+    farm_id?: string;
   }) => {
-    return http.get<PaginatedResult<FarmTransactionItem>>("/farm/waste", params);
+    return http.get<PaginatedResult<FarmDeliveryItem>>("/farm/delivery", params);
   },
 
-  getDashboard: async () => {
-    return http.get<FarmDashboardKPIs>("/farm/dashboard");
+  getDelivery: async (id: string) => {
+    return http.get<FarmDeliveryItem>(`/farm/delivery/${id}`);
   },
 
-  getStockOverview: async () => {
-    return http.get<FarmStockItem[]>("/farm/stock");
+  updateDelivery: async (id: string, payload: FarmDeliveryUpdatePayload) => {
+    return http.put<FarmDeliveryItem>(`/farm/delivery/${id}`, payload);
+  },
+
+  deleteDelivery: async (id: string) => {
+    return http.delete<{ id: string }>(`/farm/delivery/${id}`);
   },
 
   getFarmReport: async (params?: {
+    farm_id?: string;
     start_date?: string;
     end_date?: string;
   }) => {

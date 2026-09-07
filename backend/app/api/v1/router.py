@@ -41,6 +41,13 @@ api_router.include_router(purchases.router)
 api_router.include_router(customers.router)
 api_router.include_router(sales.router)
 api_router.include_router(farm.router, prefix="/farm", tags=["Farm"])
+
+# Alias /farms directly for convenience
+farms_alias_router = APIRouter()
+farms_alias_router.add_api_route("/farms", farm.list_farms, methods=["GET"], include_in_schema=False)
+farms_alias_router.add_api_route("/farms", farm.create_farm, methods=["POST"], status_code=201, include_in_schema=False)
+farms_alias_router.add_api_route("/farms/{farm_id}", farm.get_farm, methods=["GET"], include_in_schema=False)
+api_router.include_router(farms_alias_router, tags=["Farm"])
 api_router.include_router(customer_collections.router)
 api_router.include_router(sale_returns.router)
 api_router.include_router(product_returns.router)

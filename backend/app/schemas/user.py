@@ -14,7 +14,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=6, max_length=100)
+    password: str = Field(..., min_length=1, max_length=100)
     role_id: str = Field(..., description="Role UUID")
 
 
@@ -22,7 +22,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
-    password: Optional[str] = Field(None, min_length=6)
+    password: Optional[str] = Field(None, min_length=1)
     role_id: Optional[str] = None
     status: Optional[str] = None
     profile_logo_url: Optional[str] = None

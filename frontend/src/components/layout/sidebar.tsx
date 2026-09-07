@@ -31,6 +31,7 @@ import {
   RotateCcw,
   Undo2,
   BookOpen,
+  Sprout,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -957,7 +958,7 @@ export function SidebarContent({
         )}
 
         {/* Farm Module */}
-        {hasPermission(["farm.view", "farm.production", "farm.delivery", "farm.waste", "farm.report"]) && (
+        {hasPermission(["farm.view", "farm.create", "farm.manage", "farm.production", "farm.delivery", "farm.report"]) && (
           <div className="space-y-1">
             <button
               onClick={() => toggleGroup("farm")}
@@ -967,11 +968,11 @@ export function SidebarContent({
                   ? "bg-accent/80 text-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
               )}
-              title={collapsed ? "Farm Module" : undefined}
+              title={collapsed ? "Farm" : undefined}
             >
               <div className="flex items-center space-x-3">
-                <Activity className="h-5 w-5 shrink-0 text-emerald-500" />
-                {!collapsed && <span>Farm Tracking</span>}
+                <Sprout className="h-5 w-5 shrink-0 text-emerald-500" />
+                {!collapsed && <span>Farm</span>}
               </div>
               {!collapsed && (
                 <ChevronDown
@@ -981,7 +982,7 @@ export function SidebarContent({
             </button>
             {isGroupOpen("farm") && !collapsed && (
               <div className="pl-9 space-y-1 animate-in fade-in-50">
-                {hasPermission("farm.view") && (
+                {hasPermission(["farm.view", "farm.manage", "farm.create", "farm.production", "farm.delivery"]) && (
                   <Link
                     href="/farm"
                     onClick={onNavigate}
@@ -990,50 +991,24 @@ export function SidebarContent({
                       pathname === "/farm" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                     )}
                   >
-                    <LayoutDashboard className="h-3.5 w-3.5" />
-                    <span>Dashboard</span>
+                    <Layers className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Farm Management</span>
                   </Link>
                 )}
-                {hasPermission("farm.production") && (
+                {hasPermission(["farm.create", "farm.manage"]) && (
                   <Link
-                    href="/farm/production"
+                    href="/farm/add"
                     onClick={onNavigate}
                     className={cn(
                       "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                      pathname === "/farm/production" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                      pathname === "/farm/add" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                     )}
                   >
-                    <PlusCircle className="h-3.5 w-3.5" />
-                    <span>Production</span>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Farm</span>
                   </Link>
                 )}
-                {hasPermission("farm.delivery") && (
-                  <Link
-                    href="/farm/delivery"
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                      pathname === "/farm/delivery" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                    )}
-                  >
-                    <Truck className="h-3.5 w-3.5" />
-                    <span>Delivery</span>
-                  </Link>
-                )}
-                {hasPermission("farm.waste") && (
-                  <Link
-                    href="/farm/waste"
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                      pathname === "/farm/waste" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                    )}
-                  >
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    <span>Waste / Loss</span>
-                  </Link>
-                )}
-                {hasPermission("farm.report") && (
+                {hasPermission(["farm.report", "farm.view"]) && (
                   <Link
                     href="/farm/report"
                     onClick={onNavigate}
@@ -1042,7 +1017,7 @@ export function SidebarContent({
                       pathname === "/farm/report" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                     )}
                   >
-                    <BarChart3 className="h-3.5 w-3.5" />
+                    <BarChart3 className="h-3.5 w-3.5 text-blue-500" />
                     <span>Farm Report</span>
                   </Link>
                 )}

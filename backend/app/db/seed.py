@@ -1,10 +1,12 @@
 import os
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import logger
 from app.core.security import get_password_hash
 from app.models.permission import Permission
 from app.models.role import Role
 from app.models.user import User
+from app.models.farm import Farm
 from app.repositories.permission_repository import permission_repository
 from app.repositories.role_repository import role_repository
 from app.repositories.user_repository import user_repository
@@ -132,11 +134,14 @@ DEFAULT_PERMISSIONS = [
     {"code": "expense.report.export", "name": "Export Expense Report", "module": "expense", "description": "Export expense reports to PDF, Excel, CSV"},
 
     # Farm module
-    {"code": "farm.view", "name": "View Farm", "module": "farm", "description": "Access farm dashboard and stock overview"},
-    {"code": "farm.production", "name": "Record Production", "module": "farm", "description": "Record farm production"},
-    {"code": "farm.delivery", "name": "Record Delivery", "module": "farm", "description": "Record farm delivery / distribution"},
-    {"code": "farm.waste", "name": "Record Waste", "module": "farm", "description": "Record farm waste / loss"},
-    {"code": "farm.report", "name": "View Farm Reports", "module": "farm", "description": "View and export farm reports"},
+    {"code": "farm.view", "name": "View Farm", "module": "farm", "description": "Access farm management and view tray balances"},
+    {"code": "farm.create", "name": "Create Farm", "module": "farm", "description": "Add new farm locations and configure previous trays"},
+    {"code": "farm.manage", "name": "Manage Farm", "module": "farm", "description": "Record daily production and deliveries, edit and delete entries"},
+    {"code": "farm.production", "name": "Manage Production", "module": "farm", "description": "View, edit, and audit farm production batches"},
+    {"code": "farm.production.create", "name": "Add Production", "module": "farm", "description": "Record daily production harvest in trays"},
+    {"code": "farm.delivery", "name": "Manage Delivery", "module": "farm", "description": "View, edit, and audit delivery dispatches"},
+    {"code": "farm.delivery.create", "name": "Add Delivery", "module": "farm", "description": "Record multi-destination delivery submissions"},
+    {"code": "farm.report", "name": "View Farm Reports", "module": "farm", "description": "View date-wise production and delivery breakdown reports"},
 
     # User Management module
     {"code": "user.view", "name": "View Users", "module": "user", "description": "View user list and user details"},
@@ -223,7 +228,7 @@ async def seed_initial_data(db: AsyncSession) -> None:
         "collection.view", "collection.create",
         "supplier_payment.view", "supplier_payment.create",
         "expense.view", "expense.create",
-        "farm.view", "farm.production", "farm.delivery", "farm.waste", "farm.report",
+        "farm.view", "farm.create", "farm.manage", "farm.production", "farm.production.create", "farm.delivery", "farm.delivery.create", "farm.report",
         "profile.view", "profile.edit",
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
@@ -282,5 +287,22 @@ async def seed_initial_data(db: AsyncSession) -> None:
     
     # 5. Seed Settings and Currencies
     await seed_settings_and_currencies(db)
-    
+
+    # 6. Seed Default Farm if none exists
+    farm_res = await db.execute(select(Farm))
+    first_farm = farm_res.scalars().first()
+    if not first_farm:
+        first_farm = Farm(
+            name="Main Farm",
+            code="FARM-001",
+            address="Primary Farm Facility",
+            contact_number="+18005550199",
+            status="active",
+            notes="Default operational farm",
+        )
+        db.add(first_farm)
+        await db.commit()
+        await db.refresh(first_farm)
+        logger.info(f"[SEED] Created default farm '{first_farm.name}' ({first_farm.code})")
+
     logger.info("Database seeding completed successfully.")

@@ -18,6 +18,45 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "@tanstack/react-query"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/farm/list",
+        destination: "/farm",
+        permanent: false,
+      },
+      {
+        source: "/farm/previous-tray",
+        destination: "/farm",
+        permanent: false,
+      },
+      {
+        source: "/farm/production",
+        destination: "/farm",
+        permanent: false,
+      },
+      {
+        source: "/farm/production/:path*",
+        destination: "/farm",
+        permanent: false,
+      },
+      {
+        source: "/farm/delivery",
+        destination: "/farm",
+        permanent: false,
+      },
+      {
+        source: "/farm/delivery/:path*",
+        destination: "/farm",
+        permanent: false,
+      },
+      {
+        source: "/farm/waste",
+        destination: "/farm",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

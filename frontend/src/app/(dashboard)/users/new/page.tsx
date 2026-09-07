@@ -23,7 +23,7 @@ const userCreateSchema = z
     username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Invalid email address").optional().or(z.literal("")),
     phone: z.string().min(5, "Phone number is required"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
+    password: z.string().min(1, "Password is required"),
     confirm_password: z.string().min(1, "Please confirm your password"),
     role_id: z.string().min(1, "Role selection is required"),
     status: z.string(),

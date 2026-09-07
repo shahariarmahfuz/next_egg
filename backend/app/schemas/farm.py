@@ -1,133 +1,214 @@
 from datetime import date, datetime
-from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-from app.models.farm_transaction import FarmTransactionType
+from typing import List, Optional
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class FarmProductionCreate(BaseModel):
-    product_id: str
-    transaction_date: date
-    tray_count: Optional[float] = Field(None, ge=0)
-    units_per_tray: Optional[float] = Field(None, ge=0)
-    quantity: Optional[float] = Field(None, ge=0)
+# --- Farm Entity Schemas ---
+class FarmBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=150)
+    code: Optional[str] = Field(None, max_length=50)
+    address: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    status: Optional[str] = "active"
     notes: Optional[str] = None
-    note: Optional[str] = None
-
-    @model_validator(mode="after")
-    def compute_and_validate_quantity(self):
-        if self.notes is None and self.note is not None:
-            self.notes = self.note
-        elif self.note is None and self.notes is not None:
-            self.note = self.notes
-        if self.tray_count and self.units_per_tray and self.tray_count > 0 and self.units_per_tray > 0:
-            if not self.quantity or self.quantity <= 0:
-                self.quantity = float(self.tray_count * self.units_per_tray)
-        if not self.quantity or self.quantity <= 0:
-            raise ValueError("Quantity must be greater than 0 (or specify valid tray count and units per tray)")
-        return self
 
 
-class FarmDeliveryCreate(BaseModel):
-    product_id: str
-    transaction_date: date
-    tray_count: Optional[float] = Field(None, ge=0)
-    units_per_tray: Optional[float] = Field(None, ge=0)
-    quantity: Optional[float] = Field(None, ge=0)
-    destination: Optional[str] = None
+class FarmCreate(FarmBase):
+    previous_tray: Optional[float] = Field(0.0, ge=0)
+
+
+class FarmUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=150)
+    code: Optional[str] = Field(None, max_length=50)
+    address: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    status: Optional[str] = None
     notes: Optional[str] = None
-    note: Optional[str] = None
-
-    @model_validator(mode="after")
-    def compute_and_validate_quantity(self):
-        if self.notes is None and self.note is not None:
-            self.notes = self.note
-        elif self.note is None and self.notes is not None:
-            self.note = self.notes
-        if self.tray_count and self.units_per_tray and self.tray_count > 0 and self.units_per_tray > 0:
-            if not self.quantity or self.quantity <= 0:
-                self.quantity = float(self.tray_count * self.units_per_tray)
-        if not self.quantity or self.quantity <= 0:
-            raise ValueError("Quantity must be greater than 0 (or specify valid tray count and units per tray)")
-        return self
+    previous_tray: Optional[float] = Field(None, ge=0)
 
 
-class FarmWasteCreate(BaseModel):
-    product_id: str
-    transaction_date: date
-    quantity: float = Field(..., gt=0, description="Wasted quantity must be greater than 0")
-    reason: Optional[str] = None
-    notes: Optional[str] = None
-    note: Optional[str] = None
-
-    @model_validator(mode="after")
-    def sync_notes(self):
-        if self.notes is None and self.note is not None:
-            self.notes = self.note
-        elif self.note is None and self.notes is not None:
-            self.note = self.notes
-        return self
+class PreviousTrayUpdate(BaseModel):
+    previous_tray: float = Field(..., ge=0, description="Opening tray quantity balance")
 
 
-class FarmTransactionResponse(BaseModel):
+class FarmResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    product_id: str
-    transaction_type: FarmTransactionType
-    transaction_date: date
-    tray_count: Optional[float] = None
-    units_per_tray: Optional[float] = None
-    quantity: float
-    destination: Optional[str] = None
-    notes: Optional[str] = None
-    note: Optional[str] = None
-    created_at: datetime
-    product_name: Optional[str] = None
-    product_code: Optional[str] = None
-    unit: Optional[str] = None
-
-    @model_validator(mode="after")
-    def sync_notes(self):
-        if self.notes is None and self.note is not None:
-            self.notes = self.note
-        elif self.note is None and self.notes is not None:
-            self.note = self.notes
-        return self
-
-
-class FarmDashboardKPIs(BaseModel):
-    today_production: float
-    today_trays: float
-    today_delivered: float
-    today_waste: float
-    current_farm_stock: float
-
-
-class FarmStockItem(BaseModel):
-    product_id: str
-    product_code: str
     name: str
-    unit: str
-    opening_stock: float
+    code: str
+    previous_tray: float
+    address: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    status: str
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class FarmBalanceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    code: str
+    address: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    status: str
+    notes: Optional[str] = None
+    previous_tray: float
     total_production: float
-    total_delivery: float
-    total_waste: float
-    current_stock: float
+    total_delivered: float
+    available_tray: float
+    created_at: datetime
+    updated_at: datetime
 
 
-class FarmReportRow(BaseModel):
+# --- Unified Farm Daily / Transaction Entry Schemas ---
+class DeliveryItemCreate(BaseModel):
+    id: Optional[str] = None
+    destination: str = Field(..., min_length=1, max_length=200, description="Destination name (e.g. Shop, Karim)")
+    tray_quantity: float = Field(..., gt=0, description="Quantity of trays dispatched")
+    notes: Optional[str] = None
+
+
+class DeliveryItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    entry_id: Optional[str] = None
+    destination: str
+    tray_quantity: float
+    notes: Optional[str] = None
+
+
+class FarmDailyEntryCreate(BaseModel):
+    farm_id: str
     date: date
-    product_id: str
-    product_name: str
-    production: float
-    delivery: float
-    waste: float
-    remaining_quantity: float
+    production_trays: float = Field(0.0, ge=0, description="Harvested production in trays (optional, 0 if none)")
+    deliveries: List[DeliveryItemCreate] = Field(default_factory=list, description="List of deliveries on this date")
+    notes: Optional[str] = None
+
+
+class FarmDailyEntryUpdate(BaseModel):
+    farm_id: Optional[str] = None
+    date: Optional[date] = None
+    production_trays: Optional[float] = Field(None, ge=0)
+    deliveries: Optional[List[DeliveryItemCreate]] = None
+    notes: Optional[str] = None
+
+
+class FarmDailyEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    farm_id: str
+    farm_name: Optional[str] = None
+    farm_code: Optional[str] = None
+    date: date
+    production_trays: float
+    deliveries: List[DeliveryItemResponse]
+    total_delivery_trays: float
+    net_trays: float
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- Legacy / Direct Production & Delivery Schemas ---
+class FarmProductionCreate(BaseModel):
+    farm_id: str
+    production_date: date
+    tray_quantity: float = Field(..., gt=0, description="Production quantity in trays")
+    notes: Optional[str] = None
+
+
+class FarmProductionUpdate(BaseModel):
+    farm_id: Optional[str] = None
+    production_date: Optional[date] = None
+    tray_quantity: Optional[float] = Field(None, gt=0)
+    notes: Optional[str] = None
+
+
+class FarmProductionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    farm_id: str
+    farm_name: Optional[str] = None
+    farm_code: Optional[str] = None
+    production_date: date
+    tray_quantity: float
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DeliveryEntryItem(BaseModel):
+    destination: str = Field(..., min_length=1, max_length=200, description="Delivery destination or name")
+    tray_quantity: float = Field(..., gt=0, description="Quantity of trays delivered")
+    notes: Optional[str] = None
+
+
+class FarmDeliveryBatchCreate(BaseModel):
+    farm_id: str
+    delivery_date: date
+    entries: List[DeliveryEntryItem] = Field(..., min_length=1, description="Multi-entry delivery destinations")
+
+
+class FarmDeliveryUpdate(BaseModel):
+    farm_id: Optional[str] = None
+    delivery_date: Optional[date] = None
+    destination: Optional[str] = Field(None, min_length=1, max_length=200)
+    tray_quantity: Optional[float] = Field(None, gt=0)
+    notes: Optional[str] = None
+
+
+class FarmDeliveryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    farm_id: str
+    farm_name: Optional[str] = None
+    farm_code: Optional[str] = None
+    delivery_date: date
+    destination: str
+    tray_quantity: float
+    notes: Optional[str] = None
+    batch_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- Farm Report Schemas ---
+class DestinationBreakdown(BaseModel):
+    destination: str
+    trays: float
+    notes: Optional[str] = None
+
+
+class FarmReportItem(BaseModel):
+    date: date
+    farm_id: str
+    farm_name: str
+    farm_code: str
+    production_trays: float
+    delivery_trays: float
+    deliveries: List[DestinationBreakdown]
+    available_tray: Optional[float] = None
+
+
+class FarmReportKPIs(BaseModel):
+    total_previous_trays: float
+    total_production: float
+    total_delivered: float
+    total_available_trays: float
 
 
 class FarmReportResponse(BaseModel):
-    items: List[FarmReportRow]
-    total_production: float
-    total_delivery: float
-    total_waste: float
-    total_remaining: float
+    kpis: FarmReportKPIs
+    items: List[FarmReportItem]

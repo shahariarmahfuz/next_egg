@@ -27,7 +27,7 @@ const userCreateSchema = z
     profile_logo_url: urlValidator,
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     phone: z.string().optional().or(z.literal("")),
-    password: z.string().min(6, "Password must be at least 6 characters"),
+    password: z.string().min(1, "Password is required"),
     confirm_password: z.string().min(1, "Please confirm your password"),
     role_id: z.string().min(1, "Role selection is required"),
     status: z.string(),

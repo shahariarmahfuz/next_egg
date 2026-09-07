@@ -1,69 +1,280 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { format } from "date-fns";
 import {
-  Activity,
-  PlusCircle,
-  Truck,
-  AlertCircle,
+  Sprout,
+  Plus,
+  Trash2,
+  Save,
+  Loader2,
+  Calendar,
   Layers,
-  ArrowRight,
+  MapPin,
+  RotateCcw,
   BarChart3,
   RefreshCw,
-  Package,
+  Eye,
+  Edit,
+  Building2,
+  CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { farmService } from "@/services/api";
-import { FarmDashboardKPIs, FarmStockItem } from "@/types";
+import { FarmBalanceItem, FarmDailyEntryItem } from "@/types";
+import { AddFarmModal } from "@/components/farm/add-farm-modal";
+import { FarmViewEntryModal } from "@/components/farm/farm-view-entry-modal";
+import { FarmEditEntryModal } from "@/components/farm/farm-edit-entry-modal";
+import { FarmDeleteModal } from "@/components/farm/farm-delete-modal";
+import { toast } from "sonner";
 
-export default function FarmDashboardPage() {
-  const [kpis, setKpis] = useState<FarmDashboardKPIs | null>(null);
-  const [stockList, setStockList] = useState<FarmStockItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+interface LocalDeliveryRow {
+  destination: string;
+  tray_quantity: string;
+  notes?: string;
+}
 
-  async function loadData() {
+export default function FarmManagementPage() {
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Data states
+  const [farms, setFarms] = useState<FarmBalanceItem[]>([]);
+  const [entries, setEntries] = useState<FarmDailyEntryItem[]>([]);
+  const [loadingFarms, setLoadingFarms] = useState(true);
+  const [loadingEntries, setLoadingEntries] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form states
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [selectedFarmId, setSelectedFarmId] = useState<string>("");
+  const [productionTrays, setProductionTrays] = useState<string>("");
+  const [deliveryRows, setDeliveryRows] = useState<LocalDeliveryRow[]>([]);
+  const [note, setNote] = useState<string>("");
+
+  // Modals
+  const [isAddFarmOpen, setIsAddFarmOpen] = useState(false);
+  const [viewingEntry, setViewingEntry] = useState<FarmDailyEntryItem | null>(null);
+  const [editingEntry, setEditingEntry] = useState<FarmDailyEntryItem | null>(null);
+  const [deletingEntry, setDeletingEntry] = useState<FarmDailyEntryItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Previous Tray adjustment modal
+  const [isAdjustPrevOpen, setIsAdjustPrevOpen] = useState(false);
+  const [adjustPrevQty, setAdjustPrevQty] = useState("");
+  const [adjustingPrev, setAdjustingPrev] = useState(false);
+
+  // Active farm data
+  const selectedFarm = farms.find((f) => f.id === selectedFarmId);
+
+  // Load farms
+  const loadFarms = useCallback(async (preferredFarmId?: string) => {
+    setLoadingFarms(true);
     try {
-      const [kpiRes, stockRes] = await Promise.all([
-        farmService.getDashboard(),
-        farmService.getStockOverview(),
-      ]);
-      setKpis(kpiRes.data);
-      setStockList(stockRes.data || []);
+      const res = await farmService.getFarms();
+      if (res.success && res.data) {
+        setFarms(res.data);
+        if (res.data.length > 0) {
+          if (preferredFarmId && res.data.some((f) => f.id === preferredFarmId)) {
+            setSelectedFarmId(preferredFarmId);
+          } else if (!selectedFarmId || !res.data.some((f) => f.id === selectedFarmId)) {
+            setSelectedFarmId(res.data[0].id);
+          }
+        } else {
+          setSelectedFarmId("");
+        }
+      }
     } catch (err) {
-      console.error("Failed to load farm dashboard:", err);
+      console.error("Failed to load farms:", err);
+      toast.error("Failed to load farms");
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      setLoadingFarms(false);
     }
-  }
+  }, [selectedFarmId]);
 
-  useEffect(() => {
-    loadData();
+  // Load daily entries
+  const loadEntries = useCallback(async () => {
+    setLoadingEntries(true);
+    try {
+      const res = await farmService.getEntries({ size: 30 });
+      if (res.success && res.data) {
+        setEntries(res.data.items || []);
+      }
+    } catch (err) {
+      console.error("Failed to load farm entries:", err);
+      toast.error("Failed to load farm entries");
+    } finally {
+      setLoadingEntries(false);
+    }
   }, []);
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    loadData();
+  useEffect(() => {
+    loadFarms();
+    loadEntries();
+  }, [loadFarms, loadEntries]);
+
+  // Add a delivery row
+  const handleAddDeliveryRow = () => {
+    setDeliveryRows((prev) => [...prev, { destination: "", tray_quantity: "", notes: "" }]);
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
-        <Skeleton className="h-12 w-72" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-64 rounded-xl" />
-      </div>
-    );
-  }
+  // Remove a delivery row
+  const handleRemoveDeliveryRow = (idx: number) => {
+    setDeliveryRows((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Update a delivery row field
+  const handleDeliveryRowChange = (idx: number, field: keyof LocalDeliveryRow, value: string) => {
+    setDeliveryRows((prev) => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], [field]: value };
+      return updated;
+    });
+  };
+
+  // Calculations for live preview
+  const prodNum = parseFloat(productionTrays) || 0;
+  const delivTotal = deliveryRows.reduce((sum, r) => {
+    const q = parseFloat(r.tray_quantity);
+    return sum + (isNaN(q) ? 0 : q);
+  }, 0);
+  const netChange = prodNum - delivTotal;
+  const currentAvailable = selectedFarm ? selectedFarm.available_tray : 0;
+  const previewAvailable = currentAvailable + netChange;
+
+  // Submit main Farm Management form
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedFarmId) {
+      toast.error("Please select a Farm");
+      return;
+    }
+
+    if (!selectedDate) {
+      toast.error("Please select a transaction Date");
+      return;
+    }
+
+    // Validate delivery rows if any
+    for (let i = 0; i < deliveryRows.length; i++) {
+      const row = deliveryRows[i];
+      if (!row.destination.trim()) {
+        toast.error(`Delivery Entry #${i + 1}: Destination / Name is required`);
+        return;
+      }
+      const q = parseFloat(row.tray_quantity);
+      if (isNaN(q) || q <= 0) {
+        toast.error(`Delivery Entry #${i + 1}: Tray Quantity must be greater than 0`);
+        return;
+      }
+    }
+
+    // Validate if delivery exceeds stock
+    if (previewAvailable < 0) {
+      toast.error(
+        `Insufficient trays! Farm has ${currentAvailable} trays. Requested net change (${netChange}) would result in ${previewAvailable} trays.`
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        farm_id: selectedFarmId,
+        date: selectedDate,
+        production_trays: prodNum,
+        deliveries: deliveryRows.map((r) => ({
+          destination: r.destination.trim(),
+          tray_quantity: parseFloat(r.tray_quantity),
+          notes: r.notes?.trim() || undefined,
+        })),
+        notes: note.trim() || undefined,
+      };
+
+      const res = await farmService.createEntry(payload);
+      if (res.success) {
+        toast.success("Farm entry saved successfully!");
+        // Reset inputs
+        setProductionTrays("");
+        setDeliveryRows([]);
+        setNote("");
+
+        // Refresh live data from backend (source of truth)
+        await loadFarms(selectedFarmId);
+        await loadEntries();
+      } else {
+        toast.error(res.message || "Failed to save farm entry");
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Failed to save farm entry";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Delete handler
+  const handleDeleteConfirm = async () => {
+    if (!deletingEntry) return;
+    setIsDeleting(true);
+    try {
+      const res = await farmService.deleteEntry(deletingEntry.id);
+      if (res.success) {
+        toast.success("Farm entry deleted and balance recalculated!");
+        setDeletingEntry(null);
+        await loadFarms(selectedFarmId);
+        await loadEntries();
+      } else {
+        toast.error(res.message || "Failed to delete entry");
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Failed to delete entry";
+      toast.error(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Adjust Previous Tray
+  const handleSavePreviousTray = async () => {
+    if (!selectedFarmId) return;
+    const qty = parseFloat(adjustPrevQty);
+    if (isNaN(qty) || qty < 0) {
+      toast.error("Please enter a valid non-negative tray balance");
+      return;
+    }
+    setAdjustingPrev(true);
+    try {
+      const res = await farmService.updatePreviousTray(selectedFarmId, qty);
+      if (res.success) {
+        toast.success(`Opening balance updated to ${qty} trays!`);
+        setIsAdjustPrevOpen(false);
+        await loadFarms(selectedFarmId);
+      } else {
+        toast.error(res.message || "Failed to update previous tray");
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Failed to update previous tray";
+      toast.error(msg);
+    } finally {
+      setAdjustingPrev(false);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -71,246 +282,489 @@ export default function FarmDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex items-center space-x-3">
           <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl">
-            <Activity className="h-6 w-6" />
+            <Layers className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Farm Tracking Dashboard</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Farm Management</h1>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Quantity and tray tracking overview for farm products (Non-Financial)
+              Single-page physical tray tracking: Production + Deliveries (Pure Tray Inventory)
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
             size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="text-xs"
+            onClick={() => setIsAddFarmOpen(true)}
+            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            Refresh
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add Farm
           </Button>
-
           <Link href="/farm/report">
             <Button variant="outline" size="sm" className="text-xs">
-              <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-primary" />
+              <BarChart3 className="h-3.5 w-3.5 mr-1 text-blue-500" />
               Farm Report
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* 5 KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Today's Production */}
-        <Card className="glass-card border-emerald-500/30 bg-emerald-500/5 shadow-sm">
-          <CardContent className="p-4 flex items-center space-x-3">
-            <div className="p-3 bg-emerald-500/20 text-emerald-600 rounded-xl shrink-0">
-              <PlusCircle className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 truncate">
-                Today's Production
-              </p>
-              <h3 className="text-2xl font-extrabold text-foreground truncate">
-                {kpis?.today_production ?? 0}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">Units Produced</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Today's Trays */}
-        <Card className="glass-card border-teal-500/30 bg-teal-500/5 shadow-sm">
-          <CardContent className="p-4 flex items-center space-x-3">
-            <div className="p-3 bg-teal-500/20 text-teal-600 rounded-xl shrink-0">
-              <Layers className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-600 truncate">
-                Today's Trays
-              </p>
-              <h3 className="text-2xl font-extrabold text-foreground truncate">
-                {kpis?.today_trays ?? 0}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">Trays Collected</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Today's Delivery */}
-        <Card className="glass-card border-blue-500/30 bg-blue-500/5 shadow-sm">
-          <CardContent className="p-4 flex items-center space-x-3">
-            <div className="p-3 bg-blue-500/20 text-blue-600 rounded-xl shrink-0">
-              <Truck className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 truncate">
-                Today's Delivery
-              </p>
-              <h3 className="text-2xl font-extrabold text-foreground truncate">
-                {kpis?.today_delivered ?? 0}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">Transferred Out</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Today's Waste */}
-        <Card className="glass-card border-rose-500/30 bg-rose-500/5 shadow-sm">
-          <CardContent className="p-4 flex items-center space-x-3">
-            <div className="p-3 bg-rose-500/20 text-rose-600 rounded-xl shrink-0">
-              <AlertCircle className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 truncate">
-                Today's Waste
-              </p>
-              <h3 className="text-2xl font-extrabold text-foreground truncate">
-                {kpis?.today_waste ?? 0}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">Loss / Breakage</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Current Farm Stock */}
-        <Card className="glass-card border-primary/30 bg-primary/5 shadow-sm">
-          <CardContent className="p-4 flex items-center space-x-3">
-            <div className="p-3 bg-primary/20 text-primary rounded-xl shrink-0">
-              <Package className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-primary truncate">
-                Current Farm Stock
-              </p>
-              <h3 className="text-2xl font-extrabold text-foreground truncate">
-                {kpis?.current_farm_stock ?? 0}
-              </h3>
-              <p className="text-[11px] text-muted-foreground">Total In Farm</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Action Navigation Buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Link href="/farm/production" className="group">
-          <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all shadow-sm">
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20">
-                <PlusCircle className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm text-foreground">Record Production</h4>
-                <p className="text-xs text-muted-foreground">Log eggs or trays collected today</p>
-              </div>
-            </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
-          </div>
-        </Link>
-
-        <Link href="/farm/delivery" className="group">
-          <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border hover:border-blue-500/50 hover:bg-blue-500/5 transition-all shadow-sm">
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 group-hover:bg-blue-500/20">
-                <Truck className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm text-foreground">Record Delivery</h4>
-                <p className="text-xs text-muted-foreground">Transfer eggs to shop or branch</p>
-              </div>
-            </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-          </div>
-        </Link>
-
-        <Link href="/farm/waste" className="group">
-          <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border hover:border-rose-500/50 hover:bg-rose-500/5 transition-all shadow-sm">
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-600 group-hover:bg-rose-500/20">
-                <AlertCircle className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm text-foreground">Record Waste / Loss</h4>
-                <p className="text-xs text-muted-foreground">Log broken, cracked, or rotten items</p>
-              </div>
-            </div>
-            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-rose-600 group-hover:translate-x-1 transition-all" />
-          </div>
-        </Link>
-      </div>
-
-      {/* Live Farm Stock by Product Table */}
+      {/* Main Single-Page Workflow Form */}
       <Card className="border border-border shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between border-b border-border py-4 px-6">
+        <CardHeader className="pb-4 border-b border-border">
+          <CardTitle className="text-base font-semibold flex items-center space-x-2">
+            <Sprout className="h-4 w-4 text-emerald-600" />
+            <span>Daily Farm Entry</span>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Record date, production, and multiple delivery dispatches together on this single page.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="pt-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Top Row: Date & Farm Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Date Selection */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  Date <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="text-xs"
+                  required
+                />
+              </div>
+
+              {/* Farm Selection */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                    <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+                    Farm <span className="text-destructive">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddFarmOpen(true)}
+                    className="text-[11px] text-emerald-600 hover:underline flex items-center gap-0.5"
+                  >
+                    <Plus className="h-3 w-3" /> Add Farm
+                  </button>
+                </div>
+
+                {loadingFarms ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : farms.length === 0 ? (
+                  <div className="flex items-center gap-2 p-2 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-400">
+                    <span>No farms found.</span>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      onClick={() => setIsAddFarmOpen(true)}
+                      className="p-0 h-auto text-xs font-semibold text-emerald-600"
+                    >
+                      + Add Farm Now
+                    </Button>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedFarmId}
+                    onChange={(e) => setSelectedFarmId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                    required
+                  >
+                    {farms.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.code}) — {f.available_tray.toLocaleString()} trays available
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Selected Farm Live Stats Bar */}
+            {selectedFarm && (
+              <div className="p-3.5 rounded-xl bg-muted/40 border border-border flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Farm:</span>
+                    <span className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                      <Sprout className="h-3.5 w-3.5 text-emerald-600" />
+                      {selectedFarm.name}
+                    </span>
+                  </div>
+
+                  <div className="border-l border-border pl-4">
+                    <span className="text-muted-foreground block text-[11px] flex items-center gap-1">
+                      <RotateCcw className="h-3 w-3 text-amber-500" /> Opening / Previous Tray:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-foreground">
+                        {selectedFarm.previous_tray.toLocaleString()} trays
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdjustPrevQty(String(selectedFarm.previous_tray || 0));
+                          setIsAdjustPrevOpen(true);
+                        }}
+                        className="text-[10px] text-amber-600 hover:underline font-medium"
+                      >
+                        (Adjust)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Total Harvest:</span>
+                    <span className="font-mono font-semibold text-emerald-600">
+                      +{selectedFarm.total_production.toLocaleString()} trays
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Total Delivered:</span>
+                    <span className="font-mono font-semibold text-blue-600">
+                      -{selectedFarm.total_delivered.toLocaleString()} trays
+                    </span>
+                  </div>
+
+                  <div className="border-l border-border pl-4">
+                    <span className="text-muted-foreground block text-[11px] font-semibold text-primary">
+                      Current Available:
+                    </span>
+                    <Badge variant="outline" className="font-mono font-bold text-sm bg-primary/10 text-primary border-primary/30">
+                      {selectedFarm.available_tray.toLocaleString()} trays
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Production / Tray */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <Layers className="h-3.5 w-3.5 text-emerald-600" />
+                Production / Tray
+              </label>
+              <Input
+                type="number"
+                step="any"
+                min="0"
+                placeholder="e.g. 100"
+                value={productionTrays}
+                onChange={(e) => setProductionTrays(e.target.value)}
+                className="text-xs font-mono font-semibold text-emerald-600 max-w-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Trays harvested on this date. Production is optional (leave empty or 0 if none).
+              </p>
+            </div>
+
+            {/* Delivery Section */}
+            <div className="space-y-3 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                    Delivery Dispatches
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Multiple destinations on this date. Quantity tracking only (no financial ledger).
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddDeliveryRow}
+                  className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  + Add Delivery
+                </Button>
+              </div>
+
+              {deliveryRows.length === 0 ? (
+                <div className="p-4 rounded-xl border border-dashed border-border/80 text-center bg-muted/10">
+                  <p className="text-xs text-muted-foreground">
+                    No delivery entries for this date yet. Click{" "}
+                    <button
+                      type="button"
+                      onClick={handleAddDeliveryRow}
+                      className="text-blue-600 font-semibold hover:underline"
+                    >
+                      + Add Delivery
+                    </button>{" "}
+                    if trays were delivered or dispatched.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="hidden sm:grid sm:grid-cols-12 gap-2 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                    <div className="col-span-5">Destination / Name</div>
+                    <div className="col-span-3 text-right">Trays</div>
+                    <div className="col-span-3">Note (Optional)</div>
+                    <div className="col-span-1 text-center">Action</div>
+                  </div>
+
+                  {deliveryRows.map((row, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 p-2.5 rounded-lg bg-muted/20 border border-border items-center"
+                    >
+                      <div className="col-span-5">
+                        <Input
+                          type="text"
+                          placeholder="e.g. Shop, Ayonal, Karim"
+                          value={row.destination}
+                          onChange={(e) => handleDeliveryRowChange(idx, "destination", e.target.value)}
+                          className="text-xs h-8"
+                          required
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0.01"
+                          placeholder="Trays (e.g. 20)"
+                          value={row.tray_quantity}
+                          onChange={(e) => handleDeliveryRowChange(idx, "tray_quantity", e.target.value)}
+                          className="text-xs h-8 text-right font-mono font-medium text-blue-600"
+                          required
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <Input
+                          type="text"
+                          placeholder="Note"
+                          value={row.notes || ""}
+                          onChange={(e) => handleDeliveryRowChange(idx, "notes", e.target.value)}
+                          className="text-xs h-8"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveDeliveryRow(idx)}
+                          className="h-7 w-7 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAddDeliveryRow}
+                      className="text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 px-2 h-7"
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      + Add another delivery
+                    </Button>
+                    <div className="text-xs font-mono font-bold text-blue-600">
+                      Total Delivery: {delivTotal} trays
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Live Tray Balance Preview Bar */}
+            <div className="p-4 rounded-xl border border-border bg-card shadow-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Live Available Tray Calculation
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Formula: Opening ({selectedFarm?.previous_tray || 0}) + Total Production - Total Delivery
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                <div className="p-2.5 rounded-lg bg-muted/40 text-center">
+                  <span className="text-[10px] uppercase text-muted-foreground block">Current Balance</span>
+                  <span className="text-base font-bold font-mono text-foreground">
+                    {currentAvailable.toLocaleString()} trays
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 text-center">
+                  <span className="text-[10px] uppercase text-emerald-600 block">+ Today's Prod</span>
+                  <span className="text-base font-bold font-mono text-emerald-600">
+                    +{prodNum.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-blue-500/10 text-center">
+                  <span className="text-[10px] uppercase text-blue-600 block">- Today's Deliv</span>
+                  <span className="text-base font-bold font-mono text-blue-600">
+                    -{delivTotal.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-center">
+                  <span className="text-[10px] uppercase text-primary font-bold block">Preview Available</span>
+                  <span
+                    className={`text-base font-extrabold font-mono ${
+                      previewAvailable < 0 ? "text-destructive" : "text-primary"
+                    }`}
+                  >
+                    {previewAvailable.toLocaleString()} trays
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Note */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Note (Optional)</label>
+              <Textarea
+                rows={2}
+                placeholder="Optional notes for this daily transaction..."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="text-xs resize-none"
+              />
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end pt-1">
+              <Button
+                type="submit"
+                disabled={submitting || !selectedFarmId}
+                className="min-w-[140px] text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Entry
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Farm List & Current Tray Balances View */}
+      <Card className="border border-border shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b border-border">
           <div>
-            <CardTitle className="text-base font-bold text-foreground">Farm Stock by Product</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Opening + Production - Delivery - Waste = Current Farm Stock
-            </p>
+            <CardTitle className="text-base font-semibold text-foreground">
+              Farm List & Tray Inventory
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              Current inventory balances: Previous Tray + Total Production - Total Delivery = Available
+            </CardDescription>
           </div>
-          <Link href="/farm/report">
-            <Button variant="ghost" size="sm" className="text-xs">
-              View Detailed Report <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => loadFarms()}
+            disabled={loadingFarms}
+            className="text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingFarms ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold">
                 <tr>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Code</th>
-                  <th className="px-4 py-3 text-right">Opening Stock</th>
-                  <th className="px-4 py-3 text-right text-emerald-600">Total Production (+)</th>
-                  <th className="px-4 py-3 text-right text-blue-600">Total Delivery (-)</th>
-                  <th className="px-4 py-3 text-right text-rose-600">Total Waste (-)</th>
-                  <th className="px-4 py-3 text-right font-bold text-foreground">Current Farm Stock</th>
+                  <th className="px-4 py-3 w-12 text-center">SL</th>
+                  <th className="px-4 py-3">Farm Name</th>
+                  <th className="px-4 py-3 text-right">Previous Tray</th>
+                  <th className="px-4 py-3 text-right text-emerald-600">Total Production</th>
+                  <th className="px-4 py-3 text-right text-blue-600">Total Delivery</th>
+                  <th className="px-4 py-3 text-right font-bold">Available Tray</th>
+                  <th className="px-4 py-3 text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {stockList.length === 0 ? (
+                {loadingFarms ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={7} className="p-3">
+                        <Skeleton className="h-6 w-full" />
+                      </td>
+                    </tr>
+                  ))
+                ) : farms.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                      No farm products configured yet. Go to{" "}
-                      <Link href="/products/new" className="text-primary underline">
-                        Product Management
-                      </Link>{" "}
-                      to create a Farm Product.
+                    <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                      No farms registered yet. Click "Add Farm" above.
                     </td>
                   </tr>
                 ) : (
-                  stockList.map((item) => (
-                    <tr key={item.product_id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-foreground">
-                        <div className="flex items-center space-x-2">
-                          <span>{item.name}</span>
-                          <Badge variant="outline" className="text-[10px] py-0 px-1 border-amber-500/30 text-amber-600 bg-amber-500/10">
-                            FARM
-                          </Badge>
+                  farms.map((farm, idx) => (
+                    <tr
+                      key={farm.id}
+                      className={`hover:bg-muted/30 transition-colors ${
+                        farm.id === selectedFarmId ? "bg-emerald-500/5 font-medium" : ""
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-center font-mono text-muted-foreground">
+                        {idx + 1}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-foreground">{farm.name}</span>
+                          {farm.code && (
+                            <Badge variant="outline" className="font-mono text-[10px] px-1 py-0">
+                              {farm.code}
+                            </Badge>
+                          )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground font-mono">{item.product_code}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground font-medium">
-                        {item.opening_stock} {item.unit}
+                      <td className="px-4 py-3 text-right text-muted-foreground font-mono">
+                        {farm.previous_tray.toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-600">
-                        +{item.total_production} {item.unit}
+                      <td className="px-4 py-3 text-right font-semibold text-emerald-600 font-mono">
+                        +{farm.total_production.toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-right font-bold text-blue-600">
-                        -{item.total_delivery} {item.unit}
+                      <td className="px-4 py-3 text-right font-semibold text-blue-600 font-mono">
+                        -{farm.total_delivered.toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-right font-bold text-rose-600">
-                        -{item.total_waste} {item.unit}
-                      </td>
-                      <td className="px-4 py-3 text-right font-extrabold text-foreground text-sm">
-                        <span className={item.current_stock > 0 ? "text-emerald-600" : "text-destructive"}>
-                          {item.current_stock} {item.unit}
+                      <td className="px-4 py-3 text-right">
+                        <span className="font-extrabold text-foreground px-2 py-0.5 rounded bg-muted/40 font-mono">
+                          {farm.available_tray.toLocaleString()}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Badge
+                          variant="outline"
+                          className={
+                            farm.status === "active"
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]"
+                              : "bg-muted text-muted-foreground text-[10px]"
+                          }
+                        >
+                          {farm.status}
+                        </Badge>
                       </td>
                     </tr>
                   ))
@@ -320,6 +774,244 @@ export default function FarmDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Recent Farm Management Entries (Daily Transactions) */}
+      <Card className="border border-border shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b border-border">
+          <div>
+            <CardTitle className="text-base font-semibold text-foreground">
+              Recent Farm Entries ({entries.length})
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              Manage recorded daily entries (View, Edit, Delete).
+            </CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadEntries}
+            disabled={loadingEntries}
+            className="text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingEntries ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold">
+                <tr>
+                  <th className="px-4 py-3 w-12 text-center">SL</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Farm</th>
+                  <th className="px-4 py-3 text-right text-emerald-600">Production</th>
+                  <th className="px-4 py-3">Deliveries Breakdown</th>
+                  <th className="px-4 py-3 text-right text-blue-600">Total Delivery</th>
+                  <th className="px-4 py-3 text-right font-bold">Net Trays</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {loadingEntries ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={8} className="p-3">
+                        <Skeleton className="h-6 w-full" />
+                      </td>
+                    </tr>
+                  ))
+                ) : entries.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                      No farm transactions recorded yet. Use the form above to record your first entry.
+                    </td>
+                  </tr>
+                ) : (
+                  entries.map((entry, idx) => {
+                    const net = entry.production_trays - entry.total_delivery_trays;
+                    return (
+                      <tr key={entry.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 text-center font-mono text-muted-foreground">
+                          {idx + 1}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
+                          {format(new Date(entry.date), "dd MMM yyyy")}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-foreground">
+                          {entry.farm_name || "Farm"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-600 font-mono">
+                          {entry.production_trays > 0 ? `+${entry.production_trays}` : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {entry.deliveries.length === 0 ? (
+                            <span className="text-muted-foreground/60 italic">No delivery</span>
+                          ) : (
+                            <div className="space-y-0.5">
+                              {entry.deliveries.map((d, dIdx) => (
+                                <div key={dIdx} className="flex items-center gap-1.5 text-blue-600">
+                                  <span className="font-medium">{d.destination}:</span>
+                                  <span className="font-mono font-bold">{d.tray_quantity} trays</span>
+                                  {d.notes && (
+                                    <span className="text-[10px] text-muted-foreground italic">
+                                      ({d.notes})
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-blue-600 font-mono">
+                          {entry.total_delivery_trays > 0 ? `-${entry.total_delivery_trays}` : "-"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-extrabold font-mono">
+                          <span
+                            className={
+                              net > 0 ? "text-emerald-600" : net < 0 ? "text-rose-600" : "text-muted-foreground"
+                            }
+                          >
+                            {net > 0 ? `+${net}` : net}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setViewingEntry(entry)}
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              title="View Details"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setEditingEntry(entry)}
+                              className="h-7 w-7 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                              title="Edit Entry"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingEntry(entry)}
+                              className="h-7 w-7 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
+                              title="Delete Entry"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Inline Add Farm Modal */}
+      <AddFarmModal
+        isOpen={isAddFarmOpen}
+        onClose={() => setIsAddFarmOpen(false)}
+        onSuccess={async (newFarmId) => {
+          await loadFarms(newFarmId);
+        }}
+      />
+
+      {/* View Entry Modal */}
+      <FarmViewEntryModal
+        entry={viewingEntry}
+        isOpen={Boolean(viewingEntry)}
+        onClose={() => setViewingEntry(null)}
+      />
+
+      {/* Edit Entry Modal */}
+      <FarmEditEntryModal
+        entry={editingEntry}
+        isOpen={Boolean(editingEntry)}
+        onClose={() => setEditingEntry(null)}
+        onSuccess={async () => {
+          await loadFarms(selectedFarmId);
+          await loadEntries();
+        }}
+      />
+
+      {/* Delete Entry Modal */}
+      <FarmDeleteModal
+        isOpen={Boolean(deletingEntry)}
+        onClose={() => setDeletingEntry(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Farm Entry"
+        description={`Are you sure you want to delete the entry for ${deletingEntry?.farm_name || "Farm"} on ${
+          deletingEntry?.date ? format(new Date(deletingEntry.date), "dd MMM yyyy") : ""
+        }? Available tray balance will be recalculated.`}
+        isDeleting={isDeleting}
+      />
+
+      {/* Quick Adjust Previous Tray Dialog */}
+      <Dialog open={isAdjustPrevOpen} onOpenChange={setIsAdjustPrevOpen}>
+        <DialogContent className="sm:max-w-md bg-card">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-amber-500 mb-1">
+              <RotateCcw className="h-5 w-5" />
+              <DialogTitle className="text-base font-bold text-foreground">
+                Adjust Opening / Previous Tray Balance
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Set initial tray stock on-hand for {selectedFarm?.name || "Farm"} (Non-financial opening balance).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-foreground">Previous Tray Quantity</label>
+              <Input
+                type="number"
+                step="any"
+                min="0"
+                value={adjustPrevQty}
+                onChange={(e) => setAdjustPrevQty(e.target.value)}
+                className="text-xs font-mono"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAdjustPrevOpen(false)}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSavePreviousTray}
+              disabled={adjustingPrev}
+              className="text-xs bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {adjustingPrev ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Balance"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
