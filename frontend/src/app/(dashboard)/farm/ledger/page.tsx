@@ -22,8 +22,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { farmService } from "@/services/api";
 import { FarmBalanceItem, FarmLedgerResponse } from "@/types";
+import { useAuth, HasPermission } from "@/providers/auth-provider";
 
 export default function FarmLedgerPage() {
+  const { hasPermission } = useAuth();
   const [farms, setFarms] = useState<FarmBalanceItem[]>([]);
   const [loadingFarms, setLoadingFarms] = useState(true);
 
@@ -93,48 +95,64 @@ export default function FarmLedgerPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-purple-500/10 text-purple-600 rounded-xl">
-            <BookOpen className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Farm Ledger</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Complete chronological tray movement history and running balance for the selected farm
-            </p>
-          </div>
+    <HasPermission
+      code={["farm.report", "farm.view"]}
+      fallback={
+        <div className="p-8 text-center text-destructive font-medium">
+          Access Denied: You do not have permission to view Farm Ledger.
         </div>
+      }
+    >
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-purple-500/10 text-purple-600 rounded-xl">
+              <BookOpen className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Farm Ledger</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Complete chronological tray movement history and running balance for the selected farm
+              </p>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Link href="/farm">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
-              Manage Farm
-            </Button>
-          </Link>
-          <Link href="/farm/production">
-            <Button variant="outline" size="sm" className="text-xs">
-              <PlusCircle className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
-              Production
-            </Button>
-          </Link>
-          <Link href="/farm/delivery">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
-              Delivery
-            </Button>
-          </Link>
-          <Link href="/farm/report">
-            <Button variant="outline" size="sm" className="text-xs">
-              <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
-              Report
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {hasPermission(["farm.view", "farm.edit", "farm.delete"]) && (
+              <Link href="/farm">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  Manage Farm
+                </Button>
+              </Link>
+            )}
+            {hasPermission(["farm.production.view", "farm.production.create"]) && (
+              <Link href="/farm/production">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <PlusCircle className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                  Production
+                </Button>
+              </Link>
+            )}
+            {hasPermission(["farm.delivery.view", "farm.delivery.create"]) && (
+              <Link href="/farm/delivery">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
+                  Delivery
+                </Button>
+              </Link>
+            )}
+            {hasPermission("farm.report") && (
+              <Link href="/farm/report">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+                  Report
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
-      </div>
 
       {/* Top Filter Bar */}
       <Card className="border border-border shadow-sm">
@@ -389,5 +407,6 @@ export default function FarmLedgerPage() {
         </CardContent>
       </Card>
     </div>
+    </HasPermission>
   );
 }

@@ -57,6 +57,45 @@ const MODULE_ORDER = [
   "settings",
 ];
 
+const FARM_SUBGROUPS = [
+  {
+    title: "Farm",
+    order: ["farm.view", "farm.create", "farm.edit", "farm.delete"],
+    match: (code: string) =>
+      ["farm.view", "farm.create", "farm.edit", "farm.delete"].includes(code) ||
+      (code.startsWith("farm.") &&
+        !code.startsWith("farm.production.") &&
+        !code.startsWith("farm.delivery.") &&
+        code !== "farm.report" &&
+        code !== "farm.waste"),
+  },
+  {
+    title: "Production",
+    order: [
+      "farm.production.view",
+      "farm.production.create",
+      "farm.production.edit",
+      "farm.production.delete",
+    ],
+    match: (code: string) => code.startsWith("farm.production."),
+  },
+  {
+    title: "Delivery",
+    order: [
+      "farm.delivery.view",
+      "farm.delivery.create",
+      "farm.delivery.edit",
+      "farm.delivery.delete",
+    ],
+    match: (code: string) => code.startsWith("farm.delivery."),
+  },
+  {
+    title: "Reports",
+    order: ["farm.report"],
+    match: (code: string) => code === "farm.report",
+  },
+];
+
 export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePermissionMatrixProps) {
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -69,8 +108,11 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
     }
   }, [role]);
 
+  // Filter out obsolete permissions like farm.waste
+  const validPermissions = allPermissions.filter((p) => p.code !== "farm.waste");
+
   // Group permissions by module in priority order
-  const distinctModules = Array.from(new Set(allPermissions.map((p) => p.module)));
+  const distinctModules = Array.from(new Set(validPermissions.map((p) => p.module)));
   const modules = distinctModules.sort((a, b) => {
     const idxA = MODULE_ORDER.indexOf(a);
     const idxB = MODULE_ORDER.indexOf(b);
@@ -81,7 +123,7 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
   });
 
   const permissionsByModule = modules.reduce((acc, mod) => {
-    acc[mod] = allPermissions.filter((p) => p.module === mod);
+    acc[mod] = validPermissions.filter((p) => p.module === mod);
     return acc;
   }, {} as Record<string, PermissionItem[]>);
 
@@ -106,21 +148,25 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
     );
   };
 
+  const togglePermissionGroup = (permIds: string[]) => {
+    if (role.code === "owner") return;
+    const allSelected = permIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !permIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...permIds])));
+    }
+  };
+
   const toggleModuleAll = (moduleName: string) => {
     if (role.code === "owner") return;
     const modulePermIds = permissionsByModule[moduleName].map((p) => p.id);
-    const allSelected = modulePermIds.every((id) => selectedIds.includes(id));
-
-    if (allSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !modulePermIds.includes(id)));
-    } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...modulePermIds])));
-    }
+    togglePermissionGroup(modulePermIds);
   };
 
   const selectAll = () => {
     if (role.code === "owner") return;
-    setSelectedIds(allPermissions.map((p) => p.id));
+    setSelectedIds(validPermissions.map((p) => p.id));
   };
 
   const clearAll = () => {
@@ -223,34 +269,116 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {perms.map((perm) => {
-                  const isChecked = isOwner || selectedIds.includes(perm.id);
+              {moduleName === "farm" ? (
+                <div className="space-y-4 pt-1">
+                  {FARM_SUBGROUPS.map((group) => {
+                    const groupPerms = perms
+                      .filter((p) => group.match(p.code))
+                      .sort((a, b) => {
+                        const idxA = group.order.indexOf(a.code);
+                        const idxB = group.order.indexOf(b.code);
+                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                        if (idxA !== -1) return -1;
+                        if (idxB !== -1) return 1;
+                        return a.code.localeCompare(b.code);
+                      });
 
-                  return (
-                    <label
-                      key={perm.id}
-                      className={`flex items-start space-x-3 p-3 rounded-lg border text-xs cursor-pointer transition-all ${
-                        isChecked
-                          ? "bg-primary/10 border-primary/40 text-foreground"
-                          : "bg-background/50 border-border text-muted-foreground hover:bg-accent/40"
-                      } ${isOwner ? "cursor-not-allowed opacity-80" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        disabled={isOwner}
-                        onChange={() => togglePermission(perm.id)}
-                        className="mt-0.5 rounded border-input text-primary focus:ring-primary h-4 w-4"
-                      />
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-foreground">{perm.name}</div>
-                        <div className="text-[10px] text-muted-foreground">{perm.code}</div>
+                    if (groupPerms.length === 0) return null;
+
+                    const groupPermIds = groupPerms.map((p) => p.id);
+                    const isGroupFull = groupPermIds.every((id) => selectedIds.includes(id));
+
+                    return (
+                      <div
+                        key={group.title}
+                        className="space-y-2 border-t border-border/60 pt-3 first:border-t-0 first:pt-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-foreground/80 tracking-wide uppercase">
+                            {group.title}
+                          </span>
+                          {!isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => togglePermissionGroup(groupPermIds)}
+                              className="text-[11px] font-medium text-primary hover:underline flex items-center gap-1"
+                            >
+                              {isGroupFull ? (
+                                <>
+                                  <CheckSquare className="h-3 w-3" />
+                                  Deselect {group.title}
+                                </>
+                              ) : (
+                                <>
+                                  <Square className="h-3 w-3" />
+                                  Select {group.title}
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          {groupPerms.map((perm) => {
+                            const isChecked = isOwner || selectedIds.includes(perm.id);
+
+                            return (
+                              <label
+                                key={perm.id}
+                                className={`flex items-start space-x-3 p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                                  isChecked
+                                    ? "bg-primary/10 border-primary/40 text-foreground"
+                                    : "bg-background/50 border-border text-muted-foreground hover:bg-accent/40"
+                                } ${isOwner ? "cursor-not-allowed opacity-80" : ""}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isOwner}
+                                  onChange={() => togglePermission(perm.id)}
+                                  className="mt-0.5 rounded border-input text-primary focus:ring-primary h-4 w-4"
+                                />
+                                <div className="space-y-0.5">
+                                  <div className="font-semibold text-foreground">{perm.name}</div>
+                                  <div className="text-[10px] text-muted-foreground">{perm.code}</div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </label>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {perms.map((perm) => {
+                    const isChecked = isOwner || selectedIds.includes(perm.id);
+
+                    return (
+                      <label
+                        key={perm.id}
+                        className={`flex items-start space-x-3 p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                          isChecked
+                            ? "bg-primary/10 border-primary/40 text-foreground"
+                            : "bg-background/50 border-border text-muted-foreground hover:bg-accent/40"
+                        } ${isOwner ? "cursor-not-allowed opacity-80" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={isOwner}
+                          onChange={() => togglePermission(perm.id)}
+                          className="mt-0.5 rounded border-input text-primary focus:ring-primary h-4 w-4"
+                        />
+                        <div className="space-y-0.5">
+                          <div className="font-semibold text-foreground">{perm.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{perm.code}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

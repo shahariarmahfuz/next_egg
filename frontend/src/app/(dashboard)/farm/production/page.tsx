@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { farmService } from "@/services/api";
 import { FarmBalanceItem, FarmProductionItem } from "@/types";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth, HasPermission } from "@/providers/auth-provider";
 
 export default function ProductionPage() {
   const { hasPermission } = useAuth();
@@ -214,237 +214,257 @@ export default function ProductionPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl">
-            <PlusCircle className="h-6 w-6" />
+    <HasPermission
+      code={["farm.production.view", "farm.production.create", "farm.production.edit", "farm.production.delete", "farm.report"]}
+      fallback={
+        <div className="p-8 text-center text-destructive font-medium">
+          Access Denied: You do not have permission to view Production.
+        </div>
+      }
+    >
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl">
+              <PlusCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Production</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Add produced trays to increase available stock for the selected farm
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Production</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Add produced trays to increase available stock for the selected farm
-            </p>
+
+          <div className="flex items-center gap-2">
+            {hasPermission(["farm.view", "farm.create", "farm.edit", "farm.delete"]) && (
+              <Link href="/farm">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  Manage Farm
+                </Button>
+              </Link>
+            )}
+            {hasPermission(["farm.delivery.view", "farm.delivery.create"]) && (
+              <Link href="/farm/delivery">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
+                  Delivery
+                </Button>
+              </Link>
+            )}
+            {hasPermission("farm.report") && (
+              <Link href="/farm/report">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+                  Report
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link href="/farm">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
-              Manage Farm
-            </Button>
-          </Link>
-          <Link href="/farm/delivery">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
-              Delivery
-            </Button>
-          </Link>
-          <Link href="/farm/report">
-            <Button variant="outline" size="sm" className="text-xs">
-              <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
-              Report
-            </Button>
-          </Link>
-        </div>
-      </div>
+        {/* Form Card */}
+        {hasPermission("farm.production.create") && (
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="py-4 px-6 border-b border-border">
+              <CardTitle className="text-base font-semibold text-foreground">
+                Add Production
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Record harvested or produced egg trays for the selected farm.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <form onSubmit={handleAddProduction} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Farm Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Farm <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      value={selectedFarmId}
+                      onChange={(e) => setSelectedFarmId(e.target.value)}
+                      disabled={loadingFarms || submitting}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {loadingFarms ? (
+                        <option value="">Loading farms...</option>
+                      ) : farms.length === 0 ? (
+                        <option value="">No farms available</option>
+                      ) : (
+                        farms.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} (Available: {f.available_tray} trays)
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
 
-      {/* Form Card */}
-      <Card className="border border-border shadow-sm">
-        <CardHeader className="py-4 px-6 border-b border-border">
-          <CardTitle className="text-base font-semibold text-foreground">
-            Add Production
-          </CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">
-            Record harvested or produced egg trays for the selected farm.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-5">
-          <form onSubmit={handleAddProduction} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Farm Selection */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Farm <span className="text-destructive">*</span>
-                </label>
-                <select
-                  value={selectedFarmId}
-                  onChange={(e) => setSelectedFarmId(e.target.value)}
-                  disabled={loadingFarms || submitting}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {loadingFarms ? (
-                    <option value="">Loading farms...</option>
-                  ) : farms.length === 0 ? (
-                    <option value="">No farms available</option>
+                  {/* Date */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
+                      Date <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="date"
+                      value={productionDate}
+                      onChange={(e) => setProductionDate(e.target.value)}
+                      disabled={submitting}
+                      className="text-xs h-9"
+                    />
+                  </div>
+
+                  {/* Tray Quantity */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Tray Quantity <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0.1"
+                      placeholder="e.g. 100"
+                      value={trayQuantity}
+                      onChange={(e) => setTrayQuantity(e.target.value)}
+                      disabled={submitting}
+                      className="text-xs h-9 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="submit"
+                    disabled={submitting || !selectedFarmId || !trayQuantity}
+                    className="min-w-[140px] text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Production
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Recent Production Records Table */}
+        <Card className="border border-border shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b border-border">
+            <div>
+              <CardTitle className="text-base font-semibold text-foreground">
+                Recent Production Records ({productions.length})
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                History of recorded production entries. You can edit or delete entries below.
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchProductions}
+              disabled={loadingRecords}
+              className="text-xs"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingRecords ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold">
+                  <tr>
+                    <th className="px-4 py-3 w-12 text-center">SL</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Farm</th>
+                    <th className="px-4 py-3 text-right font-bold text-amber-600">Tray Quantity</th>
+                    {hasPermission(["farm.production.edit", "farm.production.delete"]) && (
+                      <th className="px-4 py-3 text-center w-36">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {loadingRecords ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <tr key={i}>
+                        <td colSpan={hasPermission(["farm.production.edit", "farm.production.delete"]) ? 5 : 4} className="p-3">
+                          <Skeleton className="h-6 w-full" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : productions.length === 0 ? (
+                    <tr>
+                      <td colSpan={hasPermission(["farm.production.edit", "farm.production.delete"]) ? 5 : 4} className="px-4 py-8 text-center text-muted-foreground">
+                        <PlusCircle className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                        <p className="font-medium">No production records found.</p>
+                        <p className="text-[11px] mt-1">Use the form above to add a production record.</p>
+                      </td>
+                    </tr>
                   ) : (
-                    farms.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name} (Available: {f.available_tray} trays)
-                      </option>
+                    productions.map((rec, idx) => (
+                      <tr key={rec.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 text-center font-mono text-muted-foreground">
+                          {idx + 1}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-foreground">
+                          {rec.production_date}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-foreground">
+                          {rec.farm_name || "Unknown Farm"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-amber-600">
+                          +{Number(rec.tray_quantity).toLocaleString()} Trays
+                        </td>
+                        {hasPermission(["farm.production.edit", "farm.production.delete"]) && (
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {hasPermission("farm.production.edit") && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openEditModal(rec)}
+                                  className="h-7 px-2.5 text-xs"
+                                >
+                                  <Edit2 className="h-3 w-3 mr-1 text-primary" />
+                                  Edit
+                                </Button>
+                              )}
+                              {hasPermission("farm.production.delete") && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openDeleteModal(rec)}
+                                  className="h-7 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
                     ))
                   )}
-                </select>
-              </div>
-
-              {/* Date */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Calendar className="h-3 w-3 text-muted-foreground" />
-                  Date <span className="text-destructive">*</span>
-                </label>
-                <Input
-                  type="date"
-                  value={productionDate}
-                  onChange={(e) => setProductionDate(e.target.value)}
-                  disabled={submitting}
-                  className="text-xs h-9"
-                />
-              </div>
-
-              {/* Tray Quantity */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Tray Quantity <span className="text-destructive">*</span>
-                </label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0.1"
-                  placeholder="e.g. 100"
-                  value={trayQuantity}
-                  onChange={(e) => setTrayQuantity(e.target.value)}
-                  disabled={submitting}
-                  className="text-xs h-9 font-mono"
-                />
-              </div>
+                </tbody>
+              </table>
             </div>
-
-            <div className="flex justify-end pt-2">
-              <Button
-                type="submit"
-                disabled={submitting || !selectedFarmId || !trayQuantity}
-                className="min-w-[140px] text-xs bg-amber-600 hover:bg-amber-700 text-white"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Production
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Recent Production Records Table */}
-      <Card className="border border-border shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b border-border">
-          <div>
-            <CardTitle className="text-base font-semibold text-foreground">
-              Recent Production Records ({productions.length})
-            </CardTitle>
-            <CardDescription className="text-xs text-muted-foreground">
-              History of recorded production entries. You can edit or delete entries below.
-            </CardDescription>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={fetchProductions}
-            disabled={loadingRecords}
-            className="text-xs"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingRecords ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold">
-                <tr>
-                  <th className="px-4 py-3 w-12 text-center">SL</th>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Farm</th>
-                  <th className="px-4 py-3 text-right font-bold text-amber-600">Tray Quantity</th>
-                  <th className="px-4 py-3 text-center w-36">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {loadingRecords ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={5} className="p-3">
-                        <Skeleton className="h-6 w-full" />
-                      </td>
-                    </tr>
-                  ))
-                ) : productions.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                      <PlusCircle className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                      <p className="font-medium">No production records found.</p>
-                      <p className="text-[11px] mt-1">Use the form above to add a production record.</p>
-                    </td>
-                  </tr>
-                ) : (
-                  productions.map((rec, idx) => (
-                    <tr key={rec.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 text-center font-mono text-muted-foreground">
-                        {idx + 1}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-foreground">
-                        {rec.production_date}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-foreground">
-                        {rec.farm_name || "Unknown Farm"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-amber-600">
-                        +{Number(rec.tray_quantity).toLocaleString()} Trays
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {hasPermission(["farm.manage", "farm.create", "farm.production"]) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEditModal(rec)}
-                              className="h-7 px-2.5 text-xs"
-                            >
-                              <Edit2 className="h-3 w-3 mr-1 text-primary" />
-                              Edit
-                            </Button>
-                          )}
-                          {hasPermission(["farm.manage", "farm.create", "farm.production"]) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openDeleteModal(rec)}
-                              className="h-7 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            >
-                              <Trash2 className="h-3 w-3 mr-1" />
-                              Delete
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
       {/* Edit Production Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
@@ -553,5 +573,6 @@ export default function ProductionPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  </HasPermission>
+);
 }

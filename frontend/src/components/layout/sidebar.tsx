@@ -958,7 +958,12 @@ export function SidebarContent({
         )}
 
         {/* Farm Module */}
-        {hasPermission(["farm.view", "farm.create", "farm.manage", "farm.production", "farm.delivery", "farm.report"]) && (
+        {hasPermission([
+          "farm.view", "farm.create", "farm.edit", "farm.delete",
+          "farm.production.view", "farm.production.create", "farm.production.edit", "farm.production.delete",
+          "farm.delivery.view", "farm.delivery.create", "farm.delivery.edit", "farm.delivery.delete",
+          "farm.report",
+        ]) && (
           <div className="space-y-1">
             <button
               onClick={() => toggleGroup("farm")}
@@ -982,7 +987,7 @@ export function SidebarContent({
             </button>
             {isGroupOpen("farm") && !collapsed && (
               <div className="pl-9 space-y-1 animate-in fade-in-50">
-                {hasPermission(["farm.create", "farm.manage"]) && (
+                {hasPermission("farm.create") && (
                   <Link
                     href="/farm/add"
                     onClick={onNavigate}
@@ -995,7 +1000,7 @@ export function SidebarContent({
                     <span>Add Farm</span>
                   </Link>
                 )}
-                {hasPermission(["farm.view", "farm.manage", "farm.create"]) && (
+                {hasPermission(["farm.view", "farm.edit", "farm.delete"]) && (
                   <Link
                     href="/farm"
                     onClick={onNavigate}
@@ -1008,7 +1013,7 @@ export function SidebarContent({
                     <span>Manage Farm</span>
                   </Link>
                 )}
-                {hasPermission(["farm.production", "farm.create", "farm.manage", "farm.view"]) && (
+                {hasPermission(["farm.production.view", "farm.production.create", "farm.production.edit", "farm.production.delete"]) && (
                   <Link
                     href="/farm/production"
                     onClick={onNavigate}
@@ -1021,7 +1026,7 @@ export function SidebarContent({
                     <span>Production</span>
                   </Link>
                 )}
-                {hasPermission(["farm.delivery", "farm.create", "farm.manage", "farm.view"]) && (
+                {hasPermission(["farm.delivery.view", "farm.delivery.create", "farm.delivery.edit", "farm.delivery.delete"]) && (
                   <Link
                     href="/farm/delivery"
                     onClick={onNavigate}
@@ -1034,7 +1039,7 @@ export function SidebarContent({
                     <span>Delivery</span>
                   </Link>
                 )}
-                {hasPermission(["farm.view", "farm.report", "farm.manage"]) && (
+                {hasPermission(["farm.report", "farm.view"]) && (
                   <Link
                     href="/farm/ledger"
                     onClick={onNavigate}
@@ -1047,7 +1052,7 @@ export function SidebarContent({
                     <span>Farm Ledger</span>
                   </Link>
                 )}
-                {hasPermission(["farm.report", "farm.view"]) && (
+                {hasPermission("farm.report") && (
                   <Link
                     href="/farm/report"
                     onClick={onNavigate}

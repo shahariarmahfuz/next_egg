@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { farmService } from "@/services/api";
 import { FarmBalanceItem, FarmProductionItem, FarmDeliveryItem } from "@/types";
+import { useAuth, HasPermission } from "@/providers/auth-provider";
 
 function getLocalToday(): string {
   const d = new Date();
@@ -40,6 +41,7 @@ function normalizeDate(val: string): string {
 }
 
 export default function ProductionDeliveryReportPage() {
+  const { hasPermission } = useAuth();
   const [selectedDate, setSelectedDate] = useState(getLocalToday);
   const [selectedFarmId, setSelectedFarmId] = useState("");
   const [farms, setFarms] = useState<FarmBalanceItem[]>([]);
@@ -115,50 +117,66 @@ export default function ProductionDeliveryReportPage() {
   );
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-indigo-500/10 text-indigo-600 rounded-xl">
-            <BarChart3 className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Production & Delivery Report
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Daily summary of egg tray production harvests and delivery dispatches
-            </p>
-          </div>
+    <HasPermission
+      code="farm.report"
+      fallback={
+        <div className="p-8 text-center text-destructive font-medium">
+          Access Denied: You do not have permission to view Farm Reports.
         </div>
+      }
+    >
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-indigo-500/10 text-indigo-600 rounded-xl">
+              <BarChart3 className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Production & Delivery Report
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Daily summary of egg tray production harvests and delivery dispatches
+              </p>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Link href="/farm">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
-              Manage Farm
-            </Button>
-          </Link>
-          <Link href="/farm/production">
-            <Button variant="outline" size="sm" className="text-xs">
-              <PlusCircle className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
-              Production
-            </Button>
-          </Link>
-          <Link href="/farm/delivery">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
-              Delivery
-            </Button>
-          </Link>
-          <Link href="/farm/ledger">
-            <Button variant="outline" size="sm" className="text-xs">
-              <BookOpen className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
-              Farm Ledger
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {hasPermission(["farm.view", "farm.create", "farm.edit", "farm.delete"]) && (
+              <Link href="/farm">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  Manage Farm
+                </Button>
+              </Link>
+            )}
+            {hasPermission(["farm.production.view", "farm.production.create"]) && (
+              <Link href="/farm/production">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <PlusCircle className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                  Production
+                </Button>
+              </Link>
+            )}
+            {hasPermission(["farm.delivery.view", "farm.delivery.create"]) && (
+              <Link href="/farm/delivery">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
+                  Delivery
+                </Button>
+              </Link>
+            )}
+            {hasPermission(["farm.report", "farm.view"]) && (
+              <Link href="/farm/ledger">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <BookOpen className="h-3.5 w-3.5 mr-1.5 text-purple-600" />
+                  Farm Ledger
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
-      </div>
 
       {/* Filter Controls Bar */}
       <Card className="border border-border shadow-sm">
@@ -360,5 +378,6 @@ export default function ProductionDeliveryReportPage() {
         </Card>
       </div>
     </div>
+    </HasPermission>
   );
 }

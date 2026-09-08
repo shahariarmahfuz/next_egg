@@ -54,7 +54,7 @@ async def create_farm(
     *,
     db: AsyncSession = Depends(get_db),
     obj_in: FarmCreate,
-    current_user: User = Depends(RequirePermission(["farm.create", "farm.manage"])),
+    current_user: User = Depends(RequirePermission("farm.create")),
 ):
     """Create a new farm location with minimum field 'name' and optional opening balance."""
     farm = await farm_service.create_farm(db, obj_in=obj_in)
@@ -69,7 +69,17 @@ async def create_farm(
 async def list_farms(
     status: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.create", "farm.manage", "farm.production", "farm.delivery", "farm.report"])),
+    current_user: User = Depends(RequirePermission([
+        "farm.view",
+        "farm.create",
+        "farm.edit",
+        "farm.delete",
+        "farm.production.view",
+        "farm.production.create",
+        "farm.delivery.view",
+        "farm.delivery.create",
+        "farm.report",
+    ])),
 ):
     """Retrieve all farms with calculated tray balances (previous, production, delivered, available)."""
     farms = await farm_service.get_all_farms_with_balances(db, status=status)
@@ -84,7 +94,7 @@ async def list_farms(
 async def get_farm(
     farm_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.create", "farm.manage"])),
+    current_user: User = Depends(RequirePermission(["farm.view", "farm.edit"])),
 ):
     """Get single farm details."""
     farm = await farm_service.get_farm_by_id(db, farm_id=farm_id)
@@ -100,7 +110,7 @@ async def update_farm(
     farm_id: str,
     obj_in: FarmUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.create", "farm.manage"])),
+    current_user: User = Depends(RequirePermission("farm.edit")),
 ):
     """Update farm details."""
     farm = await farm_service.update_farm(db, farm_id=farm_id, obj_in=obj_in)
@@ -116,7 +126,7 @@ async def update_farm_previous_tray(
     farm_id: str,
     obj_in: PreviousTrayUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.create", "farm.manage", "farm.view"])),
+    current_user: User = Depends(RequirePermission("farm.edit")),
 ):
     """Update opening / previous tray balance for a farm."""
     updated = await farm_service.update_previous_tray(db, farm_id=farm_id, obj_in=obj_in)
@@ -131,7 +141,7 @@ async def update_farm_previous_tray(
 async def delete_farm(
     farm_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.create"])),
+    current_user: User = Depends(RequirePermission("farm.delete")),
 ):
     """Delete a farm and all associated records."""
     await farm_service.delete_farm(db, farm_id=farm_id)
@@ -148,7 +158,7 @@ async def get_farm_ledger(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.report", "farm.manage"])),
+    current_user: User = Depends(RequirePermission(["farm.report", "farm.view"])),
 ):
     """
     Retrieve chronological tray movement ledger for a farm with running balance.
@@ -176,7 +186,7 @@ async def create_farm_entry(
     *,
     db: AsyncSession = Depends(get_db),
     obj_in: FarmDailyEntryCreate,
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.create", "farm.production", "farm.delivery"])),
+    current_user: User = Depends(RequirePermission(["farm.production.create", "farm.delivery.create"])),
 ):
     """
     Create a unified daily farm transaction on a single page:
@@ -199,7 +209,7 @@ async def list_farm_entries(
     end_date: Optional[date] = Query(None),
     farm_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.manage", "farm.create", "farm.production", "farm.delivery"])),
+    current_user: User = Depends(RequirePermission(["farm.view", "farm.production.view", "farm.delivery.view", "farm.report"])),
 ):
     """Retrieve paginated daily farm entries with attached deliveries."""
     clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
@@ -230,7 +240,7 @@ async def list_farm_entries(
 async def get_farm_entry(
     entry_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.manage"])),
+    current_user: User = Depends(RequirePermission(["farm.view", "farm.production.view", "farm.delivery.view"])),
 ):
     """Get single daily farm entry details including all delivery destination rows."""
     entry = await farm_service.get_entry_by_id(db, entry_id=entry_id)
@@ -246,7 +256,7 @@ async def update_farm_entry(
     entry_id: str,
     obj_in: FarmDailyEntryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.create"])),
+    current_user: User = Depends(RequirePermission(["farm.production.edit", "farm.delivery.edit"])),
 ):
     """Update a daily farm entry and its delivery rows without creating duplicates."""
     updated = await farm_service.update_entry(db, entry_id=entry_id, obj_in=obj_in)
@@ -261,7 +271,7 @@ async def update_farm_entry(
 async def delete_farm_entry(
     entry_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.create"])),
+    current_user: User = Depends(RequirePermission(["farm.production.delete", "farm.delivery.delete"])),
 ):
     """Delete a daily farm entry and all its deliveries, correctly recalculating balance."""
     await farm_service.delete_entry(db, entry_id=entry_id)
@@ -282,7 +292,7 @@ async def get_farm_report(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.report", "farm.view"])),
+    current_user: User = Depends(RequirePermission("farm.report")),
 ):
     """
     Date-wise Farm Report showing daily production and delivery breakdown by destination.
@@ -317,7 +327,7 @@ async def create_farm_production(
     *,
     db: AsyncSession = Depends(get_db),
     obj_in: FarmProductionCreate,
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.production", "farm.production.create"])),
+    current_user: User = Depends(RequirePermission("farm.production.create")),
 ):
     prod = await farm_service.create_production(db, obj_in=obj_in)
     return ResponseModel[FarmProductionResponse](
@@ -335,7 +345,7 @@ async def list_farm_production(
     end_date: Optional[date] = Query(None),
     farm_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.production", "farm.manage", "farm.report"])),
+    current_user: User = Depends(RequirePermission(["farm.production.view", "farm.report"])),
 ):
     clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
     skip = (page - 1) * size
@@ -365,7 +375,7 @@ async def list_farm_production(
 async def get_farm_production(
     prod_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.production", "farm.manage"])),
+    current_user: User = Depends(RequirePermission(["farm.production.view", "farm.production.edit"])),
 ):
     prod = await farm_service.get_production_by_id(db, prod_id=prod_id)
     return ResponseModel[FarmProductionResponse](
@@ -380,7 +390,7 @@ async def update_farm_production(
     prod_id: str,
     obj_in: FarmProductionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.production"])),
+    current_user: User = Depends(RequirePermission("farm.production.edit")),
 ):
     updated = await farm_service.update_production(db, prod_id=prod_id, obj_in=obj_in)
     return ResponseModel[FarmProductionResponse](
@@ -394,7 +404,7 @@ async def update_farm_production(
 async def delete_farm_production(
     prod_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.production"])),
+    current_user: User = Depends(RequirePermission("farm.production.delete")),
 ):
     await farm_service.delete_production(db, prod_id=prod_id)
     return ResponseModel[dict](
@@ -413,7 +423,7 @@ async def create_farm_delivery(
     *,
     db: AsyncSession = Depends(get_db),
     obj_in: FarmDeliveryCreate,
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.delivery", "farm.delivery.create", "farm.create"])),
+    current_user: User = Depends(RequirePermission("farm.delivery.create")),
 ):
     """Record a single farm delivery."""
     delivery = await farm_service.create_delivery(db, obj_in=obj_in)
@@ -429,7 +439,7 @@ async def create_farm_delivery_batch(
     *,
     db: AsyncSession = Depends(get_db),
     obj_in: FarmDeliveryBatchCreate,
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.delivery", "farm.delivery.create", "farm.create"])),
+    current_user: User = Depends(RequirePermission("farm.delivery.create")),
 ):
     """Record multiple delivery destination entries at once."""
     deliveries = await farm_service.create_deliveries_batch(db, obj_in=obj_in)
@@ -448,7 +458,7 @@ async def list_farm_delivery(
     end_date: Optional[date] = Query(None),
     farm_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.delivery", "farm.manage", "farm.report"])),
+    current_user: User = Depends(RequirePermission(["farm.delivery.view", "farm.report"])),
 ):
     clean_farm_id = farm_id.strip() if farm_id and farm_id.strip() and farm_id.strip().lower() != "all" else None
     skip = (page - 1) * size
@@ -478,7 +488,7 @@ async def list_farm_delivery(
 async def get_farm_delivery(
     deliv_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.view", "farm.delivery", "farm.manage"])),
+    current_user: User = Depends(RequirePermission(["farm.delivery.view", "farm.delivery.edit"])),
 ):
     deliv = await farm_service.get_delivery_by_id(db, deliv_id=deliv_id)
     return ResponseModel[FarmDeliveryResponse](
@@ -493,7 +503,7 @@ async def update_farm_delivery(
     deliv_id: str,
     obj_in: FarmDeliveryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.delivery"])),
+    current_user: User = Depends(RequirePermission("farm.delivery.edit")),
 ):
     updated = await farm_service.update_delivery(db, deliv_id=deliv_id, obj_in=obj_in)
     return ResponseModel[FarmDeliveryResponse](
@@ -507,7 +517,7 @@ async def update_farm_delivery(
 async def delete_farm_delivery(
     deliv_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission(["farm.manage", "farm.delivery"])),
+    current_user: User = Depends(RequirePermission("farm.delivery.delete")),
 ):
     await farm_service.delete_delivery(db, deliv_id=deliv_id)
     return ResponseModel[dict](

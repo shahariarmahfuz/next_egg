@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import logger
 from app.core.security import get_password_hash
@@ -137,11 +137,16 @@ DEFAULT_PERMISSIONS = [
     # Farm module
     {"code": "farm.view", "name": "View Farm", "module": "farm", "description": "Access farm management and view tray balances"},
     {"code": "farm.create", "name": "Create Farm", "module": "farm", "description": "Add new farm locations and configure previous trays"},
-    {"code": "farm.manage", "name": "Manage Farm", "module": "farm", "description": "Record daily production and deliveries, edit and delete entries"},
-    {"code": "farm.production", "name": "Manage Production", "module": "farm", "description": "View, edit, and audit farm production batches"},
+    {"code": "farm.edit", "name": "Edit Farm", "module": "farm", "description": "Modify farm details and opening tray balances"},
+    {"code": "farm.delete", "name": "Delete Farm", "module": "farm", "description": "Remove farm locations and associated records"},
+    {"code": "farm.production.view", "name": "View Production", "module": "farm", "description": "View farm production history and batches"},
     {"code": "farm.production.create", "name": "Add Production", "module": "farm", "description": "Record daily production harvest in trays"},
-    {"code": "farm.delivery", "name": "Manage Delivery", "module": "farm", "description": "View, edit, and audit delivery dispatches"},
+    {"code": "farm.production.edit", "name": "Edit Production", "module": "farm", "description": "Modify recorded production batches"},
+    {"code": "farm.production.delete", "name": "Delete Production", "module": "farm", "description": "Delete production harvest records"},
+    {"code": "farm.delivery.view", "name": "View Delivery", "module": "farm", "description": "View farm delivery dispatches and history"},
     {"code": "farm.delivery.create", "name": "Add Delivery", "module": "farm", "description": "Record multi-destination delivery submissions"},
+    {"code": "farm.delivery.edit", "name": "Edit Delivery", "module": "farm", "description": "Modify recorded delivery dispatches"},
+    {"code": "farm.delivery.delete", "name": "Delete Delivery", "module": "farm", "description": "Delete delivery dispatch records"},
     {"code": "farm.report", "name": "View Farm Reports", "module": "farm", "description": "View date-wise production and delivery breakdown reports"},
 
     # User Management module
@@ -191,6 +196,15 @@ async def seed_initial_data(db: AsyncSession) -> None:
     """
     logger.info("Initializing system database seed...")
 
+    # 0. Clean up obsolete permissions
+    obsolete_codes = ["farm.waste", "farm.manage", "farm.production", "farm.delivery"]
+    for code in obsolete_codes:
+        obs = await permission_repository.get_by_code(db, code)
+        if obs:
+            await db.execute(text("DELETE FROM role_permissions WHERE permission_id = :pid"), {"pid": obs.id})
+            await db.delete(obs)
+            await db.commit()
+
     # 1. Seed Permissions
     permission_map = {}
     for perm_data in DEFAULT_PERMISSIONS:
@@ -229,14 +243,17 @@ async def seed_initial_data(db: AsyncSession) -> None:
         "collection.view", "collection.create",
         "supplier_payment.view", "supplier_payment.create",
         "expense.view", "expense.create",
-        "farm.view", "farm.create", "farm.manage", "farm.production", "farm.production.create", "farm.delivery", "farm.delivery.create", "farm.report",
+        "farm.view", "farm.create", "farm.production.view", "farm.production.create", "farm.delivery.view", "farm.delivery.create", "farm.report",
         "profile.view", "profile.edit",
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
 
-    # Admin gets all perms EXCEPT customer.balance.adjustment.delete by default
+    # Admin gets all perms EXCEPT customer balance adjustment delete and farm delete permissions by default
     admin_restricted_perm_codes = {
         "customer.balance.adjustment.delete",
+        "farm.delete",
+        "farm.production.delete",
+        "farm.delivery.delete",
     }
     admin_perms = [p for p in all_perms if p.code not in admin_restricted_perm_codes]
 

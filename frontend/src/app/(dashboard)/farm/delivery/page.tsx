@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { farmService } from "@/services/api";
 import { FarmBalanceItem, FarmDeliveryItem } from "@/types";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth, HasPermission } from "@/providers/auth-provider";
 
 export default function DeliveryPage() {
   const { hasPermission } = useAuth();
@@ -244,160 +244,176 @@ export default function DeliveryPage() {
   const currentFarm = farms.find((f) => f.id === selectedFarmId);
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-blue-500/10 text-blue-600 rounded-xl">
-            <Truck className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Delivery</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Record delivered trays to subtract stock from the selected farm
-            </p>
-          </div>
+    <HasPermission
+      code={["farm.delivery.view", "farm.delivery.create", "farm.delivery.edit", "farm.delivery.delete", "farm.report"]}
+      fallback={
+        <div className="p-8 text-center text-destructive font-medium">
+          Access Denied: You do not have permission to view Delivery.
         </div>
-
-        <div className="flex items-center gap-2">
-          <Link href="/farm">
-            <Button variant="outline" size="sm" className="text-xs">
-              <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
-              Manage Farm
-            </Button>
-          </Link>
-          <Link href="/farm/production">
-            <Button variant="outline" size="sm" className="text-xs">
-              <PlusCircle className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
-              Production
-            </Button>
-          </Link>
-          <Link href="/farm/report">
-            <Button variant="outline" size="sm" className="text-xs">
-              <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
-              Report
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Form Card */}
-      <Card className="border border-border shadow-sm">
-        <CardHeader className="py-4 px-6 border-b border-border">
-          <CardTitle className="text-base font-semibold text-foreground flex items-center justify-between">
-            <span>Add Delivery</span>
-            {currentFarm && (
-              <Badge variant="outline" className="text-xs font-mono font-medium text-blue-600 border-blue-500/30">
-                Available: {currentFarm.available_tray} Trays
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">
-            Record trays delivered from a farm. The store or destination name is entered manually (e.g. Shop, Ayonal, Karim).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-5">
-          <form onSubmit={handleAddDelivery} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Farm Selection */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Farm <span className="text-destructive">*</span>
-                </label>
-                <select
-                  value={selectedFarmId}
-                  onChange={(e) => setSelectedFarmId(e.target.value)}
-                  disabled={loadingFarms || submitting}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {loadingFarms ? (
-                    <option value="">Loading farms...</option>
-                  ) : farms.length === 0 ? (
-                    <option value="">No farms available</option>
-                  ) : (
-                    farms.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name} (Available: {f.available_tray} trays)
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              {/* Date */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Calendar className="h-3 w-3 text-muted-foreground" />
-                  Date <span className="text-destructive">*</span>
-                </label>
-                <Input
-                  type="date"
-                  value={deliveryDate}
-                  onChange={(e) => setDeliveryDate(e.target.value)}
-                  disabled={submitting}
-                  className="text-xs h-9"
-                />
-              </div>
-
-              {/* Tray Quantity */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Tray Quantity <span className="text-destructive">*</span>
-                </label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0.1"
-                  placeholder="e.g. 20"
-                  value={trayQuantity}
-                  onChange={(e) => setTrayQuantity(e.target.value)}
-                  disabled={submitting}
-                  className="text-xs h-9 font-mono"
-                />
-              </div>
-
-              {/* Store / Destination Name */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Store className="h-3 w-3 text-muted-foreground" />
-                  Store / Destination <span className="text-destructive">*</span>
-                </label>
-                <Input
-                  type="text"
-                  placeholder="e.g. Shop, Ayonal, Karim"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  disabled={submitting}
-                  className="text-xs h-9"
-                />
-              </div>
+      }
+    >
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-blue-500/10 text-blue-600 rounded-xl">
+              <Truck className="h-6 w-6" />
             </div>
-
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-[11px] text-muted-foreground">
-                You can record multiple deliveries consecutively. Each submission creates one delivery record.
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Delivery</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Record delivered trays to subtract stock from the selected farm
               </p>
-              <Button
-                type="submit"
-                disabled={submitting || !selectedFarmId || !trayQuantity || !destination.trim()}
-                className="min-w-[140px] text-xs bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Delivery
-                  </>
-                )}
-              </Button>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {hasPermission(["farm.view", "farm.create", "farm.edit", "farm.delete"]) && (
+              <Link href="/farm">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  Manage Farm
+                </Button>
+              </Link>
+            )}
+            {hasPermission(["farm.production.view", "farm.production.create"]) && (
+              <Link href="/farm/production">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <PlusCircle className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                  Production
+                </Button>
+              </Link>
+            )}
+            {hasPermission("farm.report") && (
+              <Link href="/farm/report">
+                <Button variant="outline" size="sm" className="text-xs">
+                  <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+                  Report
+                </Button>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Form Card */}
+        {hasPermission("farm.delivery.create") && (
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="py-4 px-6 border-b border-border">
+              <CardTitle className="text-base font-semibold text-foreground flex items-center justify-between">
+                <span>Add Delivery</span>
+                {currentFarm && (
+                  <Badge variant="outline" className="text-xs font-mono font-medium text-blue-600 border-blue-500/30">
+                    Available: {currentFarm.available_tray} Trays
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Record trays delivered from a farm. The store or destination name is entered manually (e.g. Shop, Ayonal, Karim).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <form onSubmit={handleAddDelivery} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {/* Farm Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Farm <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      value={selectedFarmId}
+                      onChange={(e) => setSelectedFarmId(e.target.value)}
+                      disabled={loadingFarms || submitting}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {loadingFarms ? (
+                        <option value="">Loading farms...</option>
+                      ) : farms.length === 0 ? (
+                        <option value="">No farms available</option>
+                      ) : (
+                        farms.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} (Available: {f.available_tray} trays)
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Date Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
+                      Date <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="date"
+                      value={deliveryDate}
+                      onChange={(e) => setDeliveryDate(e.target.value)}
+                      disabled={submitting}
+                      className="text-xs h-9"
+                    />
+                  </div>
+
+                  {/* Tray Quantity */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Tray Quantity <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0.1"
+                      placeholder="e.g. 50"
+                      value={trayQuantity}
+                      onChange={(e) => setTrayQuantity(e.target.value)}
+                      disabled={submitting}
+                      className="text-xs h-9 font-mono"
+                    />
+                  </div>
+
+                  {/* Store / Destination */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                      <Store className="h-3 w-3 text-muted-foreground" />
+                      Store / Destination <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Shop, Ayonal, Karim"
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      disabled={submitting}
+                      className="text-xs h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    You can record multiple deliveries consecutively. Each submission creates one delivery record.
+                  </p>
+                  <Button
+                    type="submit"
+                    disabled={submitting || !selectedFarmId || !trayQuantity || !destination.trim()}
+                    className="min-w-[140px] text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Delivery
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Recent Delivery Records Table */}
       <Card className="border border-border shadow-sm">
@@ -431,21 +447,23 @@ export default function DeliveryPage() {
                   <th className="px-4 py-3">Farm</th>
                   <th className="px-4 py-3 text-right font-bold text-blue-600">Tray</th>
                   <th className="px-4 py-3">Store / Destination</th>
-                  <th className="px-4 py-3 text-center w-36">Actions</th>
+                  {hasPermission(["farm.delivery.edit", "farm.delivery.delete"]) && (
+                    <th className="px-4 py-3 text-center w-36">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loadingRecords ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={6} className="p-3">
+                      <td colSpan={hasPermission(["farm.delivery.edit", "farm.delivery.delete"]) ? 6 : 5} className="p-3">
                         <Skeleton className="h-6 w-full" />
                       </td>
                     </tr>
                   ))
                 ) : deliveries.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={hasPermission(["farm.delivery.edit", "farm.delivery.delete"]) ? 6 : 5} className="px-4 py-8 text-center text-muted-foreground">
                       <Truck className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
                       <p className="font-medium">No delivery records found.</p>
                       <p className="text-[11px] mt-1">Use the form above to add a delivery record.</p>
@@ -471,32 +489,34 @@ export default function DeliveryPage() {
                           {rec.destination}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {hasPermission(["farm.manage", "farm.create", "farm.delivery"]) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEditModal(rec)}
-                              className="h-7 px-2.5 text-xs"
-                            >
-                              <Edit2 className="h-3 w-3 mr-1 text-primary" />
-                              Edit
-                            </Button>
-                          )}
-                          {hasPermission(["farm.manage", "farm.create", "farm.delivery"]) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openDeleteModal(rec)}
-                              className="h-7 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            >
-                              <Trash2 className="h-3 w-3 mr-1" />
-                              Delete
-                            </Button>
-                          )}
-                        </div>
-                      </td>
+                      {hasPermission(["farm.delivery.edit", "farm.delivery.delete"]) && (
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {hasPermission("farm.delivery.edit") && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditModal(rec)}
+                                className="h-7 px-2.5 text-xs"
+                              >
+                                <Edit2 className="h-3 w-3 mr-1 text-primary" />
+                                Edit
+                              </Button>
+                            )}
+                            {hasPermission("farm.delivery.delete") && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openDeleteModal(rec)}
+                                className="h-7 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Delete
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -587,7 +607,7 @@ export default function DeliveryPage() {
             </div>
             <DialogDescription className="text-xs text-muted-foreground pt-2">
               Are you sure you want to delete this delivery record of{" "}
-              <strong className="text-foreground">{editingRecord?.tray_quantity || deletingRecord?.tray_quantity} trays</strong> to{" "}
+              <strong className="text-foreground">{deletingRecord?.tray_quantity} trays</strong> to{" "}
               <strong className="text-foreground">{deletingRecord?.destination}</strong> from{" "}
               <strong className="text-foreground">{deletingRecord?.farm_name}</strong> on{" "}
               <strong className="text-foreground">{deletingRecord?.delivery_date}</strong>?
@@ -625,5 +645,6 @@ export default function DeliveryPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </HasPermission>
   );
 }
