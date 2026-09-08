@@ -179,5 +179,73 @@ class BalanceAdjustmentService:
         res = await db.execute(query)
         return res.scalars().all()
 
+    async def delete_customer_adjustment_history(
+        self,
+        db: AsyncSession,
+        user: User,
+        adjustment_id: str,
+        customer_id: str | None = None,
+    ) -> dict:
+        """
+        Deletes ONLY the customer balance adjustment history record.
+        CRITICAL SAFETY:
+        - Customer's current balance is strictly NOT changed, reversed, or recalculated.
+        - Sales, returns, collections, payments, and financial transactions are untouched.
+        - Only the BalanceAdjustment history record is removed.
+        """
+        try:
+            query = select(BalanceAdjustment).where(
+                BalanceAdjustment.id == adjustment_id,
+                BalanceAdjustment.entity_type == "customer",
+            )
+            if customer_id:
+                query = query.where(BalanceAdjustment.entity_id == customer_id)
+
+            res = await db.execute(query)
+            adjustment = res.scalars().first()
+
+            if not adjustment:
+                raise NotFoundException(
+                    f"Customer balance adjustment record with ID '{adjustment_id}' not found."
+                )
+
+            target_customer_id = adjustment.entity_id
+
+            # Audit Log for deletion of the history record
+            log_payload = json.dumps({
+                "adjustment_id": adjustment.id,
+                "customer_id": target_customer_id,
+                "previous_balance": adjustment.previous_balance,
+                "new_balance": adjustment.new_balance,
+                "difference": adjustment.difference,
+                "reason": adjustment.reason,
+                "action": "history_record_deleted",
+            })
+            activity = ActivityLog(
+                user_id=user.id,
+                action="customer.balance.adjustment.delete",
+                entity_type="customer",
+                entity_id=target_customer_id,
+                payload=log_payload,
+            )
+            db.add(activity)
+
+            # Delete ONLY the adjustment history record
+            await db.delete(adjustment)
+
+            # Customer current_balance is intentionally and strictly left unchanged
+            await db.commit()
+
+            return {
+                "id": adjustment_id,
+                "customer_id": target_customer_id,
+                "deleted": True,
+            }
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Failed to delete customer balance adjustment history: {str(e)}")
+            raise e
+
 
 balance_adjustment_service = BalanceAdjustmentService()
+

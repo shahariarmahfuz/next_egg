@@ -59,6 +59,34 @@ async def get_customer_balance_adjustments(
     )
 
 
+@router.delete(
+    "/customer-balance-adjustments/{adjustment_id}",
+    response_model=ResponseModel[dict],
+)
+@router.delete(
+    "/customers/{customer_id}/balance-adjustments/{adjustment_id}",
+    response_model=ResponseModel[dict],
+)
+async def delete_customer_balance_adjustment(
+    adjustment_id: str,
+    customer_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("customer.balance.adjustment.delete")),
+):
+    """
+    Delete ONLY the customer balance adjustment history record without changing customer balance.
+    Strictly preserves customer running balance, invoices, payments, and financial state.
+    """
+    result = await balance_adjustment_service.delete_customer_adjustment_history(
+        db, current_user, adjustment_id, customer_id=customer_id
+    )
+    return ResponseModel[dict](
+        success=True,
+        message="Adjustment history deleted successfully.",
+        data=result,
+    )
+
+
 # Supplier Balance Adjustments
 @router.post(
     "/suppliers/{supplier_id}/adjust-balance",

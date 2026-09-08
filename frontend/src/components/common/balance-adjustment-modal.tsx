@@ -11,12 +11,25 @@ import {
   X,
   FileText,
   User,
+  Trash2,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/providers/auth-provider";
 import { customerService, supplierService } from "@/services/api";
 import { BalanceAdjustmentItem, BalanceAdjustmentPayload } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BalanceAdjustmentModalProps {
@@ -48,7 +61,13 @@ export function BalanceAdjustmentModal({
   onSuccess,
 }: BalanceAdjustmentModalProps) {
   const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
+  const canDeleteAdjustment =
+    entityType === "customer" && hasPermission("customer.balance.adjustment.delete");
+
   const [activeTab, setActiveTab] = useState<"adjust" | "history">("adjust");
+  const [deletingAdjustment, setDeletingAdjustment] = useState<BalanceAdjustmentItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form State
   const defaultBalanceType =
@@ -87,13 +106,29 @@ export function BalanceAdjustmentModal({
       queryClient.invalidateQueries({ queryKey: ["balance-adjustments", entityType, entityId] });
       if (onSuccess) onSuccess();
       refetchHistory();
-      alert("Current balance updated successfully.");
+      toast.success("Current balance updated successfully.");
       onClose();
     },
     onError: (err: any) => {
       setFormError(err.message || "Failed to update current balance.");
     },
   });
+
+  const handleDeleteAdjustment = async () => {
+    if (!deletingAdjustment) return;
+    try {
+      setIsDeleting(true);
+      await customerService.deleteBalanceAdjustment(deletingAdjustment.id);
+      toast.success("Adjustment history deleted successfully.");
+      setDeletingAdjustment(null);
+      queryClient.invalidateQueries({ queryKey: ["balance-adjustments", entityType, entityId] });
+      await refetchHistory();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete adjustment history record.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -333,18 +368,30 @@ export function BalanceAdjustmentModal({
                               </span>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <span
-                              className={`font-bold ${
-                                isDiffPositive ? "text-amber-500" : "text-emerald-500"
-                              }`}
-                            >
-                              {isDiffPositive ? "+" : ""}
-                              {formatCurrency(adj.difference)}
-                            </span>
-                            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                              {adj.balance_type.replace("_", " ")}
+                          <div className="flex items-center space-x-2">
+                            <div className="text-right">
+                              <span
+                                className={`font-bold ${
+                                  isDiffPositive ? "text-amber-500" : "text-emerald-500"
+                                }`}
+                              >
+                                {isDiffPositive ? "+" : ""}
+                                {formatCurrency(adj.difference)}
+                              </span>
+                              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                                {adj.balance_type.replace("_", " ")}
+                              </div>
                             </div>
+                            {canDeleteAdjustment && (
+                              <button
+                                type="button"
+                                onClick={() => setDeletingAdjustment(adj)}
+                                title="Delete adjustment history record"
+                                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -374,6 +421,64 @@ export function BalanceAdjustmentModal({
           )}
         </div>
       </div>
+
+      {/* Confirmation Dialog for Deleting Adjustment History Record */}
+      <Dialog
+        open={!!deletingAdjustment}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setDeletingAdjustment(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center space-x-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              <DialogTitle className="text-base font-bold">
+                Delete this adjustment history record?
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground pt-2 space-y-2">
+              <span className="block">
+                Are you sure you want to delete this adjustment history record?
+              </span>
+              <span className="block font-semibold text-foreground bg-muted/40 p-2.5 rounded border">
+                This removes the history record only. The customer&apos;s current balance will not change.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDeletingAdjustment(null)}
+              disabled={isDeleting}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteAdjustment}
+              disabled={isDeleting}
+              className="text-xs min-w-[80px]"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

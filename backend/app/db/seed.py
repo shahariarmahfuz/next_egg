@@ -76,6 +76,7 @@ DEFAULT_PERMISSIONS = [
     {"code": "customer.delete", "name": "Delete Customers", "module": "customer", "description": "Delete customer records"},
     {"code": "customer.due.view", "name": "View Customer Dues", "module": "customer", "description": "View customer due list"},
     {"code": "customer.balance.adjust", "name": "Set Customer Balance", "module": "customer", "description": "Set customer current balance directly"},
+    {"code": "customer.balance.adjustment.delete", "name": "Delete Customer Balance Adjustment History", "module": "customer", "description": "Delete customer balance adjustment history records"},
 
     # Collection module
     {"code": "collection.view", "name": "View Customer Collections", "module": "collection", "description": "View customer collection vouchers and list"},
@@ -233,9 +234,14 @@ async def seed_initial_data(db: AsyncSession) -> None:
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
 
-    # Admin gets all perms
+    # Admin gets all perms EXCEPT customer.balance.adjustment.delete by default
+    admin_restricted_perm_codes = {
+        "customer.balance.adjustment.delete",
+    }
+    admin_perms = [p for p in all_perms if p.code not in admin_restricted_perm_codes]
+
     if role_map.get("admin"):
-        await role_repository.set_role_permissions(db, role_map["admin"], all_perms)
+        await role_repository.set_role_permissions(db, role_map["admin"], admin_perms)
 
     # Employee gets restricted operational perms
     if role_map.get("employee"):

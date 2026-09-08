@@ -302,6 +302,10 @@ export const customerService = {
     return http.get<BalanceAdjustmentItem[]>(`/customers/${id}/balance-adjustments`);
   },
 
+  deleteBalanceAdjustment: async (adjustmentId: string) => {
+    return http.delete<{ id: string; customer_id?: string }>(`/customer-balance-adjustments/${adjustmentId}`);
+  },
+
   getCustomerLedger: async (id: string, params?: { start_date?: string; end_date?: string }) => {
     return http.get<CustomerLedgerResponse>(`/customers/${id}/ledger`, params);
   },
