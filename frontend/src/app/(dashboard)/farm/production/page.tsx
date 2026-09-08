@@ -222,16 +222,16 @@ export default function ProductionPage() {
         </div>
       }
     >
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl">
-              <PlusCircle className="h-6 w-6" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 border-b border-border pb-3 sm:pb-4">
+          <div className="flex items-center space-x-2.5 sm:space-x-3">
+            <div className="p-1.5 sm:p-2.5 bg-amber-500/10 text-amber-600 rounded-lg sm:rounded-xl shrink-0">
+              <PlusCircle className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Production</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground">
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Production</h1>
+              <p className="text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
                 Add produced trays to increase available stock for the selected farm
               </p>
             </div>
@@ -240,7 +240,7 @@ export default function ProductionPage() {
           <div className="flex items-center gap-2">
             {hasPermission(["farm.view", "farm.create", "farm.edit", "farm.delete"]) && (
               <Link href="/farm">
-                <Button variant="outline" size="sm" className="text-xs">
+                <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs sm:h-9 sm:px-3">
                   <Layers className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
                   Manage Farm
                 </Button>
@@ -248,7 +248,7 @@ export default function ProductionPage() {
             )}
             {hasPermission(["farm.delivery.view", "farm.delivery.create"]) && (
               <Link href="/farm/delivery">
-                <Button variant="outline" size="sm" className="text-xs">
+                <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs sm:h-9 sm:px-3">
                   <Truck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
                   Delivery
                 </Button>
@@ -256,7 +256,7 @@ export default function ProductionPage() {
             )}
             {hasPermission("farm.report") && (
               <Link href="/farm/report">
-                <Button variant="outline" size="sm" className="text-xs">
+                <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs sm:h-9 sm:px-3">
                   <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
                   Report
                 </Button>
@@ -268,19 +268,19 @@ export default function ProductionPage() {
         {/* Form Card */}
         {hasPermission("farm.production.create") && (
           <Card className="border border-border shadow-sm">
-            <CardHeader className="py-4 px-6 border-b border-border">
-              <CardTitle className="text-base font-semibold text-foreground">
+            <CardHeader className="py-2.5 px-3 sm:py-4 sm:px-6 border-b border-border">
+              <CardTitle className="text-sm sm:text-base font-semibold text-foreground">
                 Add Production
               </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
+              <CardDescription className="hidden sm:block text-xs text-muted-foreground">
                 Record harvested or produced egg trays for the selected farm.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-5">
-              <form onSubmit={handleAddProduction} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <CardContent className="p-3.5 sm:p-5">
+              <form onSubmit={handleAddProduction} className="space-y-3 sm:space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
                   {/* Farm Selection */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold text-foreground">
                       Farm <span className="text-destructive">*</span>
                     </label>
@@ -305,7 +305,7 @@ export default function ProductionPage() {
                   </div>
 
                   {/* Date */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold text-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3 text-muted-foreground" />
                       Date <span className="text-destructive">*</span>
@@ -320,7 +320,7 @@ export default function ProductionPage() {
                   </div>
 
                   {/* Tray Quantity */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold text-foreground">
                       Tray Quantity <span className="text-destructive">*</span>
                     </label>
@@ -337,11 +337,11 @@ export default function ProductionPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2">
+                <div className="flex justify-end pt-1">
                   <Button
                     type="submit"
                     disabled={submitting || !selectedFarmId || !trayQuantity}
-                    className="min-w-[140px] text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                    className="w-full sm:w-auto h-9 min-w-[140px] text-xs bg-amber-600 hover:bg-amber-700 text-white"
                   >
                     {submitting ? (
                       <>
@@ -363,12 +363,12 @@ export default function ProductionPage() {
 
         {/* Recent Production Records Table */}
         <Card className="border border-border shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b border-border">
+          <CardHeader className="flex flex-row items-center justify-between py-2.5 px-3 sm:py-4 sm:px-6 border-b border-border">
             <div>
-              <CardTitle className="text-base font-semibold text-foreground">
+              <CardTitle className="text-sm sm:text-base font-semibold text-foreground">
                 Recent Production Records ({productions.length})
               </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
+              <CardDescription className="hidden sm:block text-xs text-muted-foreground">
                 History of recorded production entries. You can edit or delete entries below.
               </CardDescription>
             </div>
@@ -377,7 +377,7 @@ export default function ProductionPage() {
               size="sm"
               onClick={fetchProductions}
               disabled={loadingRecords}
-              className="text-xs"
+              className="h-8 px-2 text-xs"
             >
               <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingRecords ? "animate-spin" : ""}`} />
               Refresh
@@ -386,23 +386,26 @@ export default function ProductionPage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold">
+                <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold text-[11px] sm:text-xs">
                   <tr>
-                    <th className="px-4 py-3 w-12 text-center">SL</th>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Farm</th>
-                    <th className="px-4 py-3 text-right font-bold text-amber-600">Tray Quantity</th>
+                    <th className="hidden sm:table-cell px-2 sm:px-4 py-2 sm:py-3 w-8 sm:w-12 text-center">SL</th>
+                    <th className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">Date</th>
+                    <th className="px-2 sm:px-4 py-2 sm:py-3">Farm</th>
+                    <th className="px-2 sm:px-4 py-2 sm:py-3 text-right font-bold text-amber-600 whitespace-nowrap">
+                      <span className="hidden sm:inline">Tray Quantity</span>
+                      <span className="sm:hidden">Trays</span>
+                    </th>
                     {hasPermission(["farm.production.edit", "farm.production.delete"]) && (
-                      <th className="px-4 py-3 text-center w-36">Actions</th>
+                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-center w-20 sm:w-36">Actions</th>
                     )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {loadingRecords ? (
                     Array.from({ length: 3 }).map((_, i) => (
-                      <tr key={i}>
+                      <tr key={i} className="h-10 sm:h-12">
                         <td colSpan={hasPermission(["farm.production.edit", "farm.production.delete"]) ? 5 : 4} className="p-3">
-                          <Skeleton className="h-6 w-full" />
+                          <Skeleton className="h-5 sm:h-6 w-full" />
                         </td>
                       </tr>
                     ))
@@ -410,48 +413,52 @@ export default function ProductionPage() {
                     <tr>
                       <td colSpan={hasPermission(["farm.production.edit", "farm.production.delete"]) ? 5 : 4} className="px-4 py-8 text-center text-muted-foreground">
                         <PlusCircle className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                        <p className="font-medium">No production records found.</p>
-                        <p className="text-[11px] mt-1">Use the form above to add a production record.</p>
+                        <p className="font-semibold text-xs sm:text-sm">No production records found.</p>
+                        <p className="text-[11px] mt-0.5">Use the form above to add a production record.</p>
                       </td>
                     </tr>
                   ) : (
                     productions.map((rec, idx) => (
-                      <tr key={rec.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-center font-mono text-muted-foreground">
+                      <tr key={rec.id} className="hover:bg-muted/30 transition-colors h-10 sm:h-12">
+                        <td className="hidden sm:table-cell px-2 sm:px-4 py-2 align-middle text-center font-mono text-muted-foreground text-xs">
                           {idx + 1}
                         </td>
-                        <td className="px-4 py-3 font-medium text-foreground">
+                        <td className="px-2 sm:px-4 py-2 align-middle font-medium font-mono text-[11px] sm:text-xs text-foreground whitespace-nowrap">
                           {rec.production_date}
                         </td>
-                        <td className="px-4 py-3 font-semibold text-foreground">
-                          {rec.farm_name || "Unknown Farm"}
+                        <td className="px-2 sm:px-4 py-2 align-middle">
+                          <div className="font-semibold text-xs sm:text-sm text-foreground truncate max-w-[120px] sm:max-w-none" title={rec.farm_name || undefined}>
+                            {rec.farm_name || "Unknown Farm"}
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-right font-bold text-amber-600">
-                          +{Number(rec.tray_quantity).toLocaleString()} Trays
+                        <td className="px-2 sm:px-4 py-2 align-middle text-right font-bold text-amber-600 font-mono text-xs sm:text-sm whitespace-nowrap">
+                          +{Number(rec.tray_quantity).toLocaleString()}<span className="hidden sm:inline"> Trays</span>
                         </td>
                         {hasPermission(["farm.production.edit", "farm.production.delete"]) && (
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
+                          <td className="px-2 sm:px-4 py-2 align-middle text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
                               {hasPermission("farm.production.edit") && (
                                 <Button
                                   variant="outline"
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => openEditModal(rec)}
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary sm:w-auto sm:h-7 sm:px-2.5 sm:text-xs"
+                                  title="Edit Record"
                                 >
-                                  <Edit2 className="h-3 w-3 mr-1 text-primary" />
-                                  Edit
+                                  <Edit2 className="h-3.5 w-3.5 sm:mr-1" />
+                                  <span className="hidden sm:inline">Edit</span>
                                 </Button>
                               )}
                               {hasPermission("farm.production.delete") && (
                                 <Button
                                   variant="outline"
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => openDeleteModal(rec)}
-                                  className="h-7 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto sm:h-7 sm:px-2.5 sm:text-xs"
+                                  title="Delete Record"
                                 >
-                                  <Trash2 className="h-3 w-3 mr-1" />
-                                  Delete
+                                  <Trash2 className="h-3.5 w-3.5 sm:mr-1" />
+                                  <span className="hidden sm:inline">Delete</span>
                                 </Button>
                               )}
                             </div>

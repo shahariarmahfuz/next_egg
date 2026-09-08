@@ -151,16 +151,16 @@ export default function ManageFarmPage() {
         </div>
       }
     >
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl">
-              <Layers className="h-6 w-6" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 border-b border-border pb-3 sm:pb-4">
+          <div className="flex items-center space-x-2.5 sm:space-x-3">
+            <div className="p-1.5 sm:p-2.5 bg-emerald-500/10 text-emerald-600 rounded-lg sm:rounded-xl shrink-0">
+              <Layers className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Manage Farm</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground">
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Manage Farm</h1>
+              <p className="text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
                 Manage existing farms and view current live available tray quantities
               </p>
             </div>
@@ -169,8 +169,8 @@ export default function ManageFarmPage() {
           <div className="flex items-center gap-2">
             {hasPermission("farm.create") && (
               <Link href="/farm/add">
-                <Button size="sm" className="text-xs">
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                <Button size="sm" className="h-8 px-2.5 text-xs sm:h-9 sm:px-3">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
                   Add Farm
                 </Button>
               </Link>
@@ -180,9 +180,9 @@ export default function ManageFarmPage() {
               size="sm"
               onClick={fetchFarms}
               disabled={loading}
-              className="text-xs"
+              className="h-8 px-2.5 text-xs sm:h-9 sm:px-3"
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
@@ -190,46 +190,51 @@ export default function ManageFarmPage() {
 
         {/* Farms Table Card */}
         <Card className="border border-border shadow-sm">
-          <CardHeader className="py-4 px-6 border-b border-border">
-            <CardTitle className="text-base font-semibold text-foreground flex items-center justify-between">
-              <span>Farms List ({farms.length})</span>
-            </CardTitle>
-            <CardDescription className="text-xs text-muted-foreground">
+          <CardHeader className="py-2.5 px-3 sm:py-4 sm:px-6 border-b border-border">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm sm:text-base font-semibold text-foreground">
+                Farms List ({farms.length})
+              </CardTitle>
+            </div>
+            <CardDescription className="hidden sm:block text-xs text-muted-foreground">
               Current available trays are calculated as: Opening Tray + Total Production - Total Delivery
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold">
+                <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase font-semibold text-[11px] sm:text-xs">
                   <tr>
-                    <th className="px-4 py-3 w-12 text-center">SL</th>
-                    <th className="px-4 py-3">Farm Name</th>
-                    <th className="px-4 py-3 text-right">Opening / Previous Tray</th>
-                    <th className="px-4 py-3 text-right font-bold text-foreground">Available Tray</th>
+                    <th className="px-2 sm:px-4 py-2 sm:py-3 w-8 sm:w-12 text-center">SL</th>
+                    <th className="px-2 sm:px-4 py-2 sm:py-3">Farm Name</th>
+                    <th className="hidden md:table-cell px-4 py-2 sm:py-3 text-right whitespace-nowrap">Opening Tray</th>
+                    <th className="px-2 sm:px-4 py-2 sm:py-3 text-right font-bold text-foreground whitespace-nowrap">
+                      <span className="hidden sm:inline">Available Tray</span>
+                      <span className="sm:hidden">Available</span>
+                    </th>
                     {hasPermission(["farm.edit", "farm.delete"]) && (
-                      <th className="px-4 py-3 text-center w-36">Actions</th>
+                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-center w-20 sm:w-36">Actions</th>
                     )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {loading ? (
                     Array.from({ length: 4 }).map((_, i) => (
-                      <tr key={i}>
+                      <tr key={i} className="h-10 sm:h-12">
                         <td colSpan={hasPermission(["farm.edit", "farm.delete"]) ? 5 : 4} className="p-3">
-                          <Skeleton className="h-7 w-full" />
+                          <Skeleton className="h-5 sm:h-7 w-full" />
                         </td>
                       </tr>
                     ))
                   ) : farms.length === 0 ? (
                     <tr>
-                      <td colSpan={hasPermission(["farm.edit", "farm.delete"]) ? 5 : 4} className="px-4 py-12 text-center text-muted-foreground">
-                        <Building2 className="h-9 w-9 mx-auto mb-2 text-muted-foreground/40" />
-                        <p className="font-semibold text-sm">No farms found</p>
-                        <p className="text-xs mt-1">Get started by creating your first farm.</p>
+                      <td colSpan={hasPermission(["farm.edit", "farm.delete"]) ? 5 : 4} className="px-4 py-8 sm:py-12 text-center text-muted-foreground">
+                        <Building2 className="h-8 w-8 sm:h-9 sm:w-9 mx-auto mb-2 text-muted-foreground/40" />
+                        <p className="font-semibold text-xs sm:text-sm">No farms found</p>
+                        <p className="text-xs mt-0.5">Get started by creating your first farm.</p>
                         {hasPermission("farm.create") && (
-                          <Link href="/farm/add" className="inline-block mt-3">
-                            <Button size="sm" variant="outline" className="text-xs">
+                          <Link href="/farm/add" className="inline-block mt-2.5">
+                            <Button size="sm" variant="outline" className="text-xs h-8">
                               <Plus className="h-3.5 w-3.5 mr-1" /> Add Farm
                             </Button>
                           </Link>
@@ -238,52 +243,53 @@ export default function ManageFarmPage() {
                     </tr>
                   ) : (
                     farms.map((farm, idx) => (
-                      <tr key={farm.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-center font-mono text-muted-foreground">
+                      <tr key={farm.id} className="hover:bg-muted/30 transition-colors h-11 sm:h-12">
+                        <td className="px-2 sm:px-4 py-2 align-middle text-center font-mono text-muted-foreground text-xs">
                           {idx + 1}
                         </td>
-                        <td className="px-4 py-3">
-                          <span className="font-semibold text-foreground text-sm">{farm.name}</span>
-                          {farm.code && (
-                            <span className="ml-2 font-mono text-[10px] text-muted-foreground">
-                              ({farm.code})
-                            </span>
-                          )}
+                        <td className="px-2 sm:px-4 py-2 align-middle">
+                          <div className="font-semibold text-xs sm:text-sm text-foreground truncate max-w-[130px] sm:max-w-none" title={farm.name}>
+                            {farm.name}
+                          </div>
+                          <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                            {farm.code && <span className="truncate max-w-[100px]">{farm.code}</span>}
+                            <span className="md:hidden text-muted-foreground/75">· Open: {Number(farm.previous_tray || 0).toLocaleString()}</span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-muted-foreground">
+                        <td className="hidden md:table-cell px-4 py-2 align-middle text-right font-medium text-muted-foreground">
                           {Number(farm.previous_tray || 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <Badge
-                            variant="secondary"
-                            className="font-bold text-xs px-2.5 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-                          >
-                            Available Tray: {Number(farm.available_tray || 0).toLocaleString()}
-                          </Badge>
+                        <td className="px-2 sm:px-4 py-2 align-middle text-right whitespace-nowrap">
+                          <span className="font-mono font-bold text-xs sm:text-sm text-emerald-600 dark:text-emerald-400">
+                            {Number(farm.available_tray || 0).toLocaleString()}
+                          </span>
+                          <span className="block text-[9px] text-muted-foreground sm:hidden">trays</span>
                         </td>
                         {hasPermission(["farm.edit", "farm.delete"]) && (
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
+                          <td className="px-2 sm:px-4 py-2 align-middle text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
                               {hasPermission("farm.edit") && (
                                 <Button
                                   variant="outline"
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => openEditModal(farm)}
-                                  className="h-7 px-2.5 text-xs"
+                                  className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary sm:w-auto sm:h-7 sm:px-2.5 sm:text-xs"
+                                  title="Edit Farm"
                                 >
-                                  <Edit2 className="h-3 w-3 mr-1 text-primary" />
-                                  Edit
+                                  <Edit2 className="h-3.5 w-3.5 sm:mr-1" />
+                                  <span className="hidden sm:inline">Edit</span>
                                 </Button>
                               )}
                               {hasPermission("farm.delete") && (
                                 <Button
                                   variant="outline"
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => openDeleteModal(farm)}
-                                  className="h-7 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto sm:h-7 sm:px-2.5 sm:text-xs"
+                                  title="Delete Farm"
                                 >
-                                  <Trash2 className="h-3 w-3 mr-1" />
-                                  Delete
+                                  <Trash2 className="h-3.5 w-3.5 sm:mr-1" />
+                                  <span className="hidden sm:inline">Delete</span>
                                 </Button>
                               )}
                             </div>
@@ -299,36 +305,44 @@ export default function ManageFarmPage() {
         </Card>
 
         {/* Quick Navigation Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-1 sm:pt-2">
           {hasPermission("farm.create") && (
             <Link href="/farm/add" className="block">
-              <Card className="hover:border-primary/50 transition-colors p-3 text-center border border-border">
-                <Plus className="h-5 w-5 mx-auto mb-1 text-emerald-600" />
-                <span className="text-xs font-medium text-foreground">Add Farm</span>
+              <Card className="hover:border-primary/50 transition-colors p-2 sm:p-3 text-center border border-border h-14 sm:h-auto flex items-center justify-center">
+                <div className="flex items-center sm:flex-col gap-1.5 sm:gap-1">
+                  <Plus className="h-4 w-4 text-emerald-600 shrink-0 sm:mx-auto" />
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">Add Farm</span>
+                </div>
               </Card>
             </Link>
           )}
           {hasPermission(["farm.production.view", "farm.production.create"]) && (
             <Link href="/farm/production" className="block">
-              <Card className="hover:border-primary/50 transition-colors p-3 text-center border border-border">
-                <PlusCircle className="h-5 w-5 mx-auto mb-1 text-amber-500" />
-                <span className="text-xs font-medium text-foreground">Production</span>
+              <Card className="hover:border-primary/50 transition-colors p-2 sm:p-3 text-center border border-border h-14 sm:h-auto flex items-center justify-center">
+                <div className="flex items-center sm:flex-col gap-1.5 sm:gap-1">
+                  <PlusCircle className="h-4 w-4 text-amber-500 shrink-0 sm:mx-auto" />
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">Production</span>
+                </div>
               </Card>
             </Link>
           )}
           {hasPermission(["farm.delivery.view", "farm.delivery.create"]) && (
             <Link href="/farm/delivery" className="block">
-              <Card className="hover:border-primary/50 transition-colors p-3 text-center border border-border">
-                <Truck className="h-5 w-5 mx-auto mb-1 text-blue-500" />
-                <span className="text-xs font-medium text-foreground">Delivery</span>
+              <Card className="hover:border-primary/50 transition-colors p-2 sm:p-3 text-center border border-border h-14 sm:h-auto flex items-center justify-center">
+                <div className="flex items-center sm:flex-col gap-1.5 sm:gap-1">
+                  <Truck className="h-4 w-4 text-blue-500 shrink-0 sm:mx-auto" />
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">Delivery</span>
+                </div>
               </Card>
             </Link>
           )}
           {hasPermission("farm.report") && (
             <Link href="/farm/report" className="block">
-              <Card className="hover:border-primary/50 transition-colors p-3 text-center border border-border">
-                <BarChart3 className="h-5 w-5 mx-auto mb-1 text-indigo-500" />
-                <span className="text-xs font-medium text-foreground">Report</span>
+              <Card className="hover:border-primary/50 transition-colors p-2 sm:p-3 text-center border border-border h-14 sm:h-auto flex items-center justify-center">
+                <div className="flex items-center sm:flex-col gap-1.5 sm:gap-1">
+                  <BarChart3 className="h-4 w-4 text-indigo-500 shrink-0 sm:mx-auto" />
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">Report</span>
+                </div>
               </Card>
             </Link>
           )}
