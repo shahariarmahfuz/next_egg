@@ -9,7 +9,7 @@ import { Server } from "lucide-react";
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-card/80 dark:bg-card/70 px-4 md:px-6 backdrop-blur-md text-card-foreground">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-card/80 dark:bg-card/70 px-4 md:px-6 backdrop-blur-md text-card-foreground print:hidden">
       <div className="flex items-center space-x-3 min-w-0">
         <MobileNav />
         <div className="hidden sm:block min-w-0">

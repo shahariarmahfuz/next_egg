@@ -19,11 +19,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
+import { usePrint } from "@/lib/print-service";
+import { PrintPortal } from "@/providers/print-provider";
 
 export default function InvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [template, setTemplate] = useState<PrintTemplateFormat>("a4");
+  const { printDocument } = usePrint();
 
   const { data: saleData, isLoading } = useQuery({
     queryKey: ["sale-print", id],
@@ -32,8 +35,9 @@ export default function InvoicePrintPage({ params }: { params: Promise<{ id: str
 
   const sale: SaleItem | undefined = saleData?.data;
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (!sale) return;
+    await printDocument(<PrintableInvoice sale={sale} template={template} />);
   };
 
   if (isLoading) {
@@ -121,9 +125,14 @@ export default function InvoicePrintPage({ params }: { params: Promise<{ id: str
         </Card>
 
         {/* Live Print Preview Canvas */}
-        <div className="py-4 bg-muted/20 rounded-2xl p-6 border flex justify-center overflow-x-auto print:bg-white print:p-0 print:border-none">
+        <div className="py-4 bg-muted/20 rounded-2xl p-6 border flex justify-center overflow-x-auto print:hidden">
           <PrintableInvoice sale={sale} template={template} />
         </div>
+
+        {/* Dedicated Print Portal for direct print shortcut */}
+        <PrintPortal>
+          <PrintableInvoice sale={sale} template={template} />
+        </PrintPortal>
       </div>
     </HasPermission>
   );

@@ -11,6 +11,7 @@ export interface Currency {
 
 export interface BusinessSettings {
   business_name: string;
+  short_name?: string;
   business_logo: string;
   app_icon_url?: string;
   favicon_url?: string;

@@ -1,25 +1,28 @@
 "use client";
 
 import React from "react";
-import { CustomerItem } from "@/types";
+import { SupplierItem } from "@/types";
 import { formatCurrency } from "@/utils/formatters";
 import { ReportPrintLayout } from "@/components/print/report-print-layout";
 
-export interface PrintableDueListProps {
-  customers: CustomerItem[];
+export interface PrintableSupplierDueListProps {
+  suppliers: SupplierItem[];
   searchQuery?: string;
-  totalCustomers: number;
-  totalAmount: number;
+  totalSuppliers: number;
+  totalAmount?: number;
 }
 
-export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueListProps>(
-  ({ customers, searchQuery, totalCustomers, totalAmount }, ref) => {
-    const totalOpeningDue = customers.reduce((sum, c) => sum + (c.opening_balance || 0), 0);
-    const totalCurrentDue = customers.reduce(
-      (sum, c) => sum + ((c.current_balance || 0) - (c.opening_balance || 0)),
+export const PrintableSupplierDueList = React.forwardRef<HTMLDivElement, PrintableSupplierDueListProps>(
+  ({ suppliers, searchQuery, totalSuppliers, totalAmount }, ref) => {
+    const totalOpeningDue = suppliers.reduce((sum, s) => sum + (s.opening_balance || 0), 0);
+    const totalCurrentDue = suppliers.reduce(
+      (sum, s) => sum + ((s.current_balance || 0) - (s.opening_balance || 0)),
       0
     );
-    const calculatedTotalDue = totalAmount || customers.reduce((sum, c) => sum + (c.current_balance || 0), 0);
+    const calculatedTotalDue =
+      totalAmount !== undefined
+        ? totalAmount
+        : suppliers.reduce((sum, s) => sum + (s.current_balance || 0), 0);
 
     const filters = searchQuery
       ? [{ label: "Search Filter", value: `"${searchQuery}"` }]
@@ -33,8 +36,8 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
           </div>
           <div className="p-3 space-y-1.5">
             <div className="flex justify-between">
-              <span className="font-semibold text-slate-700">Total Due Customers:</span>
-              <span className="font-bold text-slate-900">{totalCustomers}</span>
+              <span className="font-semibold text-slate-700">Total Due Suppliers:</span>
+              <span className="font-bold text-slate-900">{totalSuppliers}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-semibold text-slate-700">Total Opening Due:</span>
@@ -56,8 +59,8 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
     return (
       <ReportPrintLayout
         ref={ref}
-        title="CUSTOMER DUE LIST"
-        subtitle="Accounts Receivable & Outstanding Customer Due Report"
+        title="SUPPLIER OUTSTANDING DUE LIST"
+        subtitle="Accounts Payable & Outstanding Supplier Due Report"
         filters={filters}
         totals={totalsBlock}
         showSignatures
@@ -70,10 +73,13 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                 SL
               </th>
               <th className="border border-slate-400 px-2.5 py-1.5 text-left w-28 font-bold uppercase text-[10px]">
-                Customer Code
+                Supplier Code
               </th>
               <th className="border border-slate-400 px-2.5 py-1.5 text-left font-bold uppercase text-[10px]">
-                Customer Name
+                Supplier Name
+              </th>
+              <th className="border border-slate-400 px-2.5 py-1.5 text-left w-32 font-bold uppercase text-[10px]">
+                Company
               </th>
               <th className="border border-slate-400 px-2.5 py-1.5 text-left w-28 font-bold uppercase text-[10px]">
                 Mobile
@@ -90,37 +96,40 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
             </tr>
           </thead>
           <tbody>
-            {customers.map((customer, index) => {
-              const currentDue = (customer.current_balance || 0) - (customer.opening_balance || 0);
+            {suppliers.map((supplier, index) => {
+              const currentDue = (supplier.current_balance || 0) - (supplier.opening_balance || 0);
               return (
-                <tr key={customer.id} className="hover:bg-slate-50">
+                <tr key={supplier.id} className="hover:bg-slate-50">
                   <td className="border border-slate-300 px-2 py-1.5 text-center text-slate-600">
                     {index + 1}
                   </td>
                   <td className="border border-slate-300 px-2.5 py-1.5 font-medium text-slate-800">
-                    {customer.customer_code}
+                    {supplier.supplier_code}
                   </td>
                   <td className="border border-slate-300 px-2.5 py-1.5 font-bold text-slate-900 break-words">
-                    {customer.name}
+                    {supplier.name}
+                  </td>
+                  <td className="border border-slate-300 px-2.5 py-1.5 text-slate-700 break-words">
+                    {supplier.company_name || "-"}
                   </td>
                   <td className="border border-slate-300 px-2.5 py-1.5 text-slate-700 whitespace-nowrap">
-                    {customer.phone || "-"}
+                    {supplier.phone || "-"}
                   </td>
                   <td className="border border-slate-300 px-2.5 py-1.5 text-right tabular-nums whitespace-nowrap text-slate-800">
-                    {formatCurrency(customer.opening_balance)}
+                    {formatCurrency(supplier.opening_balance)}
                   </td>
                   <td className="border border-slate-300 px-2.5 py-1.5 text-right tabular-nums whitespace-nowrap text-slate-800">
                     {formatCurrency(currentDue)}
                   </td>
                   <td className="border border-slate-300 px-2.5 py-1.5 text-right tabular-nums whitespace-nowrap font-bold text-slate-950">
-                    {formatCurrency(customer.current_balance)}
+                    {formatCurrency(supplier.current_balance)}
                   </td>
                 </tr>
               );
             })}
-            {customers.length === 0 && (
+            {suppliers.length === 0 && (
               <tr>
-                <td colSpan={7} className="border border-slate-300 p-6 text-center text-slate-500 italic">
+                <td colSpan={8} className="border border-slate-300 p-6 text-center text-slate-500 italic">
                   No due records found matching the criteria.
                 </td>
               </tr>
@@ -132,4 +141,4 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
   }
 );
 
-PrintableDueList.displayName = "PrintableDueList";
+PrintableSupplierDueList.displayName = "PrintableSupplierDueList";

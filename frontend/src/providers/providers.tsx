@@ -5,6 +5,7 @@ import { AuthProvider } from "./auth-provider";
 import { QueryProvider } from "./query-provider";
 import { ThemeProvider } from "./theme-provider";
 import { SettingsProvider } from "./settings-provider";
+import { PrintProvider } from "./print-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 interface ProvidersProps {
@@ -17,8 +18,10 @@ export function Providers({ children }: ProvidersProps) {
       <QueryProvider>
         <AuthProvider>
           <SettingsProvider>
-            {children}
-            <Toaster />
+            <PrintProvider>
+              {children}
+              <Toaster />
+            </PrintProvider>
           </SettingsProvider>
         </AuthProvider>
       </QueryProvider>

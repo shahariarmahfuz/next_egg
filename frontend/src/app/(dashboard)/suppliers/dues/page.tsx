@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,6 +10,8 @@ import {
   Eye,
   Edit,
   ArrowLeft,
+  Printer,
+  Loader2,
 } from "lucide-react";
 import { supplierService } from "@/services/api";
 import { SupplierItem } from "@/types";
@@ -20,13 +22,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
 import { SupplierViewModal } from "@/components/suppliers/supplier-view-modal";
+import { PrintableSupplierDueList } from "@/components/suppliers/printable-supplier-due-list";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
+import { usePrint } from "@/lib/print-service";
 
 export default function SupplierDuesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [viewingSupplier, setViewingSupplier] = useState<SupplierItem | null>(null);
+  const [isFetchingPrint, setIsFetchingPrint] = useState(false);
+  const { printDocument, registerPrintHandler } = usePrint();
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -48,18 +54,72 @@ export default function SupplierDuesPage() {
   // Calculate sum of page dues for quick overview
   const totalPageDues = suppliers.reduce((sum, s) => sum + s.current_balance, 0);
 
+  const handlePrint = async () => {
+    try {
+      setIsFetchingPrint(true);
+      const res = await supplierService.getSupplierDues({
+        page: 1,
+        size: 100,
+        search: debouncedSearch || undefined,
+      });
+      let allItems = res?.data?.items || [];
+      const totalPgs = res?.data?.pages || 1;
+      if (totalPgs > 1) {
+        const restPromises = [];
+        for (let p = 2; p <= totalPgs; p++) {
+          restPromises.push(
+            supplierService.getSupplierDues({
+              page: p,
+              size: 100,
+              search: debouncedSearch || undefined,
+            })
+          );
+        }
+        const results = await Promise.all(restPromises);
+        results.forEach((r) => {
+          if (r?.data?.items) allItems = allItems.concat(r.data.items);
+        });
+      }
+      await printDocument(
+        <PrintableSupplierDueList
+          suppliers={allItems}
+          searchQuery={debouncedSearch}
+          totalSuppliers={res?.data?.total || allItems.length}
+        />
+      );
+    } catch (error) {
+      console.error("Failed to fetch supplier due print data", error);
+    } finally {
+      setIsFetchingPrint(false);
+    }
+  };
+
+  useEffect(() => {
+    return registerPrintHandler(handlePrint);
+  }, [debouncedSearch, registerPrintHandler]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:hidden">
       <PageHeader
         title="Supplier Due List"
         description="Filter and track all supplier accounts with active outstanding payable balances (> $0)."
         action={
-          <Button asChild variant="outline">
-            <Link href="/suppliers">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              All Suppliers Directory
-            </Link>
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" onClick={handlePrint} disabled={isFetchingPrint}>
+              {isFetchingPrint ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="mr-2 h-4 w-4" />
+              )}
+              Print Due List
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/suppliers">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                All Suppliers Directory
+              </Link>
+            </Button>
+          </div>
         }
       />
 

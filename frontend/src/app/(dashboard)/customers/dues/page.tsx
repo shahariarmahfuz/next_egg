@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -25,14 +25,15 @@ import { CustomerViewModal } from "@/components/customers/customer-view-modal";
 import { PrintableDueList } from "@/components/customers/printable-due-list";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
+import { usePrint } from "@/lib/print-service";
 
 export default function CustomerDueListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [search, setSearch] = useState("");
   const [viewingCustomer, setViewingCustomer] = useState<CustomerItem | null>(null);
-  const [isPrinting, setIsPrinting] = useState(false);
-  const [printData, setPrintData] = useState<CustomerItem[]>([]);
+  const [isFetchingPrint, setIsFetchingPrint] = useState(false);
+  const { printDocument, registerPrintHandler } = usePrint();
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -58,22 +59,31 @@ export default function CustomerDueListPage() {
 
   const handlePrint = async () => {
     try {
-      setIsPrinting(true);
+      setIsFetchingPrint(true);
       const res = await customerService.getCustomerDues({
         page: 1,
         size: 100000,
         search: debouncedSearch || undefined,
       });
-      setPrintData(res.data.items);
-      setTimeout(() => {
-        window.print();
-        setIsPrinting(false);
-      }, 500);
+      const items = res?.data?.items || [];
+      await printDocument(
+        <PrintableDueList
+          customers={items}
+          searchQuery={debouncedSearch}
+          totalCustomers={summary?.total_customers || items.length}
+          totalAmount={summary?.total_amount || 0}
+        />
+      );
     } catch (error) {
       console.error("Failed to fetch print data", error);
-      setIsPrinting(false);
+    } finally {
+      setIsFetchingPrint(false);
     }
   };
+
+  useEffect(() => {
+    return registerPrintHandler(handlePrint);
+  }, [debouncedSearch, registerPrintHandler]);
 
   return (
     <HasPermission code="customer.due.view">
@@ -83,8 +93,8 @@ export default function CustomerDueListPage() {
           description="Monitors accounts receivable with active due balances greater than zero ($0.00)."
           action={
             <div className="flex items-center space-x-2">
-              <Button variant="outline" onClick={handlePrint} disabled={isPrinting}>
-                {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+              <Button variant="outline" onClick={handlePrint} disabled={isFetchingPrint}>
+                {isFetchingPrint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
                 Print Due List
               </Button>
               <Button asChild variant="outline">
@@ -277,16 +287,6 @@ export default function CustomerDueListPage() {
           onClose={() => setViewingCustomer(null)}
         />
       </div>
-
-      {/* Print View */}
-      {isPrinting && (
-        <PrintableDueList
-          customers={printData}
-          searchQuery={debouncedSearch}
-          totalCustomers={summary?.total_customers || 0}
-          totalAmount={summary?.total_amount || 0}
-        />
-      )}
     </HasPermission>
   );
 }

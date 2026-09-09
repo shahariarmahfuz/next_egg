@@ -34,6 +34,7 @@ export function PrintableInvoice({
   if (template === "pos_80mm") {
     return (
       <div className="w-[80mm] min-h-[100mm] bg-white text-black text-[11px] p-2 leading-tight mx-auto border print:border-none print:shadow-none shadow-md">
+        <style dangerouslySetInnerHTML={{ __html: "@page { size: 80mm auto; margin: 3mm; }" }} />
         {/* POS Header */}
         <div className="text-center space-y-1 pb-2 border-b border-black border-dashed">
           <div className="font-extrabold text-sm tracking-wider uppercase">{businessInfo.name}</div>
@@ -144,6 +145,7 @@ export function PrintableInvoice({
   if (template === "a5") {
     return (
       <div className="w-[148mm] min-h-[210mm] bg-white text-black font-sans p-6 mx-auto border print:border-none print:shadow-none shadow-xl rounded-lg space-y-4 text-xs">
+        <style dangerouslySetInnerHTML={{ __html: "@page { size: A5 portrait; margin: 6mm; }" }} />
         {/* Header */}
         <div className="flex justify-between items-start pb-3 border-b-2 border-primary">
           <div>
@@ -238,6 +240,7 @@ export function PrintableInvoice({
   // 3. A4 STANDARD PAPER FORMAT (DEFAULT)
   return (
     <div className="w-[210mm] min-h-[297mm] bg-white text-gray-900 font-sans p-10 mx-auto border print:border-none print:shadow-none shadow-2xl rounded-xl space-y-8 print:p-8">
+      <style dangerouslySetInnerHTML={{ __html: "@page { size: A4 portrait; margin: 10mm; }" }} />
       {/* Invoice Header */}
       <div className="flex justify-between items-start pb-6 border-b-2 border-gray-900">
         <div className="space-y-2">

@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
+import { usePrint } from "@/lib/print-service";
+import { PrintableExpenseVoucher } from "@/components/expenses/printable-expense-voucher";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -184,13 +186,16 @@ export default function ManageExpensesPage() {
     setPage(1);
   };
 
-  const handlePrintVoucher = () => {
-    window.print();
+  const { printDocument } = usePrint();
+
+  const handlePrintVoucher = async () => {
+    if (!viewingExpense) return;
+    await printDocument(<PrintableExpenseVoucher expense={viewingExpense} />);
   };
 
   return (
     <HasPermission code="expense.view">
-      <div className="space-y-6">
+      <div className="space-y-6 print:hidden">
         <PageHeader
           title="Manage Expenses"
           description="View, search, edit, print vouchers, and track operational expenses."
@@ -377,6 +382,17 @@ export default function ManageExpensesPage() {
                                 title="View Voucher"
                               >
                                 <Eye className="h-3.5 w-3.5" />
+                              </Button>
+
+                              {/* Print Voucher Direct */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => printDocument(<PrintableExpenseVoucher expense={exp} />)}
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                title="Print Voucher"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
                               </Button>
 
                               {/* Edit Voucher */}

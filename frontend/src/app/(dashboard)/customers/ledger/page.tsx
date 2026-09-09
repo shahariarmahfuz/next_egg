@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/command";
 import { CollectionViewModal } from "@/components/collections/collection-view-modal";
 import { HasPermission } from "@/providers/auth-provider";
+import { usePrint } from "@/lib/print-service";
+import { PrintableCustomerStatement } from "@/components/customers/printable-customer-statement";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
@@ -130,131 +132,31 @@ export default function CustomerLedgerPage() {
     }
   };
 
-  // Printable Window for Statement / PDF
-  const handlePrintStatement = () => {
+  const { printDocument, isPrinting, registerPrintHandler } = usePrint();
+
+  // Printable Statement using dedicated report layout
+  const handlePrintStatement = async () => {
     if (!selectedCustomer) return;
-    const printWindow = window.open("", "_blank", "width=900,height=1000");
-    if (!printWindow) return;
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Customer Ledger Statement - ${selectedCustomer.name}</title>
-          <style>
-            body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; padding: 30px; margin: 0; line-height: 1.4; }
-            .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 25px; }
-            .company-name { font-size: 24px; font-weight: bold; color: #0f172a; letter-spacing: 0.5px; }
-            .statement-title { font-size: 15px; font-weight: 600; text-transform: uppercase; color: #64748b; margin-top: 4px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
-            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
-            .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: bold; margin-bottom: 8px; }
-            .detail-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
-            .detail-label { color: #64748b; }
-            .detail-value { font-weight: 600; color: #0f172a; }
-            
-            .summary-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 25px; }
-            .sum-card { background: #f1f5f9; border-radius: 6px; padding: 10px; text-align: center; }
-            .sum-lbl { font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: bold; }
-            .sum-val { font-size: 13px; font-weight: bold; color: #0f172a; margin-top: 2px; }
-
-            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 11px; }
-            th { background: #0f172a; color: #ffffff; border: 1px solid #334155; padding: 8px 6px; text-align: left; text-transform: uppercase; font-size: 10px; }
-            td { border: 1px solid #cbd5e1; padding: 6px; }
-            .num { text-align: right;  font-weight: 600; }
-            .footer { margin-top: 40px; display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 20px; font-size: 11px; color: #64748b; }
-            .sig-line { width: 180px; border-top: 1px solid #94a3b8; text-align: center; padding-top: 5px; margin-top: 40px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="company-name">ENTERPRISE MANAGEMENT SYSTEM</div>
-            <div class="statement-title">CUSTOMER FINANCIAL LEDGER STATEMENT</div>
-          </div>
-
-          <div class="grid">
-            <div class="card">
-              <div class="card-title">Customer Account Information</div>
-              <div class="detail-row"><span class="detail-label">Customer Name:</span><span class="detail-value">${selectedCustomer.name}</span></div>
-              <div class="detail-row"><span class="detail-label">Customer Code:</span><span class="detail-value">${selectedCustomer.customer_code}</span></div>
-              <div class="detail-row"><span class="detail-label">Contact Number:</span><span class="detail-value">${selectedCustomer.phone || "N/A"}</span></div>
-              <div class="detail-row"><span class="detail-label">Address:</span><span class="detail-value">${selectedCustomer.address || "N/A"}</span></div>
-            </div>
-            <div class="card">
-              <div class="card-title">Statement Filter Details</div>
-              <div class="detail-row"><span class="detail-label">Statement Date:</span><span class="detail-value">${new Date().toLocaleDateString()}</span></div>
-              <div class="detail-row"><span class="detail-label">Period From:</span><span class="detail-value">${startDate ? formatDate(startDate) : "Beginning of Account"}</span></div>
-              <div class="detail-row"><span class="detail-label">Period To:</span><span class="detail-value">${endDate ? formatDate(endDate) : "Present Date"}</span></div>
-              <div class="detail-row"><span class="detail-label">Current Due Balance:</span><span class="detail-value" style="color: #d97706;">$${summary.current_due.toFixed(2)}</span></div>
-            </div>
-          </div>
-
-          <div class="summary-grid">
-            <div class="sum-card"><div class="sum-lbl">Opening</div><div class="sum-val">$${summary.opening_balance.toFixed(2)}</div></div>
-            <div class="sum-card"><div class="sum-lbl">Sales</div><div class="sum-val" style="color: #2563eb;">$${summary.total_sales.toFixed(2)}</div></div>
-            <div class="sum-card"><div class="sum-lbl">Collections</div><div class="sum-val" style="color: #16a34a;">$${summary.total_collections.toFixed(2)}</div></div>
-            <div class="sum-card"><div class="sum-lbl">Returns</div><div class="sum-val" style="color: #9333ea;">$${summary.total_returns.toFixed(2)}</div></div>
-            <div class="sum-card"><div class="sum-lbl">Adjustments</div><div class="sum-val">$${summary.manual_adjustments.toFixed(2)}</div></div>
-            <div class="sum-card"><div class="sum-lbl">Current Due</div><div class="sum-val" style="color: #d97706;">$${summary.current_due.toFixed(2)}</div></div>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 30px;">#</th>
-                <th style="width: 80px;">Date</th>
-                <th style="width: 100px;">Voucher #</th>
-                <th style="width: 110px;">Type</th>
-                <th>Description</th>
-                <th style="width: 80px; text-align: right;">Debit ($)</th>
-                <th style="width: 80px; text-align: right;">Credit ($)</th>
-                <th style="width: 90px; text-align: right;">Running Due ($)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${transactions
-                .map(
-                  (tx, index) => `
-                <tr>
-                  <td>${index + 1}</td>
-                  <td>${formatDate(tx.date)}</td>
-                  <td style=" font-weight: bold;">${tx.voucher_no}</td>
-                  <td><strong>${tx.type}</strong></td>
-                  <td>${tx.description}</td>
-                  <td class="num">${tx.debit > 0 ? tx.debit.toFixed(2) : "-"}</td>
-                  <td class="num">${tx.credit > 0 ? tx.credit.toFixed(2) : "-"}</td>
-                  <td class="num" style="color: #0f172a;">$${tx.running_balance.toFixed(2)}</td>
-                </tr>
-              `
-                )
-                .join("")}
-            </tbody>
-          </table>
-
-          <div style="display: flex; justify-content: space-between; margin-top: 50px;">
-            <div class="sig-line">Customer Signature</div>
-            <div class="sig-line">Authorized Signature / Stamp</div>
-          </div>
-
-          <div class="footer">
-            <div>Generated on: ${new Date().toLocaleString()}</div>
-            <div>Page 1 of 1</div>
-          </div>
-
-          <script>
-            window.onload = function() { window.print(); };
-          </script>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    await printDocument(
+      <PrintableCustomerStatement
+        customer={selectedCustomer}
+        summary={summary}
+        transactions={transactions}
+        startDate={startDate}
+        endDate={endDate}
+      />
+    );
   };
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      return registerPrintHandler(handlePrintStatement);
+    }
+  }, [selectedCustomer, summary, transactions, startDate, endDate, registerPrintHandler]);
 
   return (
     <HasPermission code="customer.view">
-      <div className="space-y-6 py-4">
+      <div className="space-y-6 py-4 print:hidden">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>

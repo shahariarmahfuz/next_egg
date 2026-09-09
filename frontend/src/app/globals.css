@@ -163,3 +163,85 @@
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.25) transparent;
 }
+
+/* ==========================================================================
+   Dedicated Print Isolation & Layout System
+   ========================================================================== */
+
+#print-root {
+  display: none !important;
+}
+
+@media print {
+  /* 1. Isolation: Normal application DOM tree is ALWAYS excluded from print */
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+
+  /* 2. Canvas reset: Pure white document without shadows or screen margins */
+  html,
+  body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: 100% !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 3. Render print root at full page width as the sole printable document */
+  #print-root {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    min-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  /* 4. Global UI suppression: Never allow app navigation/controls in print */
+  header,
+  nav,
+  aside,
+  [data-radix-portal],
+  .toaster,
+  .print-hidden,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* 5. Default A4 page settings */
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 12mm 12mm;
+  }
+
+  /* 6. Multi-page pagination rules */
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .print-avoid-break,
+  h1,
+  h2,
+  h3,
+  h4 {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+
