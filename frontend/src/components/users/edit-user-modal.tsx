@@ -85,6 +85,15 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
     }
   }, [user, reset]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
+
   const handleToggleRecovery = async () => {
     if (!user) return;
     try {
@@ -149,10 +158,10 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-hidden">
       <div className="fixed inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-card border rounded-2xl p-6 shadow-2xl z-50 animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-lg bg-card border rounded-2xl p-5 sm:p-6 shadow-2xl z-50 animate-in zoom-in-95 duration-200 max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain my-auto touch-pan-y">
         <div className="flex items-center justify-between pb-4 border-b">
           <div className="flex items-center space-x-2">
             <UserCheck className="h-5 w-5 text-primary" />
@@ -295,7 +304,7 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
             </div>
           )}
 
-          <div className="flex justify-end space-x-3 pt-4 border-t">
+          <div className="flex justify-end space-x-3 pt-4 pb-2 sm:pb-0 border-t">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
