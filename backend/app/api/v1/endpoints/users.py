@@ -8,7 +8,7 @@ from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
 from app.models.user import User
 from app.schemas.common import PaginatedResponse, ResponseModel
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.schemas.user import RecoveryModeResponse, UserCreate, UserResponse, UserUpdate
 from app.services.user_service import user_service
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -106,3 +106,40 @@ async def delete_user(
         message="User deleted successfully",
         data={"id": user_id},
     )
+
+
+@router.post("/{user_id}/recovery-mode/enable", response_model=ResponseModel[RecoveryModeResponse])
+async def enable_recovery_mode(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Owner-only endpoint: Enable Recovery Mode for a specific user and generate a one-time recovery code.
+    Admin and Employee are rejected with 403 Forbidden.
+    """
+    result = await user_service.enable_recovery_mode(db, user_id, current_user)
+    return ResponseModel[RecoveryModeResponse](
+        success=True,
+        message=result.message,
+        data=result,
+    )
+
+
+@router.post("/{user_id}/recovery-mode/disable", response_model=ResponseModel[RecoveryModeResponse])
+async def disable_recovery_mode(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Owner-only endpoint: Disable Recovery Mode manually for a specific user.
+    Admin and Employee are rejected with 403 Forbidden.
+    """
+    result = await user_service.disable_recovery_mode(db, user_id, current_user)
+    return ResponseModel[RecoveryModeResponse](
+        success=True,
+        message=result.message,
+        data=result,
+    )
+

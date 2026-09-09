@@ -17,5 +17,34 @@ class TokenResponse(BaseModel):
     permissions: List[str]
 
 
+class LoginResponse(BaseModel):
+    recovery_required: bool = False
+    recovery_verified: bool = False
+    recovery_token: Optional[str] = None
+    username: Optional[str] = None
+    message: Optional[str] = None
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
+    expires_in: Optional[int] = None
+    user: Optional[UserResponse] = None
+    permissions: Optional[List[str]] = None
+
+
+class RecoveryVerifyRequest(BaseModel):
+    username: str = Field(..., min_length=1, description="Username or email")
+    recovery_code: str = Field(..., min_length=1, description="Owner-authorized recovery code")
+
+
+class RecoveryVerifyResponse(BaseModel):
+    recovery_token: str
+    username: str
+    message: str
+
+
+class RecoveryResetPasswordRequest(BaseModel):
+    recovery_token: str = Field(..., min_length=1, description="Restricted recovery session token")
+    new_password: str = Field(..., min_length=6, max_length=100, description="New password")
+
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: Optional[str] = None

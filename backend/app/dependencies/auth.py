@@ -35,9 +35,13 @@ async def get_current_user(
 
     try:
         payload = decode_token(token_str)
+        if payload.get("type") != "access":
+            raise UnauthorizedException("Invalid token type")
         user_id: str = payload.get("sub")
         if not user_id:
             raise UnauthorizedException("Invalid token payload")
+    except UnauthorizedException:
+        raise
     except Exception:
         raise UnauthorizedException("Could not validate credentials")
 
@@ -65,6 +69,8 @@ async def get_optional_current_user(
 
     try:
         payload = decode_token(token_str)
+        if payload.get("type") != "access":
+            return None
         user_id: str = payload.get("sub")
         if not user_id:
             return None

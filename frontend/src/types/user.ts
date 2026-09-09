@@ -10,8 +10,18 @@ export interface UserItem {
   role?: RoleItem;
   status: "active" | "inactive" | "suspended";
   profile_logo_url?: string | null;
+  recovery_mode_enabled?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface RecoveryModeResponse {
+  user_id: string;
+  username: string;
+  recovery_mode_enabled: boolean;
+  recovery_code?: string | null;
+  expires_at?: string | null;
+  message: string;
 }
 
 export interface UserCreatePayload {

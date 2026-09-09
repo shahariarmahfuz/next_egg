@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, Loader2, UserCheck } from "lucide-react";
+import { X, Loader2, UserCheck, Key, Copy, Check } from "lucide-react";
 import { userService } from "@/services/api";
 import { RoleItem, UserItem, UserUpdatePayload } from "@/types";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 const urlValidator = z
   .string()
@@ -45,6 +47,12 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { user: currentUser } = useAuth();
+  const isOwner = currentUser?.role?.code === "owner";
+  const [isRecoveryActive, setIsRecoveryActive] = useState(user?.recovery_mode_enabled || false);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [isTogglingRecovery, setIsTogglingRecovery] = useState(false);
+
   const availableRoles = roles.filter((r) => {
     if (r.code === "owner") return false;
     if (currentUser?.role?.code === "admin" && r.code === "admin") return false;
@@ -62,6 +70,9 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
 
   useEffect(() => {
     if (user) {
+      setIsRecoveryActive(user.recovery_mode_enabled || false);
+      setGeneratedCode(null);
+      setCopied(false);
       reset({
         full_name: user.full_name,
         profile_logo_url: user.profile_logo_url || "",
@@ -73,6 +84,42 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
       });
     }
   }, [user, reset]);
+
+  const handleToggleRecovery = async () => {
+    if (!user) return;
+    try {
+      setIsTogglingRecovery(true);
+      setErrorMsg(null);
+      if (isRecoveryActive) {
+        await userService.disableRecoveryMode(user.id);
+        setIsRecoveryActive(false);
+        setGeneratedCode(null);
+        toast.success("Recovery mode disabled");
+        onSuccess();
+      } else {
+        const res = await userService.enableRecoveryMode(user.id);
+        setIsRecoveryActive(true);
+        if (res.data?.recovery_code) {
+          setGeneratedCode(res.data.recovery_code);
+        }
+        toast.success("Recovery mode enabled");
+        onSuccess();
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to toggle recovery mode");
+    } finally {
+      setIsTogglingRecovery(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (generatedCode) {
+      navigator.clipboard.writeText(generatedCode);
+      setCopied(true);
+      toast.success("Recovery code copied!");
+      setTimeout(() => setCopied(false), 3000);
+    }
+  };
 
   if (!isOpen || !user) return null;
 
@@ -182,6 +229,71 @@ export function EditUserModal({ user, isOpen, onClose, onSuccess, roles }: EditU
               </select>
             </div>
           </div>
+
+          {isOwner && (
+            <div className="p-3.5 bg-muted/40 rounded-xl border space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <label className="text-xs font-semibold flex items-center gap-1.5">
+                    <Key className="h-3.5 w-3.5 text-amber-500" />
+                    Recovery Mode
+                  </label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Allow user to reset password via Owner recovery code on login page.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      isRecoveryActive
+                        ? "bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] py-0 px-2 h-5 font-semibold"
+                        : "text-[10px] py-0 px-2 h-5 text-muted-foreground"
+                    }
+                  >
+                    {isRecoveryActive ? "ON" : "OFF"}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant={isRecoveryActive ? "secondary" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleToggleRecovery}
+                    disabled={isTogglingRecovery}
+                  >
+                    {isTogglingRecovery ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : isRecoveryActive ? (
+                      "Turn OFF"
+                    ) : (
+                      "Turn ON"
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {generatedCode && (
+                <div className="mt-2 p-2.5 bg-background rounded-lg border flex items-center justify-between text-xs">
+                  <div>
+                    <div className="text-[10px] text-muted-foreground font-medium">One-Time Recovery Code (30 min expiry):</div>
+                    <span className="font-mono font-bold tracking-wider text-primary select-all">
+                      {generatedCode}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={handleCopyCode}
+                  >
+                    {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                    {copied ? "Copied" : "Copy Code"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end space-x-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={onClose}>

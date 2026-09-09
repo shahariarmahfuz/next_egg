@@ -34,6 +34,7 @@ class UserResponse(UserBase):
     id: str
     role_id: str
     role: Optional[RoleResponse] = None
+    recovery_mode_enabled: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -41,3 +42,12 @@ class UserResponse(UserBase):
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=150)
     profile_logo_url: Optional[str] = None
+
+
+class RecoveryModeResponse(BaseModel):
+    user_id: str
+    username: str
+    recovery_mode_enabled: bool
+    recovery_code: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    message: str

@@ -44,3 +44,32 @@ export interface TokenResponseData {
   user: import("./user").UserItem;
   permissions: string[];
 }
+
+export interface LoginResponseData {
+  recovery_required?: boolean;
+  recovery_verified?: boolean;
+  recovery_token?: string;
+  username?: string;
+  message?: string;
+  access_token?: string;
+  token_type?: string;
+  expires_in?: number;
+  user?: import("./user").UserItem;
+  permissions?: string[];
+}
+
+export interface RecoveryVerifyRequest {
+  username: string;
+  recovery_code: string;
+}
+
+export interface RecoveryVerifyResponse {
+  recovery_token: string;
+  username: string;
+  message: string;
+}
+
+export interface RecoveryResetPasswordRequest {
+  recovery_token: string;
+  new_password: string;
+}

@@ -3,14 +3,14 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/services/api";
-import { LoginRequest, UserItem } from "@/types";
+import { LoginRequest, LoginResponseData, UserItem } from "@/types";
 
 interface AuthContextType {
   user: UserItem | null;
   permissions: string[];
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<LoginResponseData | undefined>;
   logout: () => Promise<void>;
   hasPermission: (code: string | string[]) => boolean;
   refreshUser: () => Promise<void>;
@@ -67,17 +67,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchCurrentUser();
   }, [fetchCurrentUser]);
 
-  const login = useCallback(async (credentials: LoginRequest) => {
+  const login = useCallback(async (credentials: LoginRequest): Promise<LoginResponseData | undefined> => {
     const res = await authService.login(credentials);
     if (res.success && res.data) {
+      if (res.data.recovery_required) {
+        return res.data;
+      }
       if (typeof window !== "undefined" && res.data.access_token) {
         localStorage.setItem("auth_token", res.data.access_token);
         document.cookie = `auth_token=${res.data.access_token}; path=/; max-age=86400; SameSite=Lax`;
       }
-      setUser(res.data.user);
+      setUser(res.data.user || null);
       setPermissions(res.data.permissions || []);
       router.push("/");
+      return res.data;
     }
+    return undefined;
   }, [router]);
 
   const logout = useCallback(async () => {

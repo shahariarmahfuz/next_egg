@@ -5,7 +5,15 @@ from app.core.config import settings
 from app.dependencies.auth import get_current_user
 from app.dependencies.db import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse
+from app.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
+    RecoveryResetPasswordRequest,
+    RecoveryVerifyRequest,
+    RecoveryVerifyResponse,
+    RefreshTokenRequest,
+    TokenResponse,
+)
 from app.schemas.common import ResponseModel
 from app.schemas.user import UserResponse
 from app.services.auth_service import auth_service
@@ -13,7 +21,7 @@ from app.services.auth_service import auth_service
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/login", response_model=ResponseModel[TokenResponse])
+@router.post("/login", response_model=ResponseModel[LoginResponse])
 async def login(
     login_data: LoginRequest,
     response: Response,
@@ -22,24 +30,26 @@ async def login(
     """
     Authenticate user credentials, return Access Token in payload,
     and set HTTP-Only secure refresh token cookie.
+    If account is in Recovery Mode, return recovery requirement details.
     """
-    token_response, refresh_token = await auth_service.login(db, login_data)
+    login_result, refresh_token = await auth_service.login(db, login_data)
 
-    # Set HTTP-Only Cookie for Refresh Token
-    cookie_max_age = 30 * 86400 if login_data.remember_me else settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
-        max_age=cookie_max_age,
-    )
+    # Set HTTP-Only Cookie for Refresh Token if normal login
+    if refresh_token:
+        cookie_max_age = 30 * 86400 if login_data.remember_me else settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="lax",
+            max_age=cookie_max_age,
+        )
 
-    return ResponseModel[TokenResponse](
+    return ResponseModel[LoginResponse](
         success=True,
-        message="Login successful",
-        data=token_response,
+        message=login_result.message or "Login successful",
+        data=login_result,
     )
 
 
@@ -88,3 +98,41 @@ async def get_me(
             "permissions": permissions,
         },
     )
+
+
+@router.post("/recovery/verify", response_model=ResponseModel[RecoveryVerifyResponse])
+async def verify_recovery_code(
+    payload: RecoveryVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify Owner-authorized recovery code.
+    If valid, issue a restricted, short-lived recovery session token.
+    This session does NOT create a normal application session.
+    """
+    result = await auth_service.verify_recovery_code(db, payload.username, payload.recovery_code)
+    return ResponseModel[RecoveryVerifyResponse](
+        success=True,
+        message=result.message,
+        data=result,
+    )
+
+
+@router.post("/recovery/reset-password", response_model=ResponseModel[dict])
+async def reset_password_with_recovery(
+    payload: RecoveryResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Reset user password using restricted recovery session token.
+    Hashes new password, automatically turns Recovery Mode OFF, and invalidates recovery session.
+    """
+    result = await auth_service.reset_password_with_recovery(
+        db, payload.recovery_token, payload.new_password
+    )
+    return ResponseModel[dict](
+        success=True,
+        message=result["message"],
+        data={},
+    )
+

@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
+import hmac
+import secrets
 from typing import Any, Dict, Optional
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -119,3 +122,49 @@ def decode_token(token: str) -> Dict[str, Any]:
         return payload
     except jwt.PyJWTError as e:
         raise ValueError(f"Invalid token: {str(e)}")
+
+
+def generate_recovery_code() -> str:
+    """Generate human-friendly and cryptographically secure recovery code (e.g. REC-A1B2-C3D4)."""
+    p1 = secrets.token_hex(2).upper()
+    p2 = secrets.token_hex(2).upper()
+    return f"REC-{p1}-{p2}"
+
+
+def normalize_recovery_code(code: str) -> str:
+    """Normalize recovery code by stripping spaces, dashes and uppercasing."""
+    if not code:
+        return ""
+    return code.strip().replace("-", "").upper()
+
+
+def hash_recovery_code(user_id: str, raw_code: str) -> str:
+    """Compute deterministic salted SHA-256 hash for recovery code verification."""
+    normalized = normalize_recovery_code(raw_code)
+    salted = f"{user_id}:{normalized}".encode("utf-8")
+    return hashlib.sha256(salted).hexdigest()
+
+
+def verify_recovery_code_hash(user_id: str, raw_code: str, stored_hash: str) -> bool:
+    """Verify raw code against stored hash with constant-time comparison."""
+    if not raw_code or not stored_hash:
+        return False
+    computed = hash_recovery_code(user_id, raw_code)
+    return hmac.compare_digest(computed, stored_hash)
+
+
+def create_recovery_session_token(subject: Any, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Generate restricted single-use recovery session JWT token.
+    Explicitly has type='recovery' and short lifetime (default 15 minutes).
+    Cannot be used for general API access.
+    """
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
+    to_encode = {
+        "sub": str(subject),
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "type": "recovery",
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+

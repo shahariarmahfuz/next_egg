@@ -1,4 +1,6 @@
-from sqlalchemy import ForeignKey, Index, String
+from datetime import datetime
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String
+import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import TimestampedBaseModel
 
@@ -22,6 +24,14 @@ class User(TimestampedBaseModel):
     status: Mapped[str] = mapped_column(
         String(20), default="active", nullable=False, index=True
     )  # active, inactive, suspended
+
+    recovery_mode_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default=sa.text("false")
+    )
+    recovery_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    recovery_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Relationships
     role: Mapped["Role"] = relationship("Role", lazy="selectin", foreign_keys=[role_id])

@@ -1,12 +1,17 @@
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import get_password_hash
+from app.core.security import (
+    generate_recovery_code,
+    get_password_hash,
+    hash_recovery_code,
+)
 from app.exceptions.custom import BadRequestException, ConflictException, ForbiddenException, NotFoundException
 from app.models.user import User
 from app.repositories.role_repository import role_repository
 from app.repositories.user_repository import user_repository
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import RecoveryModeResponse, UserCreate, UserUpdate
 
 
 class UserService:
@@ -122,6 +127,74 @@ class UserService:
 
         await user_repository.hard_delete(db, id=user_id)
         return True
+
+    async def enable_recovery_mode(
+        self, db: AsyncSession, user_id: str, current_user: User
+    ) -> RecoveryModeResponse:
+        """
+        Owner-only: Enable Recovery Mode for a specific user.
+        Generates a secure, short-lived, single-use recovery code.
+        Rejects non-owner callers with 403 Forbidden.
+        """
+        if not current_user.role or current_user.role.code != "owner":
+            raise ForbiddenException("Only the System Owner can enable Recovery Mode.")
+
+        user = await user_repository.get_by_id_with_role(db, user_id)
+        if not user:
+            raise NotFoundException(f"User with ID '{user_id}' not found.")
+
+        # Generate secure recovery code
+        raw_code = generate_recovery_code()
+        token_hash = hash_recovery_code(user.id, raw_code)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+        user.recovery_mode_enabled = True
+        user.recovery_token_hash = token_hash
+        user.recovery_token_expires_at = expires_at
+
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+        return RecoveryModeResponse(
+            user_id=user.id,
+            username=user.username,
+            recovery_mode_enabled=True,
+            recovery_code=raw_code,
+            expires_at=expires_at,
+            message=f"Recovery Mode enabled for @{user.username}. Share this one-time code with the user.",
+        )
+
+    async def disable_recovery_mode(
+        self, db: AsyncSession, user_id: str, current_user: User
+    ) -> RecoveryModeResponse:
+        """
+        Owner-only: Disable Recovery Mode manually for a specific user.
+        Rejects non-owner callers with 403 Forbidden.
+        """
+        if not current_user.role or current_user.role.code != "owner":
+            raise ForbiddenException("Only the System Owner can disable Recovery Mode.")
+
+        user = await user_repository.get_by_id_with_role(db, user_id)
+        if not user:
+            raise NotFoundException(f"User with ID '{user_id}' not found.")
+
+        user.recovery_mode_enabled = False
+        user.recovery_token_hash = None
+        user.recovery_token_expires_at = None
+
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+        return RecoveryModeResponse(
+            user_id=user.id,
+            username=user.username,
+            recovery_mode_enabled=False,
+            recovery_code=None,
+            expires_at=None,
+            message=f"Recovery Mode disabled for @{user.username}.",
+        )
 
 
 user_service = UserService()

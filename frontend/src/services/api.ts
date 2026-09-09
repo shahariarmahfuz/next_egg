@@ -72,6 +72,11 @@ import {
   SupplierPaymentUpdatePayload,
   SupplierUpdatePayload,
   TokenResponseData,
+  LoginResponseData,
+  RecoveryVerifyRequest,
+  RecoveryVerifyResponse,
+  RecoveryResetPasswordRequest,
+  RecoveryModeResponse,
   UserCreatePayload,
   UserItem,
   UserUpdatePayload,
@@ -79,7 +84,7 @@ import {
 
 export const authService = {
   login: async (credentials: LoginRequest) => {
-    return http.post<TokenResponseData>("/auth/login", credentials);
+    return http.post<LoginResponseData>("/auth/login", credentials);
   },
 
   logout: async () => {
@@ -92,6 +97,14 @@ export const authService = {
 
   refreshToken: async () => {
     return http.post<TokenResponseData>("/auth/refresh");
+  },
+
+  verifyRecoveryCode: async (payload: RecoveryVerifyRequest) => {
+    return http.post<RecoveryVerifyResponse>("/auth/recovery/verify", payload);
+  },
+
+  resetPasswordWithRecovery: async (payload: RecoveryResetPasswordRequest) => {
+    return http.post<{ message: string }>("/auth/recovery/reset-password", payload);
   },
 };
 
@@ -120,6 +133,14 @@ export const userService = {
 
   deleteUser: async (id: string) => {
     return http.delete<{ id: string }>(`/users/${id}`);
+  },
+
+  enableRecoveryMode: async (userId: string) => {
+    return http.post<RecoveryModeResponse>(`/users/${userId}/recovery-mode/enable`);
+  },
+
+  disableRecoveryMode: async (userId: string) => {
+    return http.post<RecoveryModeResponse>(`/users/${userId}/recovery-mode/disable`);
   },
 };
 

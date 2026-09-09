@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, UserCheck, Trash2, Edit, Shield, Phone, Mail, Filter } from "lucide-react";
+import { Plus, Search, UserCheck, Trash2, Edit, Shield, Phone, Mail, Filter, Key, Copy, Check } from "lucide-react";
 import { userService, roleService } from "@/services/api";
 import { UserItem, RoleItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
@@ -54,10 +54,16 @@ export default function UsersPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
   const [deletingUser, setDeletingUser] = useState<UserItem | null>(null);
+  const [recoveryModalData, setRecoveryModalData] = useState<{
+    user: UserItem;
+    recoveryCode: string;
+  } | null>(null);
+  const [hasCopiedCode, setHasCopiedCode] = useState(false);
 
   const debouncedSearch = useDebounce(search, 300);
 
   const { user: currentUser } = useAuth();
+  const isOwner = currentUser?.role?.code === "owner";
 
   // Fetch Roles for dropdown filter & modals
   const { data: rolesData } = useQuery({
@@ -103,6 +109,55 @@ export default function UsersPage() {
       setDeletingUser(null);
     }
   });
+
+  // Enable Recovery Mode Mutation
+  const enableRecoveryMutation = useMutation({
+    mutationFn: (userId: string) => userService.enableRecoveryMode(userId),
+    onSuccess: (res, userId) => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      const target = users.find((u) => u.id === userId);
+      if (target && res.data?.recovery_code) {
+        setRecoveryModalData({
+          user: target,
+          recoveryCode: res.data.recovery_code,
+        });
+        setHasCopiedCode(false);
+      }
+      toast.success("Recovery mode enabled successfully");
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error?.message || err?.message || "Failed to enable recovery mode.";
+      toast.error(msg);
+    },
+  });
+
+  // Disable Recovery Mode Mutation
+  const disableRecoveryMutation = useMutation({
+    mutationFn: (userId: string) => userService.disableRecoveryMode(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success("Recovery mode disabled successfully");
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error?.message || err?.message || "Failed to disable recovery mode.";
+      toast.error(msg);
+    },
+  });
+
+  const handleToggleRecovery = (targetUser: UserItem) => {
+    if (targetUser.recovery_mode_enabled) {
+      disableRecoveryMutation.mutate(targetUser.id);
+    } else {
+      enableRecoveryMutation.mutate(targetUser.id);
+    }
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setHasCopiedCode(true);
+    toast.success("Recovery code copied to clipboard!");
+    setTimeout(() => setHasCopiedCode(false), 3000);
+  };
 
   const handleDeleteConfirm = async () => {
     if (deletingUser) {
@@ -177,6 +232,9 @@ export default function UsersPage() {
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Role</th>
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Contact</th>
                 <th className="px-3 py-2.5 align-middle w-[110px] whitespace-nowrap">Status</th>
+                {isOwner && (
+                  <th className="px-3 py-2.5 align-middle whitespace-nowrap">Recovery Mode</th>
+                )}
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Created Date</th>
                 <th className="px-3 py-2.5 align-middle w-[120px] text-right whitespace-nowrap">Actions</th>
               </tr>
@@ -190,13 +248,14 @@ export default function UsersPage() {
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-24" /></td>
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-32" /></td>
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-16" /></td>
+                    {isOwner && <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>}
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-24" /></td>
                     <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-16 ml-auto" /></td>
                   </tr>
                 ))
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={isOwner ? 8 : 7} className="p-8 text-center text-muted-foreground">
                     No system users match your search criteria.
                   </td>
                 </tr>
@@ -250,6 +309,32 @@ export default function UsersPage() {
                           {user.status}
                         </Badge>
                       </td>
+                      {isOwner && (
+                        <td className="px-3 py-2 align-middle whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={
+                                user.recovery_mode_enabled
+                                  ? "bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] py-0 px-2 h-5 font-semibold"
+                                  : "text-[10px] py-0 px-2 h-5 text-muted-foreground"
+                              }
+                            >
+                              {user.recovery_mode_enabled ? "ON" : "OFF"}
+                            </Badge>
+                            <Button
+                              variant={user.recovery_mode_enabled ? "secondary" : "outline"}
+                              size="sm"
+                              className="h-6 text-[10px] px-2"
+                              disabled={enableRecoveryMutation.isPending || disableRecoveryMutation.isPending}
+                              onClick={() => handleToggleRecovery(user)}
+                              title={user.recovery_mode_enabled ? "Disable Recovery Mode" : "Enable Recovery Mode"}
+                            >
+                              {user.recovery_mode_enabled ? "Turn OFF" : "Turn ON"}
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                       <td className="px-3 py-2 align-middle text-xs text-muted-foreground whitespace-nowrap">{formatDate(user.created_at)}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap space-x-1">
                         <HasPermission code="user.edit">
@@ -356,6 +441,50 @@ export default function UsersPage() {
               >
                 {deleteMutation.isPending ? "Deleting..." : "Delete User"}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Recovery Code Dialog for Owner */}
+      {recoveryModalData && (
+        <Dialog open={!!recoveryModalData} onOpenChange={(open) => !open && setRecoveryModalData(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-primary">
+                <Key className="h-5 w-5 text-amber-500" /> Recovery Mode Enabled
+              </DialogTitle>
+              <DialogDescription className="pt-2">
+                Recovery mode is now active for <strong className="text-foreground">@{recoveryModalData.user.username}</strong>.
+                Share this one-time recovery code with the user to verify on the login page.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="my-4 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                One-Time Recovery Code (Single-Use, 30 Min Expiry)
+              </label>
+              <div className="flex items-center gap-2 bg-muted/60 p-3 rounded-lg border">
+                <code className="font-mono text-base font-bold tracking-widest text-primary flex-1 select-all">
+                  {recoveryModalData.recoveryCode}
+                </code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1 text-xs"
+                  onClick={() => handleCopyCode(recoveryModalData.recoveryCode)}
+                >
+                  {hasCopiedCode ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  {hasCopiedCode ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Once the user successfully resets their password, Recovery Mode will automatically turn OFF.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button onClick={() => setRecoveryModalData(null)}>Done</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
