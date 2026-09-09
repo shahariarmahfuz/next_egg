@@ -264,20 +264,20 @@ async def seed_initial_data(db: AsyncSession) -> None:
 
     admin_role = role_map.get("admin")
     if admin_role:
-        if "admin" in newly_created_roles or not admin_role.permissions:
+        if "admin" in newly_created_roles:
             logger.info("[SEED] Initializing default permissions for newly created Admin role...")
             await role_repository.set_role_permissions(db, admin_role, admin_perms)
         else:
-            logger.info(f"[SEED] Preserving {len(admin_role.permissions)} configured permissions for Admin role.")
+            logger.info(f"[SEED] Preserving {len(admin_role.permissions)} configured permissions for existing Admin role.")
 
     # Employee gets restricted operational perms
     employee_role = role_map.get("employee")
     if employee_role:
-        if "employee" in newly_created_roles or not employee_role.permissions:
+        if "employee" in newly_created_roles:
             logger.info("[SEED] Initializing default permissions for newly created Employee role...")
             await role_repository.set_role_permissions(db, employee_role, employee_perms)
         else:
-            logger.info(f"[SEED] Preserving {len(employee_role.permissions)} configured permissions for Employee role.")
+            logger.info(f"[SEED] Preserving {len(employee_role.permissions)} configured permissions for existing Employee role.")
 
     # 4. Seed Initial System Accounts (Owner, Admin, Employee) using Argon2id
     reset_passwords = os.getenv("RESET_DEFAULT_PASSWORDS", "").lower() in ("true", "1", "yes")
