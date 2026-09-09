@@ -123,8 +123,8 @@ export default function LoginPage() {
 
   const onResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      setErrorMsg("New password must be at least 6 characters long.");
+    if (!newPassword) {
+      setErrorMsg("Password cannot be empty.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -418,7 +418,6 @@ export default function LoginPage() {
                         {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Minimum 6 characters required.</p>
                   </div>
 
                   {/* Confirm Password */}

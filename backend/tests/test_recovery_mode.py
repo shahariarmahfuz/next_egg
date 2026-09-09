@@ -29,13 +29,46 @@ async def seed_users():
         owner = await user_repository.get_by_username(db, "owner")
         admin = await user_repository.get_by_username(db, "admin")
         employee = await user_repository.get_by_username(db, "employee")
+        from app.repositories.role_repository import role_repository
 
-        if admin:
+        if not admin:
+            admin_role = await role_repository.get_by_code(db, "admin")
+            admin = await user_repository.create(
+                db,
+                obj_in={
+                    "full_name": "System Administrator",
+                    "username": "admin",
+                    "email": "admin@enterprise.com",
+                    "password_hash": get_password_hash("AdminTest123!"),
+                    "role_id": admin_role.id if admin_role else owner.role_id,
+                    "status": "active",
+                },
+            )
+        else:
             admin.password_hash = get_password_hash("AdminTest123!")
+            admin.recovery_mode_enabled = False
+            admin.recovery_token_hash = None
+            admin.recovery_token_expires_at = None
             db.add(admin)
 
-        if employee:
+        if not employee:
+            emp_role = await role_repository.get_by_code(db, "employee")
+            employee = await user_repository.create(
+                db,
+                obj_in={
+                    "full_name": "System Employee",
+                    "username": "employee",
+                    "email": "employee@enterprise.com",
+                    "password_hash": get_password_hash("EmployeeTest123!"),
+                    "role_id": emp_role.id if emp_role else (admin.role_id if admin else owner.role_id),
+                    "status": "active",
+                },
+            )
+        else:
             employee.password_hash = get_password_hash("EmployeeTest123!")
+            employee.recovery_mode_enabled = False
+            employee.recovery_token_hash = None
+            employee.recovery_token_expires_at = None
             db.add(employee)
 
         # Create or update User A and User B for recovery testing
@@ -359,4 +392,89 @@ async def test_security_recovery_session_not_normal_session(async_client, seed_u
     )
     assert users_res.status_code == 401
     assert "Invalid token type" in users_res.json()["error"]["message"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("short_password", ["1", "a", "123", "abc", "12345"])
+async def test_recovery_password_any_non_empty_accepted(async_client, seed_users, auth_tokens, short_password):
+    """Test: User can set any non-empty password ('1', 'a', '123', etc.) in Recovery Mode."""
+    user_a_id = seed_users["user_a_id"]
+    enable_res = await async_client.post(
+        f"/api/v1/users/{user_a_id}/recovery-mode/enable",
+        headers=auth_tokens["owner_headers"],
+    )
+    assert enable_res.status_code == 200
+    recovery_code = enable_res.json()["data"]["recovery_code"]
+
+    verify_res = await async_client.post(
+        "/api/v1/auth/recovery/verify",
+        json={"username": "test_user_a", "recovery_code": recovery_code},
+    )
+    assert verify_res.status_code == 200
+    recovery_token = verify_res.json()["data"]["recovery_token"]
+
+    # Reset password with short password
+    reset_res = await async_client.post(
+        "/api/v1/auth/recovery/reset-password",
+        json={"recovery_token": recovery_token, "new_password": short_password},
+    )
+    assert reset_res.status_code == 200
+    assert reset_res.json()["success"] is True
+
+    # Login with the new short password succeeds
+    login_res = await async_client.post(
+        "/api/v1/auth/login",
+        json={"username": "test_user_a", "password": short_password},
+    )
+    assert login_res.status_code == 200
+    assert login_res.json()["data"]["recovery_required"] is False
+    assert login_res.json()["data"]["access_token"] is not None
+
+
+@pytest.mark.anyio
+async def test_recovery_password_empty_rejected(async_client, seed_users, auth_tokens):
+    """Test: Empty password MUST NOT be accepted in Recovery Mode."""
+    user_a_id = seed_users["user_a_id"]
+    enable_res = await async_client.post(
+        f"/api/v1/users/{user_a_id}/recovery-mode/enable",
+        headers=auth_tokens["owner_headers"],
+    )
+    assert enable_res.status_code == 200
+    recovery_code = enable_res.json()["data"]["recovery_code"]
+
+    verify_res = await async_client.post(
+        "/api/v1/auth/recovery/verify",
+        json={"username": "test_user_a", "recovery_code": recovery_code},
+    )
+    assert verify_res.status_code == 200
+    recovery_token = verify_res.json()["data"]["recovery_token"]
+
+    # Reset with empty password -> REJECTED (422 / 400)
+    reset_res = await async_client.post(
+        "/api/v1/auth/recovery/reset-password",
+        json={"recovery_token": recovery_token, "new_password": ""},
+    )
+    assert reset_res.status_code in (400, 422)
+
+
+@pytest.mark.anyio
+async def test_normal_password_change_policy_unchanged(async_client, seed_users, auth_tokens):
+    """Test: Normal user password update flow functions as before without interference."""
+    user_b_id = seed_users["user_b_id"]
+    # Owner updates user_b password via standard User Management
+    update_res = await async_client.put(
+        f"/api/v1/users/{user_b_id}",
+        json={"password": "NewUpdatedPassword123!"},
+        headers=auth_tokens["owner_headers"],
+    )
+    assert update_res.status_code == 200
+
+    # User B logs in with new updated password
+    login_res = await async_client.post(
+        "/api/v1/auth/login",
+        json={"username": "test_user_b", "password": "NewUpdatedPassword123!"},
+    )
+    assert login_res.status_code == 200
+    assert login_res.json()["data"]["access_token"] is not None
+
 

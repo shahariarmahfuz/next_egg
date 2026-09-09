@@ -43,7 +43,7 @@ class RecoveryVerifyResponse(BaseModel):
 
 class RecoveryResetPasswordRequest(BaseModel):
     recovery_token: str = Field(..., min_length=1, description="Restricted recovery session token")
-    new_password: str = Field(..., min_length=6, max_length=100, description="New password")
+    new_password: str = Field(..., min_length=1, description="New password")
 
 
 class RefreshTokenRequest(BaseModel):

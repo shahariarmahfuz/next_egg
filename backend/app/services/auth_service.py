@@ -220,8 +220,8 @@ class AuthService:
             await db.commit()
             raise BadRequestException("Recovery token has expired. Please contact the System Owner.")
 
-        if len(new_password) < 6:
-            raise BadRequestException("Password must be at least 6 characters long.")
+        if not new_password:
+            raise BadRequestException("Password cannot be empty.")
 
         # Hash new password securely with Argon2id
         user.password_hash = get_password_hash(new_password)
