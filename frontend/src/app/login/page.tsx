@@ -230,7 +230,7 @@ export default function LoginPage() {
                       <Input
                         {...register("username")}
                         type="text"
-                        placeholder="e.g. owner or owner@enterprise.com"
+                        placeholder="Enter username or email"
                         className="pl-9 h-10"
                         autoComplete="username"
                       />
