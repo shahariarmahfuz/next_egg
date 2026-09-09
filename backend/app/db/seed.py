@@ -222,15 +222,18 @@ async def seed_initial_data(db: AsyncSession) -> None:
 
     # 2. Seed Fixed System Roles
     role_map = {}
+    newly_created_roles = set()
     for role_data in DEFAULT_ROLES:
         existing = await role_repository.get_by_code(db, role_data["code"])
         if not existing:
             role = await role_repository.create(db, obj_in=role_data)
             role_map[role.code] = role
+            newly_created_roles.add(role.code)
+            logger.info(f"[SEED] Created default system role: '{role.code}'")
         else:
             role_map[existing.code] = existing
 
-    # 3. Assign Default Permissions to Admin & Employee
+    # 3. Assign Default Permissions to Admin & Employee (only if newly created or unconfigured)
     all_perms = list(permission_map.values())
 
     # Employee gets operational view and creation perms only (no admin/user/role/edit/delete perms)
@@ -259,12 +262,22 @@ async def seed_initial_data(db: AsyncSession) -> None:
     }
     admin_perms = [p for p in all_perms if p.code not in admin_restricted_perm_codes]
 
-    if role_map.get("admin"):
-        await role_repository.set_role_permissions(db, role_map["admin"], admin_perms)
+    admin_role = role_map.get("admin")
+    if admin_role:
+        if "admin" in newly_created_roles or not admin_role.permissions:
+            logger.info("[SEED] Initializing default permissions for newly created Admin role...")
+            await role_repository.set_role_permissions(db, admin_role, admin_perms)
+        else:
+            logger.info(f"[SEED] Preserving {len(admin_role.permissions)} configured permissions for Admin role.")
 
     # Employee gets restricted operational perms
-    if role_map.get("employee"):
-        await role_repository.set_role_permissions(db, role_map["employee"], employee_perms)
+    employee_role = role_map.get("employee")
+    if employee_role:
+        if "employee" in newly_created_roles or not employee_role.permissions:
+            logger.info("[SEED] Initializing default permissions for newly created Employee role...")
+            await role_repository.set_role_permissions(db, employee_role, employee_perms)
+        else:
+            logger.info(f"[SEED] Preserving {len(employee_role.permissions)} configured permissions for Employee role.")
 
     # 4. Seed Initial System Accounts (Owner, Admin, Employee) using Argon2id
     reset_passwords = os.getenv("RESET_DEFAULT_PASSWORDS", "").lower() in ("true", "1", "yes")
