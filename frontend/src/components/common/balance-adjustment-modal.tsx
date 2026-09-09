@@ -63,7 +63,9 @@ export function BalanceAdjustmentModal({
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const canDeleteAdjustment =
-    entityType === "customer" && hasPermission("customer.balance.adjustment.delete");
+    entityType === "customer"
+      ? hasPermission("customer.balance.adjustment.delete")
+      : hasPermission("supplier.balance.adjustment.delete");
 
   const [activeTab, setActiveTab] = useState<"adjust" | "history">("adjust");
   const [deletingAdjustment, setDeletingAdjustment] = useState<BalanceAdjustmentItem | null>(null);
@@ -118,7 +120,11 @@ export function BalanceAdjustmentModal({
     if (!deletingAdjustment) return;
     try {
       setIsDeleting(true);
-      await customerService.deleteBalanceAdjustment(deletingAdjustment.id);
+      if (entityType === "customer") {
+        await customerService.deleteBalanceAdjustment(deletingAdjustment.id);
+      } else {
+        await supplierService.deleteBalanceAdjustment(deletingAdjustment.id);
+      }
       toast.success("Adjustment history deleted successfully.");
       setDeletingAdjustment(null);
       queryClient.invalidateQueries({ queryKey: ["balance-adjustments", entityType, entityId] });
@@ -444,7 +450,7 @@ export function BalanceAdjustmentModal({
                 Are you sure you want to delete this adjustment history record?
               </span>
               <span className="block font-semibold text-foreground bg-muted/40 p-2.5 rounded border">
-                This removes the history record only. The customer&apos;s current balance will not change.
+                Only the history record will be removed. The {entityType === "customer" ? "customer's" : "supplier's"} current balance will not change.
               </span>
             </DialogDescription>
           </DialogHeader>

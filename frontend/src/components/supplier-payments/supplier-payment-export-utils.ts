@@ -1,14 +1,8 @@
 import { SupplierPaymentItem } from "@/types";
+import { formatCurrency } from "@/utils/formatters";
 import { useSettingsStore } from "@/store/settings";
 
-export function formatCurrency(amount: number | undefined | null): string {
-  if (amount === undefined || amount === null) return "$0.00";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
+export { formatCurrency };
 
 export function formatDate(dateString: string | undefined | null): string {
   if (!dateString) return "";

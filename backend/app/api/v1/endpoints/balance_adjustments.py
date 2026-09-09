@@ -129,3 +129,32 @@ async def get_supplier_balance_adjustments(
         message="Balance adjustment history retrieved",
         data=items,
     )
+
+
+@router.delete(
+    "/supplier-balance-adjustments/{adjustment_id}",
+    response_model=ResponseModel[dict],
+)
+@router.delete(
+    "/suppliers/{supplier_id}/balance-adjustments/{adjustment_id}",
+    response_model=ResponseModel[dict],
+)
+async def delete_supplier_balance_adjustment(
+    adjustment_id: str,
+    supplier_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("supplier.balance.adjustment.delete")),
+):
+    """
+    Delete ONLY the supplier balance adjustment history record without changing supplier balance.
+    Strictly preserves supplier running balance, purchases, payments, and financial state.
+    """
+    result = await balance_adjustment_service.delete_supplier_adjustment_history(
+        db, current_user, adjustment_id, supplier_id=supplier_id
+    )
+    return ResponseModel[dict](
+        success=True,
+        message="Adjustment history deleted successfully.",
+        data=result,
+    )
+

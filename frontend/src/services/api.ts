@@ -246,6 +246,10 @@ export const supplierService = {
   getBalanceAdjustments: async (id: string) => {
     return http.get<BalanceAdjustmentItem[]>(`/suppliers/${id}/balance-adjustments`);
   },
+
+  deleteBalanceAdjustment: async (adjustmentId: string) => {
+    return http.delete<{ id: string; supplier_id?: string }>(`/supplier-balance-adjustments/${adjustmentId}`);
+  },
 };
 
 export const customerService = {

@@ -111,40 +111,44 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* 1. Supplier Search & Selection */}
-      <Card className="glass-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <User className="h-5 w-5 text-primary" />
-            1. Search & Select Supplier
+      <Card className="glass-card w-full max-w-full overflow-hidden">
+        <CardHeader className="p-3.5 sm:p-6 pb-2 sm:pb-3">
+          <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2">
+            <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+            <span>1. Search & Select Supplier</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs">
             Search supplier by Company Name, Phone, or Supplier Code.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="p-3.5 sm:p-6 pt-0 sm:pt-0 space-y-3 sm:space-y-4">
           {!initialData && (
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <div className="relative w-full max-w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none shrink-0" />
               <Input
                 type="text"
                 placeholder="Search supplier by name, phone, code..."
                 value={supplierSearch}
                 onChange={(e) => setSupplierSearch(e.target.value)}
-                className="pl-9 pr-4 py-2"
+                className="w-full max-w-full pl-9 pr-4 py-2 text-xs sm:text-sm h-10 box-border"
+                style={{ width: "100%", maxWidth: "100%" }}
               />
             </div>
           )}
 
           {/* Search Dropdown / List */}
           {!initialData && !selectedSupplierId && (
-            <div className="border rounded-xl max-h-48 overflow-y-auto divide-y bg-card/60 backdrop-blur">
+            <div
+              className="border rounded-xl max-h-64 md:max-h-48 overflow-y-auto overflow-x-hidden divide-y bg-card/60 backdrop-blur w-full max-w-full overscroll-contain"
+              style={{ width: "100%", maxWidth: "100%", overflowX: "hidden" }}
+            >
               {isSearchingSuppliers ? (
-                <div className="p-4 flex items-center justify-center text-sm text-muted-foreground gap-2">
+                <div className="p-4 flex items-center justify-center text-xs sm:text-sm text-muted-foreground gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   Searching suppliers directory...
                 </div>
               ) : searchedSuppliers.length === 0 ? (
-                <div className="p-4 text-center text-sm text-muted-foreground">
+                <div className="p-4 text-center text-xs sm:text-sm text-muted-foreground">
                   No suppliers found matching "{supplierSearch}"
                 </div>
               ) : (
@@ -153,25 +157,62 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
                     key={supp.id}
                     type="button"
                     onClick={() => handleSelectSupplier(supp)}
-                    className="w-full text-left p-3 hover:bg-accent/60 transition-colors flex items-center justify-between group"
+                    className="w-full max-w-full text-left p-3 hover:bg-accent/60 active:bg-accent/80 transition-colors group cursor-pointer touch-manipulation min-h-[44px] focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <div>
-                      <div className="font-semibold text-sm group-hover:text-primary transition-colors flex items-center gap-2">
-                        <span>{supp.name}</span>
-                        <Badge variant="outline" className="text-[10px]">
-                          {supp.supplier_code}
-                        </Badge>
+                    {/* Mobile-First Layout (< 768px / max-width: 767px) */}
+                    <div className="flex flex-col gap-0.5 w-full min-w-0 md:hidden text-left">
+                      {/* 1. Supplier Name */}
+                      <div
+                        className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate"
+                        style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                        title={supp.name}
+                      >
+                        {supp.name}
                       </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {supp.phone || "No Phone"}
+
+                      {/* 2. Supplier Code · Phone */}
+                      <div
+                        className="text-xs text-muted-foreground truncate"
+                        style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      >
+                        <span>{supp.supplier_code}</span>
+                        <span className="mx-1.5 font-bold text-muted-foreground/60">·</span>
+                        <span>{supp.phone && supp.phone.trim() ? supp.phone.trim() : "No Phone"}</span>
+                      </div>
+
+                      {/* 3. Current Due */}
+                      <div className="text-xs font-medium text-muted-foreground pt-0.5 truncate">
+                        Current Due:{" "}
+                        <span
+                          className={`font-bold ${
+                            supp.current_balance < 0 ? "text-emerald-500" : "text-amber-500"
+                          }`}
+                        >
+                          {formatCurrency(supp.current_balance)}
                         </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs font-medium text-muted-foreground font-semibold">Current Due</div>
-                      <div className="text-sm font-bold text-amber-500">
-                        {formatCurrency(supp.current_balance)}
+
+                    {/* Desktop Layout (>= 768px / md:flex) - Preserved exactly as original */}
+                    <div className="hidden md:flex items-center justify-between w-full">
+                      <div>
+                        <div className="font-semibold text-sm group-hover:text-primary transition-colors flex items-center gap-2">
+                          <span>{supp.name}</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {supp.supplier_code}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> {supp.phone || "No Phone"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-medium text-muted-foreground font-semibold">Current Due</div>
+                        <div className="text-sm font-bold text-amber-500">
+                          {formatCurrency(supp.current_balance)}
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -182,22 +223,44 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
 
           {/* Selected Supplier Banner */}
           {selectedSupplierId && (
-            <div className="p-4 rounded-xl border bg-primary/5 border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+            <div className="p-3.5 sm:p-4 rounded-xl border bg-primary/5 border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 w-full max-w-full">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm sm:text-base shrink-0">
                   {financialSummary?.supplier_name?.charAt(0) || "S"}
                 </div>
-                <div>
-                  <div className="font-bold text-base flex items-center gap-2">
-                    <span>{financialSummary?.supplier_name || initialData?.supplier?.name}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {financialSummary?.supplier_code || initialData?.supplier?.supplier_code}
-                    </Badge>
+                <div className="min-w-0 flex-1">
+                  {/* Mobile presentation (< 768px) */}
+                  <div className="md:hidden min-w-0">
+                    <div
+                      className="font-bold text-sm text-foreground truncate"
+                      style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      title={financialSummary?.supplier_name || initialData?.supplier?.name}
+                    >
+                      {financialSummary?.supplier_name || initialData?.supplier?.name}
+                    </div>
+                    <div
+                      className="text-xs text-muted-foreground truncate mt-0.5"
+                      style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                    >
+                      <span>{financialSummary?.supplier_code || initialData?.supplier?.supplier_code}</span>
+                      <span className="mx-1 text-muted-foreground/60">·</span>
+                      <span>{financialSummary?.phone || initialData?.supplier?.phone || "No Phone"}</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
-                    <span className="flex items-center gap-1">
-                      <Phone className="h-3 w-3" /> {financialSummary?.phone || initialData?.supplier?.phone || "N/A"}
-                    </span>
+
+                  {/* Desktop presentation (>= 768px) */}
+                  <div className="hidden md:block">
+                    <div className="font-bold text-base flex items-center gap-2">
+                      <span>{financialSummary?.supplier_name || initialData?.supplier?.name}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {financialSummary?.supplier_code || initialData?.supplier?.supplier_code}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3" /> {financialSummary?.phone || initialData?.supplier?.phone || "N/A"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -211,6 +274,7 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
                     setSelectedSupplierId("");
                     setValue("supplier_id", "");
                   }}
+                  className="w-full sm:w-auto text-xs h-8 sm:h-9 shrink-0"
                 >
                   Change Supplier
                 </Button>

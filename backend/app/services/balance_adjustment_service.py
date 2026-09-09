@@ -246,6 +246,73 @@ class BalanceAdjustmentService:
             logger.error(f"Failed to delete customer balance adjustment history: {str(e)}")
             raise e
 
+    async def delete_supplier_adjustment_history(
+        self,
+        db: AsyncSession,
+        user: User,
+        adjustment_id: str,
+        supplier_id: str | None = None,
+    ) -> dict:
+        """
+        Deletes ONLY the supplier balance adjustment history record.
+        CRITICAL SAFETY:
+        - Supplier's current balance is strictly NOT changed, reversed, or recalculated.
+        - Purchases, returns, payments, vouchers, and financial transactions are untouched.
+        - Only the BalanceAdjustment history record is removed.
+        """
+        try:
+            query = select(BalanceAdjustment).where(
+                BalanceAdjustment.id == adjustment_id,
+                BalanceAdjustment.entity_type == "supplier",
+            )
+            if supplier_id:
+                query = query.where(BalanceAdjustment.entity_id == supplier_id)
+
+            res = await db.execute(query)
+            adjustment = res.scalars().first()
+
+            if not adjustment:
+                raise NotFoundException(
+                    f"Supplier balance adjustment record with ID '{adjustment_id}' not found."
+                )
+
+            target_supplier_id = adjustment.entity_id
+
+            # Audit Log for deletion of the history record
+            log_payload = json.dumps({
+                "adjustment_id": adjustment.id,
+                "supplier_id": target_supplier_id,
+                "previous_balance": adjustment.previous_balance,
+                "new_balance": adjustment.new_balance,
+                "difference": adjustment.difference,
+                "reason": adjustment.reason,
+                "action": "history_record_deleted",
+            })
+            activity = ActivityLog(
+                user_id=user.id,
+                action="supplier.balance.adjustment.delete",
+                entity_type="supplier",
+                entity_id=target_supplier_id,
+                payload=log_payload,
+            )
+            db.add(activity)
+
+            # Delete ONLY the adjustment history record
+            await db.delete(adjustment)
+
+            # Supplier current_balance is intentionally and strictly left unchanged
+            await db.commit()
+
+            return {
+                "id": adjustment_id,
+                "supplier_id": target_supplier_id,
+                "deleted": True,
+            }
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Failed to delete supplier balance adjustment history: {str(e)}")
+            raise e
+
 
 balance_adjustment_service = BalanceAdjustmentService()
 

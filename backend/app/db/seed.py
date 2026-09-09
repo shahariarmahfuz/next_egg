@@ -98,6 +98,7 @@ DEFAULT_PERMISSIONS = [
     {"code": "supplier.edit", "name": "Edit Suppliers", "module": "supplier", "description": "Modify supplier information"},
     {"code": "supplier.delete", "name": "Delete Suppliers", "module": "supplier", "description": "Remove supplier records"},
     {"code": "supplier.balance.adjust", "name": "Set Supplier Balance", "module": "supplier", "description": "Set supplier current balance directly"},
+    {"code": "supplier.balance.adjustment.delete", "name": "Delete Supplier Balance Adjustment History", "module": "supplier", "description": "Delete supplier balance adjustment history records"},
 
     # Supplier Payment module
     {"code": "supplier_payment.view", "name": "View Supplier Payments", "module": "supplier_payment", "description": "View supplier payment vouchers and list"},
@@ -248,9 +249,10 @@ async def seed_initial_data(db: AsyncSession) -> None:
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
 
-    # Admin gets all perms EXCEPT customer balance adjustment delete and farm delete permissions by default
+    # Admin gets all perms EXCEPT customer/supplier balance adjustment delete and farm delete permissions by default
     admin_restricted_perm_codes = {
         "customer.balance.adjustment.delete",
+        "supplier.balance.adjustment.delete",
         "farm.delete",
         "farm.production.delete",
         "farm.delivery.delete",
