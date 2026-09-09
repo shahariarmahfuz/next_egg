@@ -14,6 +14,7 @@ import {
   UserCheck,
   ChevronsUpDown,
   AlertTriangle,
+  AlertCircle,
   FileText,
   DollarSign
 } from "lucide-react";
@@ -107,7 +108,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
   });
 
   const watchedAmount = watch("amount") || 0;
-  const currentBalance = financialSummary?.current_due ?? (initialData?.customer?.current_balance || 0);
+  const currentBalance = financialSummary?.current_due ?? selectedCustomer?.current_balance ?? (initialData?.customer?.current_balance || 0);
   // Using signed balance: if currentBalance is positive, we collect up to that as due.
   // The new balance after collection will be: currentBalance - watchedAmount.
   // If resulting balance is negative, it represents an advance.
@@ -263,76 +264,6 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
         </CardContent>
       </Card>
 
-      {/* Customer Financial Summary */}
-      {selectedCustomer && (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-            Customer Financial Dues Summary
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="glass-card border-amber-500/30 bg-amber-500/5">
-              <CardContent className="p-4">
-                <span className="text-xs text-amber-600 font-semibold block mb-1">Current Balance</span>
-                {isSummaryLoading ? (
-                  <Skeleton className="h-7 w-24" />
-                ) : (
-                  <span className={`text-2xl font-extrabold ${
-                    (financialSummary?.current_due ?? 0) > 0 ? "text-amber-500" :
-                    (financialSummary?.current_due ?? 0) < 0 ? "text-blue-500" : "text-emerald-500"
-                  }`}>
-                    {(financialSummary?.current_due ?? 0) < 0 && "-"}
-                    {formatCurrency(Math.abs(financialSummary?.current_due ?? 0))}
-                  </span>
-                )}
-                {/* Status indicator text */}
-                {!isSummaryLoading && (financialSummary?.current_due ?? 0) > 0 && <span className="text-xs text-amber-600 block mt-1 font-medium">Due</span>}
-                {!isSummaryLoading && (financialSummary?.current_due ?? 0) < 0 && <span className="text-xs text-blue-600 block mt-1 font-medium">Advance</span>}
-                {!isSummaryLoading && (financialSummary?.current_due ?? 0) === 0 && <span className="text-xs text-emerald-600 block mt-1 font-medium">Paid</span>}
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card">
-              <CardContent className="p-4">
-                <span className="text-xs text-muted-foreground font-semibold block mb-1">Total Sales</span>
-                {isSummaryLoading ? (
-                  <Skeleton className="h-7 w-24" />
-                ) : (
-                  <span className="text-2xl font-extrabold text-foreground">
-                    {formatCurrency(financialSummary?.total_sales)}
-                  </span>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
-              <CardContent className="p-4">
-                <span className="text-xs text-emerald-600 font-semibold block mb-1">Total Paid</span>
-                {isSummaryLoading ? (
-                  <Skeleton className="h-7 w-24" />
-                ) : (
-                  <span className="text-2xl font-extrabold text-emerald-500">
-                    {formatCurrency(financialSummary?.total_paid)}
-                  </span>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card">
-              <CardContent className="p-4">
-                <span className="text-xs text-muted-foreground font-semibold block mb-1">Remaining Due</span>
-                {isSummaryLoading ? (
-                  <Skeleton className="h-7 w-24" />
-                ) : (
-                  <span className="text-2xl font-extrabold text-foreground">
-                    {formatCurrency(financialSummary?.remaining_due)}
-                  </span>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
-
       {/* Payment Details Card */}
       <Card className="glass-card w-full">
         <CardHeader className="pb-3 border-b">
@@ -341,6 +272,67 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
+          {/* Compact Current Balance Row */}
+          <div
+            className={cn(
+              "py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-lg border flex items-center justify-between gap-3 transition-colors",
+              selectedCustomer
+                ? currentBalance > 0
+                  ? "bg-amber-500/5 border-amber-500/20 dark:bg-amber-500/10 dark:border-amber-500/30"
+                  : currentBalance < 0
+                  ? "bg-blue-500/5 border-blue-500/20 dark:bg-blue-500/10 dark:border-blue-500/30"
+                  : "bg-emerald-500/5 border-emerald-500/20 dark:bg-emerald-500/10 dark:border-emerald-500/30"
+                : "bg-muted/30 border-border/60"
+            )}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle
+                className={cn(
+                  "h-4 w-4 shrink-0",
+                  selectedCustomer
+                    ? currentBalance > 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : currentBalance < 0
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                    : "text-muted-foreground"
+                )}
+              />
+              <span className="text-xs sm:text-sm font-semibold text-foreground">Current Balance</span>
+            </div>
+
+            {isSummaryLoading && !selectedCustomer ? (
+              <Skeleton className="h-5 w-20" />
+            ) : (
+              <div className="text-right leading-tight">
+                <span className="text-sm sm:text-base font-bold text-foreground block">
+                  {selectedCustomer
+                    ? currentBalance < 0
+                      ? `-${formatCurrency(Math.abs(currentBalance))}`
+                      : formatCurrency(currentBalance)
+                    : formatCurrency(0)}
+                </span>
+                {selectedCustomer && (
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold block",
+                      currentBalance > 0
+                        ? "text-amber-600 dark:text-amber-400"
+                        : currentBalance < 0
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    )}
+                  >
+                    {currentBalance > 0
+                      ? "Due"
+                      : currentBalance < 0
+                      ? "Advance Balance"
+                      : "Settled (No Due)"}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">

@@ -286,12 +286,12 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
         </CardContent>
       </Card>
 
-      {/* 2. Payment Entry & Details Card */}
+      {/* 3. Payment Entry & Details Card */}
       <Card className="glass-card w-full max-w-full">
         <CardHeader className="p-3.5 sm:p-6 pb-2 sm:pb-3">
           <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2">
             <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500 shrink-0" />
-            <span>Payment Entry & Details</span>
+            <span>3. Payment Entry & Details</span>
           </CardTitle>
           <CardDescription className="text-xs">
             Enter payment amount, payment method, and transaction details.
@@ -301,14 +301,14 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
           {/* Integrated Compact Current Due */}
           <div
             className={cn(
-              "p-3 sm:p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-colors",
+              "py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-lg border flex items-center justify-between gap-3 transition-colors",
               selectedSupplierId
                 ? currentDue > 0
-                  ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
+                  ? "bg-amber-500/5 border-amber-500/20 dark:bg-amber-500/10 dark:border-amber-500/30"
                   : currentDue < 0
-                  ? "bg-blue-500/10 border-blue-500/30 text-blue-900 dark:text-blue-200"
-                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200"
-                : "bg-muted/40 border-border text-muted-foreground"
+                  ? "bg-blue-500/5 border-blue-500/20 dark:bg-blue-500/10 dark:border-blue-500/30"
+                  : "bg-emerald-500/5 border-emerald-500/20 dark:bg-emerald-500/10 dark:border-emerald-500/30"
+                : "bg-muted/30 border-border/60"
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -317,45 +317,43 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
                   "h-4 w-4 shrink-0",
                   selectedSupplierId
                     ? currentDue > 0
-                      ? "text-amber-500"
+                      ? "text-amber-600 dark:text-amber-400"
                       : currentDue < 0
-                      ? "text-blue-500"
-                      : "text-emerald-500"
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-emerald-600 dark:text-emerald-400"
                     : "text-muted-foreground"
                 )}
               />
-              <span className="text-xs sm:text-sm font-semibold">Current Due</span>
+              <span className="text-xs sm:text-sm font-semibold text-foreground">Current Due</span>
             </div>
 
             {isSummaryLoading && !selectedSupplier ? (
-              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-5 w-20" />
             ) : (
-              <div className="text-right">
-                <span
-                  className={cn(
-                    "text-sm sm:text-base font-bold tracking-tight",
-                    selectedSupplierId
-                      ? currentDue > 0
+              <div className="text-right leading-tight">
+                <span className="text-sm sm:text-base font-bold text-foreground block">
+                  {selectedSupplierId
+                    ? currentDue < 0
+                      ? `-${formatCurrency(Math.abs(currentDue))}`
+                      : formatCurrency(currentDue)
+                    : formatCurrency(0)}
+                </span>
+                {selectedSupplierId && (
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold block",
+                      currentDue > 0
                         ? "text-amber-600 dark:text-amber-400"
                         : currentDue < 0
                         ? "text-blue-600 dark:text-blue-400"
                         : "text-emerald-600 dark:text-emerald-400"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  {selectedSupplierId
-                    ? currentDue < 0
-                      ? `- ${formatCurrency(Math.abs(currentDue))}`
-                      : formatCurrency(currentDue)
-                    : "৳ 0.00"}
-                </span>
-                {selectedSupplierId && (
-                  <span className="text-[10px] sm:text-xs block font-medium opacity-80">
+                    )}
+                  >
                     {currentDue > 0
                       ? "Outstanding Due"
                       : currentDue < 0
                       ? "Advance Balance"
-                      : "No Due (Settled)"}
+                      : "Settled (No Due)"}
                   </span>
                 )}
               </div>
