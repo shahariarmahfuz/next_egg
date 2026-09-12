@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
+import { calculateLineTotal, roundToPrecision } from "@/utils/price";
 
 interface LineItemState {
   product: ProductItem;
@@ -128,9 +129,9 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
   const customerSuggestions = customerSearchData?.data?.items || [];
   const productSuggestions = productSearchData?.data?.items || [];
 
-  const calculateLineTotal = (qty: number, price: number, disc: number) => {
+  const calculateLineTotal = (qty: number, price: number, disc: number = 0) => {
     const total = qty * price - disc;
-    return total > 0 ? total : 0;
+    return total > 0 ? roundToPrecision(total, 4) : 0;
   };
 
   const handleSelectProduct = (product: ProductItem) => {
@@ -150,7 +151,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       const newItem: LineItemState = {
         product,
         quantity: 1,
-        unit_price: product.selling_price,
+        unit_price: roundToPrecision(product.selling_price, 4),
         discount: 0,
         total_price: calculateLineTotal(1, product.selling_price, 0),
       };
@@ -168,9 +169,9 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
     if (field === "quantity") {
       item.quantity = value <= 0 ? 1 : value;
     } else if (field === "unit_price") {
-      item.unit_price = value < 0 ? 0 : value;
+      item.unit_price = value < 0 ? 0 : roundToPrecision(value, 4);
     } else if (field === "discount") {
-      item.discount = value < 0 ? 0 : value;
+      item.discount = value < 0 ? 0 : roundToPrecision(value, 4);
     }
 
     item.total_price = calculateLineTotal(item.quantity, item.unit_price, item.discount);
@@ -182,9 +183,9 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  const subtotal = lineItems.reduce((sum, item) => sum + item.total_price, 0);
-  const grandTotal = Math.max(0, subtotal - orderDiscount + taxAmount);
-  const dueAmount = Math.max(0, grandTotal - paidAmount);
+  const subtotal = roundToPrecision(lineItems.reduce((sum, item) => sum + item.total_price, 0), 4);
+  const grandTotal = Math.max(0, roundToPrecision(subtotal - orderDiscount + taxAmount, 4));
+  const dueAmount = Math.max(0, roundToPrecision(grandTotal - paidAmount, 4));
 
   const updateSaleMutation = useMutation({
     mutationFn: (payload: SaleUpdatePayload) => saleService.updateSale(id, payload),
@@ -209,16 +210,16 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       const payload: SaleUpdatePayload = {
         customer_id: selectedCustomer?.id || sale?.customer_id,
         sale_date: saleDate ? new Date(saleDate).toISOString() : undefined,
-        discount_amount: orderDiscount,
-        tax_amount: taxAmount,
-        paid_amount: paidAmount,
+        discount_amount: roundToPrecision(orderDiscount, 4),
+        tax_amount: roundToPrecision(taxAmount, 4),
+        paid_amount: roundToPrecision(paidAmount, 4),
         notes: notes.trim(),
         note: notes.trim(),
         items: lineItems.map((item) => ({
           product_id: item.product.id,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          discount: item.discount,
+          unit_price: roundToPrecision(item.unit_price, 4),
+          discount: roundToPrecision(item.discount, 4),
         })),
       };
 
@@ -417,7 +418,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                         <td className="p-3 text-center">
                           <Input
                             type="number"
-                            step="1"
+                            step="any"
                             min="1"
                             value={item.quantity}
                             onChange={(e) => handleUpdateItem(idx, "quantity", parseFloat(e.target.value) || 0)}
@@ -427,7 +428,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                         <td className="p-3 text-center">
                           <Input
                             type="number"
-                            step="0.01"
+                            step="any"
                             min="0"
                             value={item.unit_price}
                             onChange={(e) => handleUpdateItem(idx, "unit_price", parseFloat(e.target.value) || 0)}
@@ -437,7 +438,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                         <td className="p-3 text-center">
                           <Input
                             type="number"
-                            step="0.01"
+                            step="any"
                             min="0"
                             value={item.discount}
                             onChange={(e) => handleUpdateItem(idx, "discount", parseFloat(e.target.value) || 0)}
@@ -481,7 +482,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                   <span className="text-muted-foreground">Order Discount ($):</span>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={orderDiscount}
                     onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)}
@@ -498,7 +499,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                   <span className="font-semibold text-foreground">Paid Amount ($):</span>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}

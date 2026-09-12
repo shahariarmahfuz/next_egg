@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/command";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
+import { calculateLineTotal, calculateUnitPrice, roundToPrecision } from "@/utils/price";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -124,8 +125,8 @@ export function PurchaseForm({
         return {
           product: prod as ProductItem,
           quantity: qty,
-          unit_price: price,
-          total_price: Number((qty * price).toFixed(2)),
+          unit_price: roundToPrecision(price, 4),
+          total_price: calculateLineTotal(qty, price),
         };
       });
     }
@@ -173,10 +174,7 @@ export function PurchaseForm({
   }, [suppliers, selectedSupplier]);
 
   // Line Item Calculations
-  const calculateLineTotal = (qty: number, price: number) => {
-    const total = qty * price;
-    return total > 0 ? Number(total.toFixed(2)) : 0;
-  };
+  // Using shared calculateLineTotal from @/utils/price
 
   // Add Product to Purchase Line Items
   const handleSelectProduct = (product: ProductItem) => {
@@ -202,7 +200,7 @@ export function PurchaseForm({
       const newItem: LineItemState = {
         product,
         quantity: 1,
-        unit_price: unitPrice,
+        unit_price: roundToPrecision(unitPrice, 4),
         total_price: calculateLineTotal(1, unitPrice),
       };
       setLineItems([...lineItems, newItem]);
@@ -232,19 +230,19 @@ export function PurchaseForm({
 
       // Rule A: If Quantity changes: Unit Price stays the same. Total Price = Quantity * Unit Price
       if (value > 0) {
-        item.total_price = Number((item.quantity * item.unit_price).toFixed(2));
+        item.total_price = calculateLineTotal(item.quantity, item.unit_price);
       }
     } else if (field === "unit_price") {
-      item.unit_price = value < 0 ? 0 : value;
+      item.unit_price = value < 0 ? 0 : roundToPrecision(value, 4);
       // Rule B: If Unit Price changes: Quantity stays the same. Total Price = Quantity * Unit Price
       if (item.quantity > 0) {
-        item.total_price = Number((item.quantity * item.unit_price).toFixed(2));
+        item.total_price = calculateLineTotal(item.quantity, item.unit_price);
       }
     } else if (field === "total_price") {
-      item.total_price = value < 0 ? 0 : value;
+      item.total_price = value < 0 ? 0 : roundToPrecision(value, 4);
       // Rule C: If Total Price changes manually: Quantity stays the same. Unit Price = Total Price / Quantity
       if (item.quantity > 0) {
-        item.unit_price = item.total_price / item.quantity;
+        item.unit_price = calculateUnitPrice(item.total_price, item.quantity);
       } else {
         item.error = "Quantity must be greater than zero to set total price";
       }
@@ -260,10 +258,10 @@ export function PurchaseForm({
   };
 
   // Real-time Summary Calculations
-  const subtotal = lineItems.reduce((sum, item) => sum + item.total_price, 0);
-  const grandTotal = Math.max(0, subtotal - discountAmount + taxAmount);
-  const remainingDue = Math.max(0, grandTotal - paidAmount);
-  const projectedSupplierPayable = (selectedSupplier?.current_balance || 0) + remainingDue;
+  const subtotal = roundToPrecision(lineItems.reduce((sum, item) => sum + item.total_price, 0), 4);
+  const grandTotal = Math.max(0, roundToPrecision(subtotal - discountAmount + taxAmount, 4));
+  const remainingDue = Math.max(0, roundToPrecision(grandTotal - paidAmount, 4));
+  const projectedSupplierPayable = roundToPrecision((selectedSupplier?.current_balance || 0) + remainingDue, 4);
 
   // Form Submission Handler
   const handleSubmit = async () => {
@@ -293,14 +291,14 @@ export function PurchaseForm({
       purchase_no: isEdit ? initialData?.purchase_no : undefined,
       invoice_no: customInvoiceNo.trim() || undefined,
       purchase_date: purchaseDate ? new Date(purchaseDate).toISOString() : new Date().toISOString(),
-      discount_amount: discountAmount,
-      tax_amount: taxAmount,
-      paid_amount: paidAmount,
+      discount_amount: roundToPrecision(discountAmount, 4),
+      tax_amount: roundToPrecision(taxAmount, 4),
+      paid_amount: roundToPrecision(paidAmount, 4),
       notes: isEdit ? notes.trim() : (notes.trim() || undefined),
       items: lineItems.map((item) => ({
         product_id: item.product.id,
         quantity: item.quantity,
-        unit_price: Number(item.unit_price.toFixed(4)),
+        unit_price: roundToPrecision(item.unit_price, 4),
         discount: 0,
       })),
     };
@@ -614,17 +612,18 @@ export function PurchaseForm({
                           <Input
                             type="number"
                             min="1"
+                            step="any"
                             value={item.quantity}
-                            onChange={(e) => handleUpdateItem(idx, "quantity", parseInt(e.target.value) || 0)}
+                            onChange={(e) => handleUpdateItem(idx, "quantity", parseFloat(e.target.value) || 0)}
                             className="h-8 text-xs font-bold w-20"
                           />
                         </td>
                         <td className="px-3.5 py-3 align-top">
                           <Input
                             type="number"
-                            step="0.01"
+                            step="any"
                             min="0"
-                            value={Number(item.unit_price.toFixed(4))}
+                            value={item.unit_price}
                             onChange={(e) => handleUpdateItem(idx, "unit_price", parseFloat(e.target.value) || 0)}
                             className="h-8 text-xs font-bold w-24"
                           />
@@ -632,7 +631,7 @@ export function PurchaseForm({
                         <td className="px-3.5 py-3 align-top">
                           <Input
                             type="number"
-                            step="0.01"
+                            step="any"
                             min="0"
                             value={item.total_price}
                             onChange={(e) => handleUpdateItem(idx, "total_price", parseFloat(e.target.value) || 0)}
@@ -681,7 +680,7 @@ export function PurchaseForm({
                   <span className="text-muted-foreground">Overall Discount ($):</span>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
@@ -693,7 +692,7 @@ export function PurchaseForm({
                   <span className="text-muted-foreground">Tax Amount ($):</span>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={taxAmount}
                     onChange={(e) => setTaxAmount(parseFloat(e.target.value) || 0)}
@@ -713,7 +712,7 @@ export function PurchaseForm({
                   <span className="font-semibold text-foreground">Paid Amount ($):</span>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
