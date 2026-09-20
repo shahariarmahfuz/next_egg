@@ -1,5 +1,5 @@
 from typing import List
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,6 +29,9 @@ class DashboardService:
         from app.core.datetime_utils import normalize_date_range
         from app.models.customer_collection import CustomerCollection
         from app.models.supplier_payment import SupplierPayment
+        from app.models.sale_return import SaleReturn
+        from app.models.product_return import ProductReturn
+        from app.models.balance_adjustment import BalanceAdjustment
         from app.models.sale import SaleItem
 
         settings = await setting_service.get_business_settings(db)
@@ -90,33 +93,99 @@ class DashboardService:
         res_expenses = await db.execute(q_expenses)
         total_expenses = float(res_expenses.scalar() or 0.0)
 
-        # 8. Customer Due (Today's net outstanding receivables: today's sale due minus today's customer collections)
-        q_cust_col = select(func.coalesce(func.sum(CustomerCollection.amount), 0.0))
-        if start_date:
-            q_cust_col = q_cust_col.where(CustomerCollection.collection_date >= start_date)
-        if end_date:
-            q_cust_col = q_cust_col.where(CustomerCollection.collection_date <= end_date)
-        res_cust_col = await db.execute(q_cust_col)
-        today_collections = float(res_cust_col.scalar() or 0.0)
-        customer_due = round(max(0.0, total_due_sales - today_collections), 2)
+        # 8. Customer Due: Outstanding customer balance as of end_date (balance-sheet snapshot)
+        # Calculates outstanding receivables as of the selected end_date across all customers.
+        # If end_date is in the past, rolls back transactions created after end_date from authoritative current_balance.
+        # If end_date is today/future, transactions after end_date are 0, directly matching live current_balance.
+        q_cust_after_sales = (
+            select(Sale.customer_id, func.coalesce(func.sum(Sale.due_amount), 0.0).label("net_sales_due"))
+            .where(Sale.sale_date > end_date)
+            .group_by(Sale.customer_id)
+            .subquery()
+        )
+        q_cust_after_cols = (
+            select(CustomerCollection.customer_id, func.coalesce(func.sum(CustomerCollection.amount), 0.0).label("total_collected"))
+            .where(CustomerCollection.collection_date > end_date)
+            .group_by(CustomerCollection.customer_id)
+            .subquery()
+        )
+        q_cust_after_rets = (
+            select(SaleReturn.customer_id, func.coalesce(func.sum(SaleReturn.grand_total), 0.0).label("total_returned"))
+            .where(SaleReturn.return_date > end_date)
+            .group_by(SaleReturn.customer_id)
+            .subquery()
+        )
+        q_cust_after_adjs = (
+            select(BalanceAdjustment.entity_id.label("customer_id"), func.coalesce(func.sum(BalanceAdjustment.difference), 0.0).label("total_adj"))
+            .where(BalanceAdjustment.entity_type == "customer", BalanceAdjustment.effective_date > end_date)
+            .group_by(BalanceAdjustment.entity_id)
+            .subquery()
+        )
 
-        # 9. Supplier Due (Today's net outstanding payables: today's purchase due minus today's supplier payments)
-        q_supp_due_raw = select(func.coalesce(func.sum(Purchase.due_amount), 0.0))
-        if start_date:
-            q_supp_due_raw = q_supp_due_raw.where(Purchase.purchase_date >= start_date)
-        if end_date:
-            q_supp_due_raw = q_supp_due_raw.where(Purchase.purchase_date <= end_date)
-        res_supp_due_raw = await db.execute(q_supp_due_raw)
-        today_purchase_due = float(res_supp_due_raw.scalar() or 0.0)
+        cust_bal_expr = (
+            Customer.current_balance
+            - func.coalesce(q_cust_after_sales.c.net_sales_due, 0.0)
+            + func.coalesce(q_cust_after_cols.c.total_collected, 0.0)
+            + func.coalesce(q_cust_after_rets.c.total_returned, 0.0)
+            - func.coalesce(q_cust_after_adjs.c.total_adj, 0.0)
+        )
 
-        q_supp_pay = select(func.coalesce(func.sum(SupplierPayment.amount), 0.0))
-        if start_date:
-            q_supp_pay = q_supp_pay.where(SupplierPayment.payment_date >= start_date)
-        if end_date:
-            q_supp_pay = q_supp_pay.where(SupplierPayment.payment_date <= end_date)
-        res_supp_pay = await db.execute(q_supp_pay)
-        today_supp_payments = float(res_supp_pay.scalar() or 0.0)
-        supplier_due = round(max(0.0, today_purchase_due - today_supp_payments), 2)
+        q_customer_due = (
+            select(func.coalesce(func.sum(case((cust_bal_expr > 0, cust_bal_expr), else_=0.0)), 0.0))
+            .outerjoin(q_cust_after_sales, Customer.id == q_cust_after_sales.c.customer_id)
+            .outerjoin(q_cust_after_cols, Customer.id == q_cust_after_cols.c.customer_id)
+            .outerjoin(q_cust_after_rets, Customer.id == q_cust_after_rets.c.customer_id)
+            .outerjoin(q_cust_after_adjs, Customer.id == q_cust_after_adjs.c.customer_id)
+        )
+        res_customer_due = await db.execute(q_customer_due)
+        customer_due = round(float(res_customer_due.scalar() or 0.0), 2)
+
+        # 9. Supplier Due: Outstanding supplier payable balance as of end_date (balance-sheet snapshot)
+        # Calculates outstanding payables as of the selected end_date across all suppliers.
+        # If end_date is in the past, rolls back transactions created after end_date from authoritative current_balance.
+        # If end_date is today/future, transactions after end_date are 0, directly matching live current_balance.
+        q_supp_after_purch = (
+            select(Purchase.supplier_id, func.coalesce(func.sum(Purchase.due_amount), 0.0).label("net_purch_due"))
+            .where(Purchase.purchase_date > end_date)
+            .group_by(Purchase.supplier_id)
+            .subquery()
+        )
+        q_supp_after_pays = (
+            select(SupplierPayment.supplier_id, func.coalesce(func.sum(SupplierPayment.amount), 0.0).label("total_paid"))
+            .where(SupplierPayment.payment_date > end_date)
+            .group_by(SupplierPayment.supplier_id)
+            .subquery()
+        )
+        q_supp_after_rets = (
+            select(ProductReturn.supplier_id, func.coalesce(func.sum(ProductReturn.grand_total - ProductReturn.refund_received), 0.0).label("net_returned"))
+            .where(ProductReturn.return_date > end_date)
+            .group_by(ProductReturn.supplier_id)
+            .subquery()
+        )
+        q_supp_after_adjs = (
+            select(BalanceAdjustment.entity_id.label("supplier_id"), func.coalesce(func.sum(BalanceAdjustment.difference), 0.0).label("total_adj"))
+            .where(BalanceAdjustment.entity_type == "supplier", BalanceAdjustment.effective_date > end_date)
+            .group_by(BalanceAdjustment.entity_id)
+            .subquery()
+        )
+
+        supp_bal_expr = (
+            Supplier.current_balance
+            - func.coalesce(q_supp_after_purch.c.net_purch_due, 0.0)
+            + func.coalesce(q_supp_after_pays.c.total_paid, 0.0)
+            + func.coalesce(q_supp_after_rets.c.net_returned, 0.0)
+            - func.coalesce(q_supp_after_adjs.c.total_adj, 0.0)
+        )
+
+        q_supplier_due = (
+            select(func.coalesce(func.sum(case((supp_bal_expr > 0, supp_bal_expr), else_=0.0)), 0.0))
+            .outerjoin(q_supp_after_purch, Supplier.id == q_supp_after_purch.c.supplier_id)
+            .outerjoin(q_supp_after_pays, Supplier.id == q_supp_after_pays.c.supplier_id)
+            .outerjoin(q_supp_after_rets, Supplier.id == q_supp_after_rets.c.supplier_id)
+            .outerjoin(q_supp_after_adjs, Supplier.id == q_supp_after_adjs.c.supplier_id)
+        )
+        res_supplier_due = await db.execute(q_supplier_due)
+        supplier_due = round(float(res_supplier_due.scalar() or 0.0), 2)
 
         # 10. Total Units Sold (Total units sold in current business date)
         q_units = select(func.coalesce(func.sum(SaleItem.quantity), 0.0)).join(Sale)
