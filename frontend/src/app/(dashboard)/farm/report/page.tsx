@@ -47,6 +47,12 @@ export default function ProductionDeliveryReportPage() {
   const [farms, setFarms] = useState<FarmBalanceItem[]>([]);
   const [productions, setProductions] = useState<FarmProductionItem[]>([]);
   const [deliveries, setDeliveries] = useState<FarmDeliveryItem[]>([]);
+  const [kpis, setKpis] = useState({
+    previousLeftTray: 0,
+    production: 0,
+    delivery: 0,
+    leftTray: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
@@ -65,7 +71,7 @@ export default function ProductionDeliveryReportPage() {
     setLoading(true);
     try {
       const cleanFarmId = farmId && farmId !== "all" ? farmId.trim() : undefined;
-      const [prodRes, delivRes] = await Promise.all([
+      const [prodRes, delivRes, reportRes] = await Promise.all([
         farmService.getProductions({
           start_date: date,
           end_date: date,
@@ -77,6 +83,11 @@ export default function ProductionDeliveryReportPage() {
           end_date: date,
           farm_id: cleanFarmId,
           size: 500,
+        }),
+        farmService.getFarmReport({
+          start_date: date,
+          end_date: date,
+          farm_id: cleanFarmId,
         }),
       ]);
 
@@ -91,12 +102,35 @@ export default function ProductionDeliveryReportPage() {
       } else {
         setDeliveries([]);
       }
+
+      if (reportRes?.success && reportRes?.data?.kpis) {
+        const k = reportRes.data.kpis;
+        setKpis({
+          previousLeftTray: k.previous_left_tray ?? k.total_previous_trays ?? 0,
+          production: k.total_production ?? 0,
+          delivery: k.total_delivered ?? 0,
+          leftTray: k.left_tray ?? k.total_available_trays ?? 0,
+        });
+      } else {
+        setKpis({
+          previousLeftTray: 0,
+          production: 0,
+          delivery: 0,
+          leftTray: 0,
+        });
+      }
     } catch (err: any) {
       console.error("Failed to load report data:", err);
       const errorMsg = err?.message || "Failed to load report data";
       toast.error(errorMsg);
       setProductions([]);
       setDeliveries([]);
+      setKpis({
+        previousLeftTray: 0,
+        production: 0,
+        delivery: 0,
+        leftTray: 0,
+      });
     } finally {
       setLoading(false);
     }
@@ -106,15 +140,8 @@ export default function ProductionDeliveryReportPage() {
     fetchReportData(selectedDate, selectedFarmId);
   }, [selectedDate, selectedFarmId]);
 
-  const totalProduction = productions.reduce(
-    (sum, p) => sum + Number(p.tray_quantity || 0),
-    0
-  );
-
-  const totalDelivery = deliveries.reduce(
-    (sum, d) => sum + Number(d.tray_quantity || 0),
-    0
-  );
+  const totalProduction = kpis.production;
+  const totalDelivery = kpis.delivery;
 
   return (
     <HasPermission
@@ -234,21 +261,72 @@ export default function ProductionDeliveryReportPage() {
                 Refresh
               </Button>
             </div>
-
-            {/* Quick Summary Badges */}
-            <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-3">
-              <div className="bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold border border-amber-500/20 text-center sm:text-left">
-                <span className="text-muted-foreground block xs:inline sm:inline">Prod: </span>
-                <span className="font-bold font-mono">{totalProduction.toLocaleString()}</span> Trays
-              </div>
-              <div className="bg-blue-500/10 text-blue-700 dark:text-blue-400 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold border border-blue-500/20 text-center sm:text-left">
-                <span className="text-muted-foreground block xs:inline sm:inline">Deliv: </span>
-                <span className="font-bold font-mono">{totalDelivery.toLocaleString()}</span> Trays
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Daily Tray Summary: 4 KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* 1. Previous Left Tray */}
+        <Card className="border border-border/80 shadow-sm bg-card hover:shadow-md transition-shadow">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="text-[11px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              Previous Left Tray
+            </div>
+            <div className="text-lg sm:text-2xl font-bold font-mono text-foreground">
+              {loading ? <Skeleton className="h-7 w-24" /> : `${kpis.previousLeftTray.toLocaleString()} Trays`}
+            </div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+              Prior balance before {selectedDate}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 2. Today's Production */}
+        <Card className="border border-amber-500/20 shadow-sm bg-amber-500/5 hover:shadow-md transition-shadow">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="text-[11px] sm:text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
+              Today's Production
+            </div>
+            <div className="text-lg sm:text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
+              {loading ? <Skeleton className="h-7 w-24" /> : `+${kpis.production.toLocaleString()} Trays`}
+            </div>
+            <div className="text-[10px] sm:text-xs text-amber-600/70 dark:text-amber-400/70 mt-0.5">
+              Harvest on {selectedDate}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 3. Today's Delivery */}
+        <Card className="border border-blue-500/20 shadow-sm bg-blue-500/5 hover:shadow-md transition-shadow">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="text-[11px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">
+              Today's Delivery
+            </div>
+            <div className="text-lg sm:text-2xl font-bold font-mono text-blue-600 dark:text-blue-400">
+              {loading ? <Skeleton className="h-7 w-24" /> : `-${kpis.delivery.toLocaleString()} Trays`}
+            </div>
+            <div className="text-[10px] sm:text-xs text-blue-600/70 dark:text-blue-400/70 mt-0.5">
+              Dispatched on {selectedDate}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 4. Left Tray */}
+        <Card className="border border-emerald-500/30 shadow-sm bg-emerald-500/10 hover:shadow-md transition-shadow">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="text-[11px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
+              Left Tray
+            </div>
+            <div className="text-lg sm:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+              {loading ? <Skeleton className="h-7 w-24" /> : `${kpis.leftTray.toLocaleString()} Trays`}
+            </div>
+            <div className="text-[10px] sm:text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">
+              Final remaining tray balance
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Main Tables Grid: Production & Delivery */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

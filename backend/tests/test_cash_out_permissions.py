@@ -51,7 +51,7 @@ async def test_cash_out_permissions_matrix_and_rbac_scenarios(async_client: Asyn
         res_role = await async_client.post(
             "/api/v1/roles",
             headers=auth_headers,
-            json={"name": role_name, "code": role_code, "description": f"Test role {role_name}"},
+            json={"name": f"{role_name}_{unique_suffix}", "code": role_code, "description": f"Test role {role_name}"},
         )
         assert res_role.status_code == 201, res_role.text
         role_id = res_role.json()["data"]["id"]

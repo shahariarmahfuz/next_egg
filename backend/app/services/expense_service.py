@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, or_, extract
+from sqlalchemy import func, select, or_, and_, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -265,14 +265,12 @@ class ExpenseService:
         end_date: Optional[datetime] = None,
         page: int = 1,
         page_size: int = 50,
-    ) -> Tuple[List[ExpenseResponse], int]:
-        query = select(Expense).options(
-            selectinload(Expense.category), selectinload(Expense.created_by)
-        )
+    ) -> Tuple[List[ExpenseResponse], int, Dict[str, Any]]:
+        base_conditions = []
 
         if search:
             search_pattern = f"%{search.strip()}%"
-            query = query.where(
+            base_conditions.append(
                 or_(
                     Expense.voucher_no.ilike(search_pattern),
                     Expense.reference_no.ilike(search_pattern),
@@ -281,25 +279,39 @@ class ExpenseService:
             )
 
         if category_id:
-            query = query.where(Expense.category_id == category_id)
+            base_conditions.append(Expense.category_id == category_id)
 
         if payment_method:
-            query = query.where(Expense.payment_method == payment_method)
+            base_conditions.append(Expense.payment_method == payment_method)
 
         if start_date:
-            query = query.where(Expense.expense_date >= start_date)
+            base_conditions.append(Expense.expense_date >= start_date)
 
         if end_date:
             if end_date.hour == 0 and end_date.minute == 0 and end_date.second == 0 and end_date.microsecond == 0:
                 end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-            query = query.where(Expense.expense_date <= end_date)
+            base_conditions.append(Expense.expense_date <= end_date)
 
         # Count total
-        count_query = select(func.count()).select_from(query.subquery())
+        count_query = select(func.count(Expense.id))
+        if base_conditions:
+            count_query = count_query.where(and_(*base_conditions))
         count_res = await db.execute(count_query)
         total_count = count_res.scalar() or 0
 
-        # Order & Paginate
+        # Aggregate sum of all matching expenses across full filtered dataset
+        sum_query = select(func.coalesce(func.sum(Expense.amount), 0.0))
+        if base_conditions:
+            sum_query = sum_query.where(and_(*base_conditions))
+        sum_res = await db.execute(sum_query)
+        total_amount = float(sum_res.scalar() or 0.0)
+
+        # Paginated items
+        query = select(Expense).options(
+            selectinload(Expense.category), selectinload(Expense.created_by)
+        )
+        if base_conditions:
+            query = query.where(and_(*base_conditions))
         query = query.order_by(Expense.expense_date.desc(), Expense.created_at.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)
 
@@ -325,7 +337,11 @@ class ExpenseService:
             for e in expenses
         ]
 
-        return responses, total_count
+        aggregate = {
+            "total_amount": round(total_amount, 2),
+        }
+
+        return responses, total_count, aggregate
 
     async def get_expense(self, db: AsyncSession, expense_id: str) -> ExpenseResponse:
         query = (

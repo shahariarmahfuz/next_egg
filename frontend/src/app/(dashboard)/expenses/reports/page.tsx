@@ -34,8 +34,8 @@ export default function ExpensesReportPage() {
         page_size: 15,
         search: debouncedSearch || undefined,
         payment_method: paymentMethod !== "all" ? paymentMethod : undefined,
-        start_date: startDate ? new Date(startDate).toISOString() : undefined,
-        end_date: endDate ? new Date(endDate).toISOString() : undefined,
+        start_date: startDate ? `${startDate}T00:00:00` : undefined,
+        end_date: endDate ? `${endDate}T23:59:59` : undefined,
       }),
   });
 

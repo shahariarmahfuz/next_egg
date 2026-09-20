@@ -211,10 +211,12 @@ class FarmReportItem(BaseModel):
 
 
 class FarmReportKPIs(BaseModel):
-    total_previous_trays: float
-    total_production: float
-    total_delivered: float
-    total_available_trays: float
+    previous_left_tray: float = 0.0
+    total_production: float = 0.0
+    total_delivered: float = 0.0
+    left_tray: float = 0.0
+    total_previous_trays: float = 0.0
+    total_available_trays: float = 0.0
 
 
 class FarmReportResponse(BaseModel):

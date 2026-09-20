@@ -174,10 +174,12 @@ export interface FarmReportItem {
 }
 
 export interface FarmReportKPIs {
-  total_previous_trays: number;
+  previous_left_tray?: number;
   total_production: number;
   total_delivered: number;
-  total_available_trays: number;
+  left_tray?: number;
+  total_previous_trays?: number;
+  total_available_trays?: number;
 }
 
 export interface FarmReportResponse {

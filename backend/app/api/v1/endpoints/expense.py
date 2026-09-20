@@ -21,6 +21,8 @@ from app.schemas.expense import (
     ExpenseReportSummary,
 )
 from app.services.expense_service import expense_service
+from app.services.setting_service import setting_service
+from app.core.datetime_utils import normalize_date_range
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -103,13 +105,17 @@ async def list_expenses(
     current_user: User = Depends(RequirePermission("expense.view")),
 ):
     """Retrieve paginated list of expenses with filters."""
-    items, total = await expense_service.list_expenses(
+    settings = await setting_service.get_business_settings(db)
+    tz_str = settings.timezone or "UTC"
+    norm_start, norm_end = normalize_date_range(start_date, end_date, tz_str=tz_str, default_to_today=False)
+
+    items, total, aggregate = await expense_service.list_expenses(
         db,
         search=search,
         category_id=category_id,
         payment_method=payment_method,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=norm_start,
+        end_date=norm_end,
         page=page,
         page_size=page_size,
     )
@@ -121,6 +127,7 @@ async def list_expenses(
         page=page,
         size=page_size,
         pages=pages,
+        aggregate=aggregate,
     )
 
     return ResponseModel[PaginatedResponse[ExpenseResponse]](

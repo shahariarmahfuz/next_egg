@@ -503,32 +503,58 @@ class FarmRepository:
         sorted_items = sorted(date_farm_groups.values(), key=lambda x: (x["date"], x["farm_name"]), reverse=True)
 
         # Global KPIs:
-        total_prev = 0.0
-        if farm_id:
-            f = await self.get_farm_by_id(db, farm_id)
+        # 1. Opening balance:
+        opening_tray = 0.0
+        if clean_farm_id:
+            f = await self.get_farm_by_id(db, clean_farm_id)
             if f:
-                total_prev = float(f.previous_tray or 0.0)
+                opening_tray = float(f.previous_tray or 0.0)
         else:
             farms = await self.get_all_farms(db)
-            total_prev = sum(float(f.previous_tray or 0.0) for f in farms)
+            opening_tray = sum(float(f.previous_tray or 0.0) for f in farms)
 
+        # 2. Previous Left Tray:
+        # Final Left Tray balance immediately before the selected business date (date < start_date)
+        previous_left_tray = opening_tray
+        if start_date:
+            prior_entry_prod_query = select(func.coalesce(func.sum(FarmEntry.production_trays), 0.0)).where(
+                FarmEntry.date < start_date
+            )
+            if clean_farm_id:
+                prior_entry_prod_query = prior_entry_prod_query.where(FarmEntry.farm_id == clean_farm_id)
+            prior_entry_prod = float((await db.execute(prior_entry_prod_query)).scalar() or 0.0)
+
+            prior_prod_query = select(func.coalesce(func.sum(FarmProduction.tray_quantity), 0.0)).where(
+                FarmProduction.production_date < start_date
+            )
+            if clean_farm_id:
+                prior_prod_query = prior_prod_query.where(FarmProduction.farm_id == clean_farm_id)
+            prior_prod = float((await db.execute(prior_prod_query)).scalar() or 0.0)
+
+            prior_deliv_query = select(func.coalesce(func.sum(FarmDelivery.tray_quantity), 0.0)).where(
+                FarmDelivery.delivery_date < start_date
+            )
+            if clean_farm_id:
+                prior_deliv_query = prior_deliv_query.where(FarmDelivery.farm_id == clean_farm_id)
+            prior_deliv = float((await db.execute(prior_deliv_query)).scalar() or 0.0)
+
+            previous_left_tray = opening_tray + prior_entry_prod + prior_prod - prior_deliv
+
+        # 3. Selected period production and delivery:
         filtered_prod_total = sum(item["production_trays"] for item in sorted_items)
         filtered_deliv_total = sum(item["delivery_trays"] for item in sorted_items)
 
-        total_available = 0.0
-        if farm_id:
-            bal = await self.get_farm_balance(db, farm_id)
-            total_available = bal["available"]
-        else:
-            all_bals = await self.get_all_farms_with_balances(db)
-            total_available = sum(b["available_tray"] for b in all_bals)
+        # 4. Left Tray = Previous Left Tray + Today's Production - Today's Delivery
+        left_tray = previous_left_tray + filtered_prod_total - filtered_deliv_total
 
         return {
             "kpis": {
-                "total_previous_trays": total_prev,
+                "previous_left_tray": previous_left_tray,
                 "total_production": filtered_prod_total,
                 "total_delivered": filtered_deliv_total,
-                "total_available_trays": total_available,
+                "left_tray": left_tray,
+                "total_previous_trays": previous_left_tray,
+                "total_available_trays": left_tray,
             },
             "items": sorted_items,
         }
