@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +15,10 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  Search,
+  ChevronsUpDown,
+  Tag,
+  Check,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -23,6 +27,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { HasPermission, useAuth } from "@/providers/auth-provider";
 import { expenseService } from "@/services/api";
 import { ExpenseCategory, ExpenseInput } from "@/types";
@@ -35,6 +52,8 @@ export default function AddExpensePage() {
   const todayStr = new Date().toISOString().split("T")[0];
 
   const [categoryId, setCategoryId] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
+  const [openCategoryPopover, setOpenCategoryPopover] = useState(false);
   const [expenseDate, setExpenseDate] = useState(todayStr);
   const [amount, setAmount] = useState<string>("0");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
@@ -51,12 +70,16 @@ export default function AddExpensePage() {
 
   const categories: ExpenseCategory[] = categoriesData?.data || [];
 
-  // Set default category if available
-  useEffect(() => {
-    if (categories.length > 0 && !categoryId) {
-      setCategoryId(categories[0].id);
-    }
-  }, [categories, categoryId]);
+  const selectedCategory = categories.find((c) => c.id === categoryId) || null;
+
+  const filteredCategories = categories.filter((cat) => {
+    if (!categorySearch.trim()) return true;
+    const q = categorySearch.toLowerCase().trim();
+    return (
+      cat.name.toLowerCase().includes(q) ||
+      (cat.description && cat.description.toLowerCase().includes(q))
+    );
+  });
 
   // Handle amount focus selection UX
   const handleAmountFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -169,29 +192,85 @@ export default function AddExpensePage() {
                   {/* Category Selection */}
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>Expense Category</span>
                       <span className="text-rose-500">*</span>
                     </Label>
-                    {isCatLoading ? (
-                      <div className="h-10 w-full bg-muted animate-pulse rounded-md" />
-                    ) : (
-                      <select
-                        value={categoryId}
-                        onChange={(e) => setCategoryId(e.target.value)}
-                        className="w-full h-10 px-3 py-2 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-                        required
-                      >
-                        {categories.length === 0 ? (
-                          <option value="">No active categories found</option>
+                    <Popover open={openCategoryPopover} onOpenChange={setOpenCategoryPopover}>
+                      <PopoverTrigger asChild>
+                        {selectedCategory ? (
+                          /* Selected category card is clickable to reopen selector */
+                          <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 cursor-pointer transition-colors flex items-center justify-between gap-3 text-xs w-full">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Tag className="h-4 w-4 text-primary shrink-0" />
+                              <span className="font-bold text-foreground truncate">{selectedCategory.name}</span>
+                            </div>
+                            <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground opacity-70" />
+                          </div>
                         ) : (
-                          categories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </option>
-                          ))
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openCategoryPopover}
+                            className="w-full justify-between h-10 text-xs font-normal bg-background/50 border-input hover:bg-accent/50"
+                          >
+                            <span className="flex items-center gap-2 text-muted-foreground truncate">
+                              <Search className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                              Select or search expense category...
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
                         )}
-                      </select>
-                    )}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search by category name..."
+                            value={categorySearch}
+                            onValueChange={setCategorySearch}
+                          />
+                          <CommandList>
+                            {isCatLoading ? (
+                              <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Loading categories...
+                              </div>
+                            ) : filteredCategories.length === 0 ? (
+                              <CommandEmpty>No categories found.</CommandEmpty>
+                            ) : (
+                              <CommandGroup>
+                                {filteredCategories.map((cat) => (
+                                  <CommandItem
+                                    key={cat.id}
+                                    value={`${cat.name} ${cat.description || ""} ${cat.id}`}
+                                    onSelect={() => {
+                                      setCategoryId(cat.id);
+                                      setOpenCategoryPopover(false);
+                                      setCategorySearch("");
+                                    }}
+                                    className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs flex items-center justify-between"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                      <span className="font-medium text-foreground truncate">{cat.name}</span>
+                                      {cat.description && (
+                                        <span className="text-[11px] text-muted-foreground truncate">
+                                          — {cat.description}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {cat.id === categoryId && (
+                                      <Check className="h-4 w-4 text-primary shrink-0 ml-2" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Expense Date */}
