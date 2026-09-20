@@ -267,124 +267,124 @@ export default function CashBookPage() {
         </div>
 
         {/* Compact Summary Cards (Section 7) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-2.5 md:gap-3">
           {/* 1. Previous Balance */}
-          <Card className="glass-card p-3 rounded-xl">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground truncate">Previous Balance</span>
-              <div className="h-6 w-6 rounded-md bg-muted flex items-center justify-center">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">Previous Balance</span>
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-muted flex items-center justify-center shrink-0">
+                <Calendar className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-base font-bold text-foreground">
+            <div className="mt-1 md:mt-2">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-foreground truncate block">
                 {formatCurrency(summary?.previous_balance)}
               </span>
             </div>
           </Card>
 
           {/* 2. Today's Cash Received */}
-          <Card className="glass-card p-3 rounded-xl">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground truncate">Today's Received</span>
-              <div className="h-6 w-6 rounded-md bg-emerald-500/10 flex items-center justify-center">
-                <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" />
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">Today's Received</span>
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <ArrowDownLeft className="h-3 w-3 md:h-3.5 md:w-3.5 text-emerald-500" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="mt-1 md:mt-2">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-emerald-600 dark:text-emerald-400 truncate block">
                 +{formatCurrency(summary?.today_cash_received)}
               </span>
             </div>
           </Card>
 
           {/* 3. Today's Cash Expense */}
-          <Card className="glass-card p-3 rounded-xl">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground truncate">Today's Expense</span>
-              <div className="h-6 w-6 rounded-md bg-rose-500/10 flex items-center justify-center">
-                <ArrowUpRight className="h-3.5 w-3.5 text-rose-500" />
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">Today's Expense</span>
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-rose-500/10 flex items-center justify-center shrink-0">
+                <ArrowUpRight className="h-3 w-3 md:h-3.5 md:w-3.5 text-rose-500" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-base font-bold text-rose-600 dark:text-rose-400">
+            <div className="mt-1 md:mt-2">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-rose-600 dark:text-rose-400 truncate block">
                 -{formatCurrency(summary?.today_cash_expense)}
               </span>
             </div>
           </Card>
 
           {/* 4. Today's Cash Out */}
-          <Card className="glass-card p-3 rounded-xl">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground truncate">Today's Cash Out</span>
-              <div className="h-6 w-6 rounded-md bg-purple-500/10 flex items-center justify-center">
-                <ArrowUpRight className="h-3.5 w-3.5 text-purple-500" />
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">Today's Cash Out</span>
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-purple-500/10 flex items-center justify-center shrink-0">
+                <ArrowUpRight className="h-3 w-3 md:h-3.5 md:w-3.5 text-purple-500" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-base font-bold text-purple-600 dark:text-purple-400">
+            <div className="mt-1 md:mt-2">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-purple-600 dark:text-purple-400 truncate block">
                 -{formatCurrency(summary?.today_cash_out || 0)}
               </span>
             </div>
           </Card>
 
-          {/* 4. Cash in Hand (Highlighted) */}
-          <Card className="glass-card p-3 rounded-xl border-emerald-500/30 bg-emerald-500/5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 truncate">
+          {/* 5. Cash in Hand (Highlighted) */}
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl border-emerald-500/30 bg-emerald-500/5 shadow-sm">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 truncate">
                 Cash in Hand
               </span>
-              <div className="h-6 w-6 rounded-md bg-emerald-500/20 flex items-center justify-center">
-                <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <Wallet className="h-3 w-3 md:h-3.5 md:w-3.5 text-emerald-600" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+            <div className="mt-1 md:mt-2">
+              <span className="text-sm sm:text-base md:text-lg font-black text-emerald-700 dark:text-emerald-300 truncate block">
                 {formatCurrency(summary?.cash_in_hand)}
               </span>
             </div>
           </Card>
 
-          {/* 5. Total Cash Received */}
-          <Card className="glass-card p-3 rounded-xl hidden lg:block">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground truncate">Total Received</span>
-              <div className="h-6 w-6 rounded-md bg-blue-500/10 flex items-center justify-center">
-                <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+          {/* 6. Total Cash Received */}
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">Total Received</span>
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-blue-500/10 flex items-center justify-center shrink-0">
+                <TrendingUp className="h-3 w-3 md:h-3.5 md:w-3.5 text-blue-500" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-base font-bold text-blue-600 dark:text-blue-400">
+            <div className="mt-1 md:mt-2">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-blue-600 dark:text-blue-400 truncate block">
                 {formatCurrency(summary?.total_cash_received)}
               </span>
             </div>
           </Card>
 
-          {/* 6. Total Cash Paid */}
-          <Card className="glass-card p-3 rounded-xl hidden lg:block">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground truncate">Total Paid</span>
-              <div className="h-6 w-6 rounded-md bg-amber-500/10 flex items-center justify-center">
-                <TrendingDown className="h-3.5 w-3.5 text-amber-500" />
+          {/* 7. Total Cash Paid */}
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">Total Paid</span>
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-amber-500/10 flex items-center justify-center shrink-0">
+                <TrendingDown className="h-3 w-3 md:h-3.5 md:w-3.5 text-amber-500" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-base font-bold text-amber-600 dark:text-amber-400">
+            <div className="mt-1 md:mt-2">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-amber-600 dark:text-amber-400 truncate block">
                 {formatCurrency(summary?.total_cash_paid)}
               </span>
             </div>
           </Card>
 
-          {/* 7. Closing Cash Balance */}
-          <Card className="glass-card p-3 rounded-xl hidden lg:block">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground truncate">Closing Balance</span>
-              <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
-                <Landmark className="h-3.5 w-3.5 text-primary" />
+          {/* 8. Closing Cash Balance */}
+          <Card className="glass-card p-2 sm:p-2.5 md:p-3 rounded-lg md:rounded-xl">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">Closing Balance</span>
+              <div className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 rounded sm:rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                <Landmark className="h-3 w-3 md:h-3.5 md:w-3.5 text-primary" />
               </div>
             </div>
-            <div className="mt-2">
-              <span className="text-base font-bold text-foreground">
+            <div className="mt-1 md:mt-2">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-foreground truncate block">
                 {formatCurrency(summary?.closing_cash_balance)}
               </span>
             </div>
