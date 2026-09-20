@@ -265,66 +265,74 @@ export default function ProductionDeliveryReportPage() {
         </CardContent>
       </Card>
 
-      {/* Daily Tray Summary: 4 KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* 1. Previous Left Tray */}
-        <Card className="border border-border/80 shadow-sm bg-card hover:shadow-md transition-shadow">
-          <CardContent className="p-3.5 sm:p-4">
-            <div className="text-[11px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Previous Left Tray
-            </div>
-            <div className="text-lg sm:text-2xl font-bold font-mono text-foreground">
-              {loading ? <Skeleton className="h-7 w-24" /> : `${kpis.previousLeftTray.toLocaleString()} Trays`}
-            </div>
-            <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-              Prior balance before {selectedDate}
-            </div>
-          </CardContent>
+      {/* Daily Tray Summary: 4 Compact Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+        {/* 1. Previous Day Tray */}
+        <Card className="border border-border/60 bg-card rounded-xl p-3 sm:p-3.5 shadow-none">
+          <div className="text-[11px] sm:text-xs font-medium text-muted-foreground">
+            Previous Day Tray
+          </div>
+          <div className="mt-1 sm:mt-1.5 text-base sm:text-xl font-bold text-foreground">
+            {loading ? (
+              <Skeleton className="h-6 w-20" />
+            ) : (
+              <>
+                <span>{kpis.previousLeftTray.toLocaleString()}</span>
+                <span className="text-xs sm:text-sm font-normal text-muted-foreground ml-1.5">Trays</span>
+              </>
+            )}
+          </div>
         </Card>
 
         {/* 2. Today's Production */}
-        <Card className="border border-amber-500/20 shadow-sm bg-amber-500/5 hover:shadow-md transition-shadow">
-          <CardContent className="p-3.5 sm:p-4">
-            <div className="text-[11px] sm:text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
-              Today's Production
-            </div>
-            <div className="text-lg sm:text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
-              {loading ? <Skeleton className="h-7 w-24" /> : `+${kpis.production.toLocaleString()} Trays`}
-            </div>
-            <div className="text-[10px] sm:text-xs text-amber-600/70 dark:text-amber-400/70 mt-0.5">
-              Harvest on {selectedDate}
-            </div>
-          </CardContent>
+        <Card className="border border-amber-500/20 bg-amber-500/[0.03] dark:bg-amber-500/[0.06] rounded-xl p-3 sm:p-3.5 shadow-none">
+          <div className="text-[11px] sm:text-xs font-medium text-muted-foreground">
+            Today's Production
+          </div>
+          <div className="mt-1 sm:mt-1.5 text-base sm:text-xl font-bold text-amber-600 dark:text-amber-400">
+            {loading ? (
+              <Skeleton className="h-6 w-20" />
+            ) : (
+              <>
+                <span>{kpis.production.toLocaleString()}</span>
+                <span className="text-xs sm:text-sm font-normal text-amber-600/70 dark:text-amber-400/70 ml-1.5">Trays</span>
+              </>
+            )}
+          </div>
         </Card>
 
         {/* 3. Today's Delivery */}
-        <Card className="border border-blue-500/20 shadow-sm bg-blue-500/5 hover:shadow-md transition-shadow">
-          <CardContent className="p-3.5 sm:p-4">
-            <div className="text-[11px] sm:text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">
-              Today's Delivery
-            </div>
-            <div className="text-lg sm:text-2xl font-bold font-mono text-blue-600 dark:text-blue-400">
-              {loading ? <Skeleton className="h-7 w-24" /> : `-${kpis.delivery.toLocaleString()} Trays`}
-            </div>
-            <div className="text-[10px] sm:text-xs text-blue-600/70 dark:text-blue-400/70 mt-0.5">
-              Dispatched on {selectedDate}
-            </div>
-          </CardContent>
+        <Card className="border border-blue-500/20 bg-blue-500/[0.03] dark:bg-blue-500/[0.06] rounded-xl p-3 sm:p-3.5 shadow-none">
+          <div className="text-[11px] sm:text-xs font-medium text-muted-foreground">
+            Today's Delivery
+          </div>
+          <div className="mt-1 sm:mt-1.5 text-base sm:text-xl font-bold text-blue-600 dark:text-blue-400">
+            {loading ? (
+              <Skeleton className="h-6 w-20" />
+            ) : (
+              <>
+                <span>{kpis.delivery.toLocaleString()}</span>
+                <span className="text-xs sm:text-sm font-normal text-blue-600/70 dark:text-blue-400/70 ml-1.5">Trays</span>
+              </>
+            )}
+          </div>
         </Card>
 
         {/* 4. Left Tray */}
-        <Card className="border border-emerald-500/30 shadow-sm bg-emerald-500/10 hover:shadow-md transition-shadow">
-          <CardContent className="p-3.5 sm:p-4">
-            <div className="text-[11px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
-              Left Tray
-            </div>
-            <div className="text-lg sm:text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
-              {loading ? <Skeleton className="h-7 w-24" /> : `${kpis.leftTray.toLocaleString()} Trays`}
-            </div>
-            <div className="text-[10px] sm:text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">
-              Final remaining tray balance
-            </div>
-          </CardContent>
+        <Card className="border border-emerald-500/25 bg-emerald-500/[0.04] dark:bg-emerald-500/[0.07] rounded-xl p-3 sm:p-3.5 shadow-none">
+          <div className="text-[11px] sm:text-xs font-medium text-muted-foreground">
+            Left Tray
+          </div>
+          <div className="mt-1 sm:mt-1.5 text-base sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">
+            {loading ? (
+              <Skeleton className="h-6 w-20" />
+            ) : (
+              <>
+                <span>{kpis.leftTray.toLocaleString()}</span>
+                <span className="text-xs sm:text-sm font-normal text-emerald-600/70 dark:text-emerald-400/70 ml-1.5">Trays</span>
+              </>
+            )}
+          </div>
         </Card>
       </div>
 
