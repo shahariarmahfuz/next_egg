@@ -12,7 +12,6 @@ from app.models.currency import Currency
 from app.models.customer_collection import CustomerCollection
 from app.models.expense import Expense
 from app.models.sale import Sale
-from app.models.supplier_payment import SupplierPayment
 from app.schemas.cash_book import CashBookItem, CashBookSummary
 from app.services.setting_service import setting_service
 
@@ -168,33 +167,6 @@ class CashBookService:
                 "credit": Decimal("0.00"),
             })
 
-        # D. Supplier Payments (Cash Outflow)
-        q_curr_spay = (
-            select(SupplierPayment)
-            .options(selectinload(SupplierPayment.supplier))
-            .where(
-                SupplierPayment.payment_date >= start_utc,
-                SupplierPayment.payment_date <= end_utc,
-                SupplierPayment.amount > 0,
-                func.lower(func.coalesce(SupplierPayment.payment_method, "cash")) == "cash",
-            )
-        )
-        spay_records = (await db.execute(q_curr_spay)).scalars().all()
-        for sp in spay_records:
-            supp_name = sp.supplier.name if sp.supplier else "Supplier"
-            supp_code = sp.supplier.supplier_code if (sp.supplier and sp.supplier.supplier_code) else (sp.reference_no or "—")
-            raw_transactions.append({
-                "id": f"spay-{sp.id}",
-                "timestamp": sp.payment_date,
-                "description": "Supplier Payment",
-                "code": supp_code,
-                "name": supp_name,
-                "invoice": sp.payment_no,
-                "transaction_type": "supplier_payment",
-                "debit": Decimal(str(sp.amount)),
-                "credit": Decimal("0.00"),
-            })
-
         # 5. Sort transactions chronologically
         raw_transactions.sort(key=lambda item: (item["timestamp"], item["id"]))
 
@@ -203,8 +175,6 @@ class CashBookService:
         running_balance = Decimal("0.00")
         total_credit_dec = Decimal("0.00")
         total_debit_dec = Decimal("0.00")
-        total_expense_dec = Decimal("0.00")
-        total_supplier_paid_dec = Decimal("0.00")
 
         # Opening row for Previous / Opening Balance = 0.00
         start_local_dt = start_utc.astimezone(tz)
@@ -229,12 +199,6 @@ class CashBookService:
             debit_val = tx["debit"]
             total_credit_dec += credit_val
             total_debit_dec += debit_val
-
-            tx_type = tx["transaction_type"]
-            if tx_type == "expense":
-                total_expense_dec += debit_val
-            elif tx_type == "supplier_payment":
-                total_supplier_paid_dec += debit_val
 
             running_balance = (running_balance + credit_val - debit_val).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -270,10 +234,10 @@ class CashBookService:
             currency_symbol=currency_symbol,
             previous_balance=0.0,
             today_cash_received=float(total_credit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            today_cash_expense=float(total_expense_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            total_expense=float(total_expense_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            today_cash_expense=float(total_debit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_expense=float(total_debit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             total_purchase_paid=0.0,
-            total_supplier_paid=float(total_supplier_paid_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_supplier_paid=0.0,
             total_refund_paid=0.0,
             cash_in_hand=float(closing_cash_dec),
             total_cash_received=float(total_credit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),

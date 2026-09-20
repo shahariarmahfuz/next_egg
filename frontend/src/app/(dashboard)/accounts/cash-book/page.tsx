@@ -175,12 +175,6 @@ export default function CashBookPage() {
         return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold">Collection</Badge>;
       case "expense":
         return <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 font-semibold">Expense</Badge>;
-      case "supplier_payment":
-        return <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-semibold">Supplier Pay</Badge>;
-      case "cash_purchase":
-        return <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 font-semibold">Cash Purchase</Badge>;
-      case "sale_return_refund":
-        return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20 font-semibold">Return Refund</Badge>;
       default:
         return <Badge variant="outline">{type}</Badge>;
     }

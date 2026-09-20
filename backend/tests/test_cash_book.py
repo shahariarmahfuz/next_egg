@@ -231,6 +231,39 @@ async def test_cash_book_eight_mandatory_tests(async_client: AsyncClient, auth_h
         assert cur_b == exp_b
 
     # -------------------------------------------------------------
+    # TEST 4B: Create a Supplier Payment of 1,500.
+    # Expected: Supplier Payment / Supplier Pay must NEVER appear in Cash Book.
+    # Closing balance remains 11,000 (12,000 received - 1,000 expense).
+    # -------------------------------------------------------------
+    res_spay = await async_client.post(
+        "/api/v1/supplier-payments",
+        headers=auth_headers,
+        json={
+            "supplier_id": supp_id,
+            "amount": 1500.0,
+            "payment_method": "cash",
+            "payment_date": day1_dt.isoformat(),
+            "notes": "Testing Cash Book Supplier Payment Exclusion",
+        },
+    )
+    assert res_spay.status_code == 201, f"Supplier Payment creation failed: {res_spay.text}"
+
+    res_cb_spay = await async_client.get(f"/api/v1/accounts/cash-book?target_date={day1_str}", headers=auth_headers)
+    assert res_cb_spay.status_code == 200
+    cb_sp = res_cb_spay.json()["data"]
+    assert cb_sp["previous_balance"] == 0.0
+    assert cb_sp["today_cash_received"] == 12000.0
+    assert cb_sp["today_cash_expense"] == 1000.0
+    assert cb_sp["total_cash_paid"] == 1000.0
+    assert cb_sp["total_supplier_paid"] == 0.0
+    assert cb_sp["closing_cash_balance"] == 11000.0
+    assert cb_sp["cash_in_hand"] == 11000.0
+    for item in cb_sp["items"]:
+        assert item["transaction_type"] != "supplier_payment"
+        assert not item["id"].startswith("spay-")
+        assert "supplier" not in item["description"].lower()
+
+    # -------------------------------------------------------------
     # TEST 5: Open the next day's Cash Book.
     # Expected: Opening Balance = 0. It must NOT show 11,000.
     # -------------------------------------------------------------

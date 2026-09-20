@@ -1002,14 +1002,7 @@ export const PrintableCashBookStatement = React.forwardRef<
         {/* =====================================================
              FINAL BALANCE SUMMARY
         ===================================================== */}
-        {(() => {
-          const totalPaid = summary.total_cash_paid ?? summary.today_cash_expense;
-          const hasOtherOutflows =
-            (summary.total_supplier_paid ?? 0) > 0 ||
-            totalPaid > (totalExpense + 0.001);
-
-          return (
-            <div className="summary-box">
+        <div className="summary-box">
               {/* Opening */}
               <div className="summary-item">
                 <span className="title">Opening (B/F)</span>
@@ -1028,27 +1021,12 @@ export const PrintableCashBookStatement = React.forwardRef<
 
               <div className="summary-symbol">-</div>
 
-              {/* Expense / Total Cash Paid */}
+              {/* Expense */}
               <div className="summary-item">
-                <span className="title">
-                  {hasOtherOutflows ? "Total Cash Paid" : "Total Expense"}
-                </span>
+                <span className="title">Total Expense</span>
                 <span className="val">
-                  {formatCurrency(hasOtherOutflows ? totalPaid : totalExpense)}
+                  {formatCurrency(totalExpense)}
                 </span>
-                {hasOtherOutflows && (
-                  <span
-                    style={{
-                      fontSize: "6.5px",
-                      color: "#666",
-                      display: "block",
-                      marginTop: "1px",
-                      fontWeight: 500,
-                    }}
-                  >
-                    (Exp: {formatCurrency(totalExpense)} | Supp: {formatCurrency(summary.total_supplier_paid || 0)})
-                  </span>
-                )}
               </div>
 
               <div className="summary-symbol">=</div>
@@ -1076,8 +1054,6 @@ export const PrintableCashBookStatement = React.forwardRef<
                 </span>
               </div>
             </div>
-          );
-        })()}
 
         {/* =====================================================
              SIGNATURES

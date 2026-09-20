@@ -19,7 +19,7 @@ class CashBookItem(BaseModel):
     invoice: str = "—"
     transaction_type: str = Field(
         ...,
-        description="Type: opening_balance, cash_sale, collection, expense, supplier_payment, cash_purchase, sale_return_refund",
+        description="Type: opening_balance, cash_sale, collection, expense",
     )
     debit: float = Field(0.0, description="Cash OUT")
     credit: float = Field(0.0, description="Cash IN")

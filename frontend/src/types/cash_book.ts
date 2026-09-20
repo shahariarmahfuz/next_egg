@@ -11,10 +11,7 @@ export interface CashBookItem {
     | "opening_balance"
     | "cash_sale"
     | "collection"
-    | "expense"
-    | "supplier_payment"
-    | "cash_purchase"
-    | "sale_return_refund";
+    | "expense";
   debit: number;
   credit: number;
   balance: number;
