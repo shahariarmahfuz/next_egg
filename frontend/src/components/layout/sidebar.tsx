@@ -1064,7 +1064,7 @@ export function SidebarContent({
         )}
 
         {/* Cash Module Collapsible Group */}
-        {hasPermission(["accounts.cash_book.view", "accounts.cash_out.view", "reports.view"]) && (
+        {hasPermission(["accounts.cash_book.view", "cash_out.view", "accounts.cash_out.view", "reports.view"]) && (
           <div className="space-y-1">
             <button
               onClick={() => toggleGroup("cash")}
@@ -1124,7 +1124,7 @@ export function SidebarContent({
                   </Link>
                 )}
 
-                {hasPermission(["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]) && (
+                {hasPermission(["cash_out.view", "accounts.cash_out.view"]) && (
                   <Link
                     href="/cash/cash-out/manage"
                     onClick={onNavigate}

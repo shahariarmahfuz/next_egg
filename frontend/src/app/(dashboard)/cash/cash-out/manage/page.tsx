@@ -94,6 +94,7 @@ export default function CashOutManagePage() {
         start_date: startDate ? new Date(startDate).toISOString() : undefined,
         end_date: endDate ? new Date(`${endDate}T23:59:59`).toISOString() : undefined,
       }),
+    enabled: hasPermission(["cash_out.view", "accounts.cash_out.view"]),
   });
 
   const cashOuts: CashOutItem[] = responseData?.data?.items || [];
@@ -102,6 +103,10 @@ export default function CashOutManagePage() {
 
   // Open edit modal
   const handleOpenEdit = (item: CashOutItem) => {
+    if (!hasPermission(["cash_out.edit", "accounts.cash_out.edit"])) {
+      toast.error("You do not have permission to edit cash out vouchers.");
+      return;
+    }
     setEditingItem(item);
     setEditAmount(String(item.amount));
     setEditReason(item.reason);
@@ -149,6 +154,10 @@ export default function CashOutManagePage() {
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+    if (!hasPermission(["cash_out.edit", "accounts.cash_out.edit"])) {
+      toast.error("You do not have permission to edit cash out vouchers.");
+      return;
+    }
 
     const numAmount = parseFloat(sanitizeNumericInput(editAmount));
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -188,7 +197,7 @@ export default function CashOutManagePage() {
 
   return (
     <HasPermission
-      code={["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]}
+      code={["cash_out.view", "accounts.cash_out.view"]}
       fallback={
         <div className="p-8 text-center text-destructive font-medium">
           Access Denied: You do not have permission to view Cash Out Management.
@@ -431,7 +440,7 @@ export default function CashOutManagePage() {
                             </Button>
 
                             {/* Edit Action */}
-                            {hasPermission(["accounts.cash_out.edit", "cash_out.edit", "accounts.cash_out.create"]) && (
+                            {hasPermission(["cash_out.edit", "accounts.cash_out.edit"]) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -444,11 +453,17 @@ export default function CashOutManagePage() {
                             )}
 
                             {/* Delete Action */}
-                            {hasPermission(["accounts.cash_out.delete", "cash_out.delete"]) && (
+                            {hasPermission(["cash_out.delete", "accounts.cash_out.delete"]) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => setDeletingItem(item)}
+                                onClick={() => {
+                                  if (!hasPermission(["cash_out.delete", "accounts.cash_out.delete"])) {
+                                    toast.error("You do not have permission to delete cash out vouchers.");
+                                    return;
+                                  }
+                                  setDeletingItem(item);
+                                }}
                                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                 title="Delete voucher"
                               >
@@ -722,7 +737,13 @@ export default function CashOutManagePage() {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => deletingItem && deleteMutation.mutate(deletingItem.id)}
+                onClick={() => {
+                  if (!hasPermission(["cash_out.delete", "accounts.cash_out.delete"])) {
+                    toast.error("You do not have permission to delete cash out vouchers.");
+                    return;
+                  }
+                  if (deletingItem) deleteMutation.mutate(deletingItem.id);
+                }}
                 disabled={deleteMutation.isPending}
                 className="gap-1.5"
               >

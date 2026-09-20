@@ -73,7 +73,7 @@ async def create_cash_out(
 @router.get(
     "/cash-out",
     response_model=ResponseModel[PaginatedResponse[CashOutResponse]],
-    dependencies=[Depends(RequirePermission(["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]))],
+    dependencies=[Depends(RequirePermission(["cash_out.view", "accounts.cash_out.view"]))],
 )
 async def list_cash_outs(
     page: int = Query(1, ge=1),
@@ -108,7 +108,7 @@ async def list_cash_outs(
 @router.get(
     "/cash-out/{cash_out_id}",
     response_model=ResponseModel[CashOutResponse],
-    dependencies=[Depends(RequirePermission(["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]))],
+    dependencies=[Depends(RequirePermission(["cash_out.view", "accounts.cash_out.view"]))],
 )
 async def get_cash_out(
     cash_out_id: str,
@@ -129,7 +129,7 @@ async def get_cash_out(
 @router.put(
     "/cash-out/{cash_out_id}",
     response_model=ResponseModel[CashOutResponse],
-    dependencies=[Depends(RequirePermission(["accounts.cash_out.edit", "cash_out.edit", "accounts.cash_out.create"]))],
+    dependencies=[Depends(RequirePermission(["cash_out.edit", "accounts.cash_out.edit"]))],
 )
 async def update_cash_out(
     cash_out_id: str,
@@ -151,7 +151,7 @@ async def update_cash_out(
 @router.delete(
     "/cash-out/{cash_out_id}",
     response_model=ResponseModel[dict],
-    dependencies=[Depends(RequirePermission(["accounts.cash_out.delete", "cash_out.delete"]))],
+    dependencies=[Depends(RequirePermission(["cash_out.delete", "accounts.cash_out.delete"]))],
 )
 async def delete_cash_out(
     cash_out_id: str,

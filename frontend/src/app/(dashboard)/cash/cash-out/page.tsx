@@ -40,7 +40,7 @@ const QUICK_REASONS = [
 ];
 
 export default function CashOutPage() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { settings } = useSettingsStore();
   const queryClient = useQueryClient();
 
@@ -160,12 +160,14 @@ export default function CashOutPage() {
           />
 
           <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs shadow-sm">
-              <Link href="/cash/cash-out/manage">
-                <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
-                <span>Cash Out Manage</span>
-              </Link>
-            </Button>
+            {hasPermission(["cash_out.view", "accounts.cash_out.view"]) && (
+              <Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs shadow-sm">
+                <Link href="/cash/cash-out/manage">
+                  <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
+                  <span>Cash Out Manage</span>
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-xs shadow-sm">
               <Link href="/cash/cash-book">
                 <BookOpen className="h-3.5 w-3.5 text-primary" />

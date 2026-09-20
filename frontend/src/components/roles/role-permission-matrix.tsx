@@ -31,6 +31,8 @@ const MODULE_DISPLAY_NAMES: Record<string, string> = {
   purchase: "Purchase",
   product_return: "Product Return",
   expense: "Expense",
+  cash_out: "Cash Out",
+  accounts: "Accounts",
   farm: "Farm",
   profile: "User Profile",
   settings: "Settings",
@@ -52,6 +54,8 @@ const MODULE_ORDER = [
   "purchase",
   "product_return",
   "expense",
+  "cash_out",
+  "accounts",
   "farm",
   "profile",
   "settings",
@@ -238,6 +242,19 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
           const modulePermIds = perms.map((p) => p.id);
           const isModuleFull = modulePermIds.every((id) => selectedIds.includes(id));
 
+          const displayPerms = [...perms];
+          if (moduleName === "cash_out") {
+            const coOrder = ["cash_out.view", "cash_out.edit", "cash_out.delete"];
+            displayPerms.sort((a, b) => {
+              const idxA = coOrder.indexOf(a.code);
+              const idxB = coOrder.indexOf(b.code);
+              if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+              if (idxA !== -1) return -1;
+              if (idxB !== -1) return 1;
+              return a.code.localeCompare(b.code);
+            });
+          }
+
           return (
             <div key={moduleName} className="border rounded-xl p-4 bg-muted/20 space-y-3">
               <div className="flex items-center justify-between border-b pb-2">
@@ -351,7 +368,7 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved }: RolePerm
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {perms.map((perm) => {
+                  {displayPerms.map((perm) => {
                     const isChecked = isOwner || selectedIds.includes(perm.id);
 
                     return (

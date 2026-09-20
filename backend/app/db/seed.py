@@ -54,10 +54,11 @@ DEFAULT_PERMISSIONS = [
 
     # Accounts & Cash Book module
     {"code": "accounts.cash_book.view", "name": "View Cash Book", "module": "accounts", "description": "View daily cash statement and cash movements"},
-    {"code": "accounts.cash_out.view", "name": "View Cash Out", "module": "accounts", "description": "View non-expense cash out records"},
-    {"code": "accounts.cash_out.create", "name": "Create Cash Out", "module": "accounts", "description": "Record non-expense cash out transactions"},
-    {"code": "accounts.cash_out.edit", "name": "Edit Cash Out", "module": "accounts", "description": "Modify non-expense cash out records"},
-    {"code": "accounts.cash_out.delete", "name": "Delete Cash Out", "module": "accounts", "description": "Delete non-expense cash out records"},
+
+    # Cash Out module
+    {"code": "cash_out.view", "name": "View Cash Out", "module": "cash_out", "description": "View non-expense cash out records and manage list"},
+    {"code": "cash_out.edit", "name": "Edit Cash Out", "module": "cash_out", "description": "Modify non-expense cash out records"},
+    {"code": "cash_out.delete", "name": "Delete Cash Out", "module": "cash_out", "description": "Delete non-expense cash out records"},
 
     # Sales module
     {"code": "sales.view", "name": "View Sales", "module": "sales", "description": "View sales transactions and records"},
@@ -205,7 +206,10 @@ async def seed_initial_data(db: AsyncSession) -> None:
     logger.info("Initializing system database seed...")
 
     # 0. Clean up obsolete permissions
-    obsolete_codes = ["farm.waste", "farm.manage", "farm.production", "farm.delivery"]
+    obsolete_codes = [
+        "farm.waste", "farm.manage", "farm.production", "farm.delivery",
+        "accounts.cash_out.create", "accounts.cash_out.view", "accounts.cash_out.edit", "accounts.cash_out.delete",
+    ]
     for code in obsolete_codes:
         obs = await permission_repository.get_by_code(db, code)
         if obs:
@@ -275,7 +279,14 @@ async def seed_initial_data(db: AsyncSession) -> None:
             logger.info("[SEED] Initializing default permissions for newly created Admin role...")
             await role_repository.set_role_permissions(db, admin_role, admin_perms)
         else:
-            logger.info(f"[SEED] Preserving {len(admin_role.permissions)} configured permissions for existing Admin role.")
+            existing_codes = {p.code for p in admin_role.permissions}
+            new_admin_perms = [p for p in admin_perms if p.code not in existing_codes and p.code in {"cash_out.view", "cash_out.edit", "cash_out.delete"}]
+            if new_admin_perms:
+                combined = list(admin_role.permissions) + new_admin_perms
+                await role_repository.set_role_permissions(db, admin_role, combined)
+                logger.info(f"[SEED] Added {len(new_admin_perms)} new Cash Out permissions to existing Admin role.")
+            else:
+                logger.info(f"[SEED] Preserving {len(admin_role.permissions)} configured permissions for existing Admin role.")
 
     # Employee gets restricted operational perms
     employee_role = role_map.get("employee")
