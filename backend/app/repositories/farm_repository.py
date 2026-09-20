@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Sequence, Optional, Tuple, List, Dict, Any
-from sqlalchemy import select, func, and_, desc, delete, update
+from sqlalchemy import select, func, and_, or_, desc, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -229,6 +229,7 @@ class FarmRepository:
         farm_id: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
     ) -> Tuple[Sequence[FarmProduction], int]:
@@ -239,6 +240,14 @@ class FarmRepository:
             filters.append(FarmProduction.production_date >= start_date)
         if end_date:
             filters.append(FarmProduction.production_date <= end_date)
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            filters.append(
+                or_(
+                    FarmProduction.notes.ilike(term),
+                    FarmProduction.farm.has(Farm.name.ilike(term)),
+                )
+            )
 
         count_query = select(func.count(FarmProduction.id))
         if filters:
@@ -315,6 +324,8 @@ class FarmRepository:
         farm_id: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        destination: Optional[str] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
     ) -> Tuple[Sequence[FarmDelivery], int]:
@@ -325,6 +336,17 @@ class FarmRepository:
             filters.append(FarmDelivery.delivery_date >= start_date)
         if end_date:
             filters.append(FarmDelivery.delivery_date <= end_date)
+        if destination and destination.strip() and destination.strip().lower() != "all":
+            filters.append(FarmDelivery.destination.ilike(f"%{destination.strip()}%"))
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            filters.append(
+                or_(
+                    FarmDelivery.destination.ilike(term),
+                    FarmDelivery.notes.ilike(term),
+                    FarmDelivery.farm.has(Farm.name.ilike(term)),
+                )
+            )
 
         count_query = select(func.count(FarmDelivery.id))
         if filters:

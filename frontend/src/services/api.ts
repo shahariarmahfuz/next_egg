@@ -776,6 +776,7 @@ export const farmService = {
     start_date?: string;
     end_date?: string;
     farm_id?: string;
+    search?: string;
   }) => {
     return http.get<PaginatedResult<FarmProductionItem>>("/farm/production", params);
   },
@@ -802,6 +803,8 @@ export const farmService = {
     start_date?: string;
     end_date?: string;
     farm_id?: string;
+    destination?: string;
+    search?: string;
   }) => {
     return http.get<PaginatedResult<FarmDeliveryItem>>("/farm/delivery", params);
   },

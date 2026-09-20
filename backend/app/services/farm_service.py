@@ -357,6 +357,7 @@ class FarmService:
         farm_id: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
     ) -> Tuple[List[FarmProductionResponse], int]:
@@ -365,6 +366,7 @@ class FarmService:
             farm_id=farm_id,
             start_date=start_date,
             end_date=end_date,
+            search=search,
             skip=skip,
             limit=limit,
         )
@@ -495,6 +497,8 @@ class FarmService:
         farm_id: Optional[str] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        destination: Optional[str] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
     ) -> Tuple[List[FarmDeliveryResponse], int]:
@@ -503,6 +507,8 @@ class FarmService:
             farm_id=farm_id,
             start_date=start_date,
             end_date=end_date,
+            destination=destination,
+            search=search,
             skip=skip,
             limit=limit,
         )
@@ -529,7 +535,20 @@ class FarmService:
         if obj_in.delivery_date is not None:
             deliv.delivery_date = obj_in.delivery_date
 
-        if obj_in.tray_quantity is not None:
+        if obj_in.farm_id is not None and obj_in.farm_id != deliv.farm_id:
+            new_farm = await farm_repository.get_farm_by_id(db, obj_in.farm_id)
+            if not new_farm:
+                raise NotFoundException(f"Farm with ID '{obj_in.farm_id}' not found.")
+            target_qty = float(obj_in.tray_quantity) if obj_in.tray_quantity is not None else float(deliv.tray_quantity)
+            new_bal = await farm_repository.get_farm_balance(db, obj_in.farm_id)
+            if target_qty > new_bal["available"]:
+                raise BadRequestException(
+                    f"Insufficient trays available in destination farm '{new_farm.name}'. "
+                    f"Currently available: {new_bal['available']:.1f} trays, needed: {target_qty:.1f} trays."
+                )
+            deliv.farm_id = obj_in.farm_id
+            deliv.tray_quantity = target_qty
+        elif obj_in.tray_quantity is not None:
             delta = float(obj_in.tray_quantity) - float(deliv.tray_quantity)
             if delta > 0:
                 bal = await farm_repository.get_farm_balance(db, deliv.farm_id)

@@ -36,6 +36,8 @@ import {
   ArrowUpRight,
   Banknote,
   FileText,
+  ClipboardList,
+  PackageCheck,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -68,6 +70,9 @@ export function SidebarContent({
 
   // Accordion state: default open if current route is inside group, otherwise null
   const [expandedGroup, setExpandedGroup] = useState<string | null>(() => {
+    if (pathname.startsWith("/farm")) {
+      return "farm";
+    }
     if (pathname.startsWith("/cash") || pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out") {
       return "cash";
     }
@@ -78,7 +83,9 @@ export function SidebarContent({
   });
 
   useEffect(() => {
-    if (pathname.startsWith("/cash") || pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out") {
+    if (pathname.startsWith("/farm")) {
+      setExpandedGroup("farm");
+    } else if (pathname.startsWith("/cash") || pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out") {
       setExpandedGroup("cash");
     } else if (pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
       setExpandedGroup("accounts");
@@ -1019,6 +1026,19 @@ export function SidebarContent({
                     <span>Production</span>
                   </Link>
                 )}
+                {hasPermission(["farm.production.view", "production.view"]) && (
+                  <Link
+                    href="/farm/production/manage"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/production/manage" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Manage Production</span>
+                  </Link>
+                )}
                 {hasPermission(["farm.delivery.view", "farm.delivery.create", "farm.delivery.edit", "farm.delivery.delete"]) && (
                   <Link
                     href="/farm/delivery"
@@ -1030,6 +1050,19 @@ export function SidebarContent({
                   >
                     <Truck className="h-3.5 w-3.5 text-blue-500" />
                     <span>Delivery</span>
+                  </Link>
+                )}
+                {hasPermission(["farm.delivery.view", "delivery.view"]) && (
+                  <Link
+                    href="/farm/delivery/manage"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      pathname === "/farm/delivery/manage" ? "bg-primary/15 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <PackageCheck className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Manage Delivery</span>
                   </Link>
                 )}
                 {hasPermission(["farm.report", "farm.view"]) && (
