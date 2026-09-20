@@ -1,511 +1,1104 @@
 "use client";
 
 import React from "react";
-import { CashBookSummary } from "@/types";
-import { formatCurrency, formatDateTime } from "@/utils/formatters";
+import {
+  CashBookSummary,
+  SaleItem,
+  CustomerCollectionItem,
+  SaleReportSummaryData,
+} from "@/types";
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+} from "@/utils/formatters";
 import { useSettingsStore } from "@/store/settings";
-import { useAuth } from "@/providers/auth-provider";
 
 export interface PrintableCashBookStatementProps {
   summary: CashBookSummary;
+  sales?: SaleItem[];
+  salesAggregate?: Record<string, number> | SaleReportSummaryData;
+  collections?: CustomerCollectionItem[];
 }
 
 export const PrintableCashBookStatement = React.forwardRef<
   HTMLDivElement,
   PrintableCashBookStatementProps
->(({ summary }, ref) => {
+>(({ summary, sales = [], collections = [] }, ref) => {
   const { settings } = useSettingsStore();
-  const { user } = useAuth();
 
-  const currentUser = user?.full_name || user?.username || "Authorized User";
-  const currentPrintTime = formatDateTime(new Date());
-
-  const contactItems = [
-    settings.business_address,
-    settings.business_phone ? `Tel: ${settings.business_phone}` : null,
+  // Dynamic Header & Business Metadata
+  const businessName =
+    settings.business_name || summary.company_name || "BUSINESS ENTERPRISE";
+  const contactParts = [
+    settings.business_address || summary.company_address,
+    (settings.business_phone || summary.company_phone)
+      ? `Mobile: ${settings.business_phone || summary.company_phone}`
+      : null,
   ].filter(Boolean);
+  const businessContact = contactParts.join(" | ");
+
+  const currencySymbol =
+    settings.currency?.symbol || summary.currency_symbol || "৳";
+
+  // Dynamic Date Formatting: DD/MM/YYYY
+  const formattedDate = summary.date
+    ? (() => {
+        try {
+          const parts = summary.date.split("-");
+          if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+          }
+          return formatDate(summary.date);
+        } catch {
+          return summary.date;
+        }
+      })()
+    : "";
+
+  // -------------------------------------------------------------
+  // 1. CASH SALES & COLLECTION ROWS
+  // -------------------------------------------------------------
+  // Gather cash inflows: cash sales and collections
+  interface CashInflowRow {
+    id: string;
+    customerName: string;
+    productName: string;
+    unitQty: string;
+    rate: string;
+    amount: number;
+  }
+
+  const cashInflowRows: CashInflowRow[] = [];
+
+  // A. Sales with paid cash amount
+  const cashSales = (sales || []).filter((s) => (s.paid_amount || 0) > 0);
+  for (const sale of cashSales) {
+    const custName = sale.customer?.name || "Cash Customer";
+    if (sale.items && sale.items.length > 0) {
+      if (sale.items.length === 1) {
+        const item = sale.items[0];
+        const unit = item.product?.unit || "";
+        cashInflowRows.push({
+          id: `sale-${sale.id}-${item.id}`,
+          customerName: custName,
+          productName: item.product?.name || "Product",
+          unitQty: `${formatNumber(item.quantity)} ${unit}`.trim(),
+          rate: formatNumber(item.unit_price),
+          amount: sale.paid_amount,
+        });
+      } else {
+        // Multiple items: list each product line
+        for (let idx = 0; idx < sale.items.length; idx++) {
+          const item = sale.items[idx];
+          const unit = item.product?.unit || "";
+          const itemLineTotal =
+            item.total_price || item.quantity * item.unit_price;
+          cashInflowRows.push({
+            id: `sale-${sale.id}-${item.id}`,
+            customerName: idx === 0 ? custName : `${custName} (Cont.)`,
+            productName: item.product?.name || "Product",
+            unitQty: `${formatNumber(item.quantity)} ${unit}`.trim(),
+            rate: formatNumber(item.unit_price),
+            amount: itemLineTotal,
+          });
+        }
+      }
+    } else {
+      cashInflowRows.push({
+        id: `sale-${sale.id}`,
+        customerName: custName,
+        productName: "Cash Sale",
+        unitQty: "-",
+        rate: "-",
+        amount: sale.paid_amount,
+      });
+    }
+  }
+
+  // B. Customer Collections
+  for (const col of collections || []) {
+    cashInflowRows.push({
+      id: `col-${col.id}`,
+      customerName: col.customer?.name || "Customer",
+      productName:
+        col.notes || col.reference_no
+          ? `Due Collection (${col.notes || col.reference_no})`
+          : "Previous Due Collection",
+      unitQty: "-",
+      rate: "-",
+      amount: col.amount,
+    });
+  }
+
+  // Fallback: If sales and collections were empty but summary.items has cash inflows
+  if (cashInflowRows.length === 0) {
+    const cashItems = (summary.items || []).filter(
+      (it) => it.credit > 0 && it.transaction_type !== "opening_balance"
+    );
+    for (const it of cashItems) {
+      cashInflowRows.push({
+        id: it.id,
+        customerName: it.name && it.name !== "—" ? it.name : "Customer",
+        productName:
+          it.transaction_type === "collection"
+            ? "Previous Due Collection"
+            : it.description || "Cash Sale",
+        unitQty: "-",
+        rate: "-",
+        amount: it.credit,
+      });
+    }
+  }
+
+  const totalCashCollection = summary.today_cash_received;
+
+  // -------------------------------------------------------------
+  // 2. DUE SALES (CREDIT) ROWS
+  // -------------------------------------------------------------
+  interface DueSaleRow {
+    id: string;
+    customerName: string;
+    productName: string;
+    unitQty: string;
+    rate: string;
+    dueAmount: number;
+  }
+
+  const dueSaleRows: DueSaleRow[] = [];
+  const creditSales = (sales || []).filter((s) => (s.due_amount || 0) > 0);
+
+  for (const sale of creditSales) {
+    const custName = sale.customer?.name || "Customer";
+    if (sale.items && sale.items.length > 0) {
+      if (sale.items.length === 1) {
+        const item = sale.items[0];
+        const unit = item.product?.unit || "";
+        dueSaleRows.push({
+          id: `due-${sale.id}-${item.id}`,
+          customerName: custName,
+          productName: item.product?.name || "Product",
+          unitQty: `${formatNumber(item.quantity)} ${unit}`.trim(),
+          rate: formatNumber(item.unit_price),
+          dueAmount: sale.due_amount,
+        });
+      } else {
+        const productNames = sale.items
+          .map((it) => it.product?.name)
+          .filter(Boolean)
+          .join(", ");
+        const totalQty = sale.items.reduce(
+          (sum, it) => sum + (it.quantity || 0),
+          0
+        );
+        dueSaleRows.push({
+          id: `due-${sale.id}`,
+          customerName: custName,
+          productName: productNames || "Multiple Products",
+          unitQty: `${formatNumber(totalQty)} Pcs`,
+          rate: "-",
+          dueAmount: sale.due_amount,
+        });
+      }
+    } else {
+      dueSaleRows.push({
+        id: `due-${sale.id}`,
+        customerName: custName,
+        productName: "Due Sale",
+        unitQty: "-",
+        rate: "-",
+        dueAmount: sale.due_amount,
+      });
+    }
+  }
+
+  const totalDueSales = dueSaleRows.reduce(
+    (sum, r) => sum + (r.dueAmount || 0),
+    0
+  );
+
+  // -------------------------------------------------------------
+  // 3. DAILY EXPENSES ROWS
+  // -------------------------------------------------------------
+  // STRICT RULE: The "Daily Expenses" section must contain ONLY actual
+  // Expense records created from the Expense module.
+  // Purchases, Purchase Payments, Supplier Payments, and Refunds
+  // must NEVER appear in the Expense section.
+  interface ExpenseRow {
+    id: string;
+    description: string;
+    type: string;
+    amount: number;
+  }
+
+  const expenseRows: ExpenseRow[] = [];
+  const actualExpenseItems = (summary.items || []).filter(
+    (it) => it.transaction_type === "expense" && it.debit > 0
+  );
+
+  for (const it of actualExpenseItems) {
+    const expType = it.name && it.name !== "—" ? it.name : "Expense";
+    expenseRows.push({
+      id: it.id,
+      description: it.description || `Expense (${expType})`,
+      type: expType,
+      amount: it.debit,
+    });
+  }
+
+  const totalExpense =
+    typeof summary.total_expense === "number"
+      ? summary.total_expense
+      : expenseRows.reduce((sum, r) => sum + (r.amount || 0), 0);
 
   return (
-    <div
-      ref={ref}
-      className="cash-book-print w-full bg-white text-slate-950 font-sans leading-normal p-0 m-0"
-    >
-      {/* Dedicated A5 Landscape & Thin-Row Print Stylesheet */}
+    <div ref={ref} className="cash-book-master-print w-full">
+      {/* Complete CSS styles preserved exactly from Master Template */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
-            @page {
-              size: A5 landscape;
-              margin: 5mm;
+            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+            /* =========================================================
+               RESET & MASTER STYLES
+            ========================================================= */
+            .cash-book-master-print * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
             }
 
+            .cash-book-master-print {
+                width: 100%;
+                font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                background: #f7f9fa;
+                color: #111;
+                padding: 10px;
+                font-size: 8.8px;
+                font-weight: 400;
+                line-height: 1.25;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            /* =========================================================
+               PRINT BUTTON
+            ========================================================= */
+            .cash-book-master-print .no-print {
+                text-align: center;
+                margin-bottom: 12px;
+            }
+
+            .cash-book-master-print .print-btn {
+                background: #1a73e8;
+                color: #fff;
+                border: none;
+                padding: 7px 18px;
+                font-size: 11px;
+                font-weight: 500;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+
+            /* =========================================================
+               A5 PAGE
+            ========================================================= */
+            .cash-book-master-print .page {
+                width: 148mm;
+                max-width: 100%;
+                margin: 0 auto;
+                background: #fff;
+                padding: 7mm;
+                box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
+            }
+
+            /* =========================================================
+               HEADER
+            ========================================================= */
+            .cash-book-master-print .header {
+                text-align: center;
+                position: relative;
+                padding-bottom: 4px;
+                margin-bottom: 4px;
+            }
+
+            .cash-book-master-print .header::after {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 0.5px;
+                background: rgba(0, 0, 0, 0.12);
+                transform: scaleY(0.5);
+                transform-origin: bottom center;
+            }
+
+            .cash-book-master-print .header h1 {
+                font-size: 15px;
+                font-weight: 700;
+                color: #000;
+                letter-spacing: 0.5px;
+                margin-bottom: 1px;
+                text-transform: uppercase;
+            }
+
+            .cash-book-master-print .header p {
+                font-size: 8px;
+                color: #444;
+                font-weight: 400;
+            }
+
+            .cash-book-master-print .header .doc-title {
+                display: inline-block;
+                position: relative;
+                margin-top: 2px;
+                padding: 1px 8px;
+                font-weight: 600;
+                font-size: 8.5px;
+                color: #000;
+                text-transform: uppercase;
+            }
+
+            .cash-book-master-print .header .doc-title::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                border: 0.5px solid rgba(0, 0, 0, 0.12);
+                border-radius: 8px;
+                transform: scale(0.99);
+                pointer-events: none;
+            }
+
+            /* =========================================================
+               META INFORMATION
+            ========================================================= */
+            .cash-book-master-print .meta-info {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 4px;
+                font-size: 8.5px;
+                font-weight: 400;
+                background: #fafafa;
+                padding: 3px 5px;
+                position: relative;
+            }
+
+            .cash-book-master-print .meta-info::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                border: 0.5px solid rgba(0, 0, 0, 0.11);
+                transform: scale(0.995);
+                pointer-events: none;
+            }
+
+            /* =========================================================
+               SECTION TITLE
+            ========================================================= */
+            .cash-book-master-print .section-title {
+                font-size: 8.5px;
+                font-weight: 700;
+                text-transform: uppercase;
+                margin-top: 4px;
+                margin-bottom: 2px;
+                color: #111;
+            }
+
+            /* =========================================================
+               CSS GRID TABLE
+            ========================================================= */
+            .cash-book-master-print .css-table {
+                width: 100%;
+                margin-bottom: 4px;
+            }
+
+            .cash-book-master-print .css-row {
+                display: grid;
+                min-height: 16.5px;
+                position: relative;
+                background: transparent;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            /* ULTRA THIN ROW SEPARATOR */
+            .cash-book-master-print .css-row::after {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 0.5px;
+                background: rgba(0, 0, 0, 0.11);
+                transform: scaleY(0.5);
+                transform-origin: bottom center;
+                pointer-events: none;
+            }
+
+            .cash-book-master-print .css-cell {
+                min-width: 0;
+                padding: 2.5px 3.5px;
+                font-size: 8.5px;
+                font-weight: 400;
+                overflow: hidden;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+
+            /* CASH TABLE COLUMNS */
+            .cash-book-master-print .cash-table .css-row {
+                grid-template-columns: 5% 29% 27% 13% 11% 15%;
+            }
+
+            /* DUE TABLE COLUMNS */
+            .cash-book-master-print .due-table .css-row {
+                grid-template-columns: 5% 29% 27% 13% 11% 15%;
+            }
+
+            /* EXPENSE TABLE COLUMNS */
+            .cash-book-master-print .expense-table .css-row {
+                grid-template-columns: 5% 66% 14% 15%;
+            }
+
+            /* HEADER ROW */
+            .cash-book-master-print .css-header {
+                min-height: 16px;
+                font-weight: 700;
+                text-align: center;
+                background: #f6f7f9;
+                position: relative;
+            }
+
+            .cash-book-master-print .css-header::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 0;
+                height: 0.5px;
+                background: rgba(0, 0, 0, 0.11);
+                transform: scaleY(0.5);
+                transform-origin: top center;
+                pointer-events: none;
+            }
+
+            .cash-book-master-print .css-header::after {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 0.5px;
+                background: rgba(0, 0, 0, 0.13);
+                transform: scaleY(0.5);
+                transform-origin: bottom center;
+                pointer-events: none;
+            }
+
+            .cash-book-master-print .css-header .css-cell {
+                font-size: 8.5px;
+                font-weight: 700;
+                text-transform: uppercase;
+            }
+
+            /* ALIGNMENT */
+            .cash-book-master-print .text-center { text-align: center; }
+            .cash-book-master-print .text-left { text-align: left; }
+            .cash-book-master-print .text-right { text-align: right; }
+
+            /* TOTAL ROW */
+            .cash-book-master-print .total-row {
+                min-height: 17px;
+                background: #fafafa;
+                font-weight: 700;
+                position: relative;
+            }
+
+            .cash-book-master-print .total-row::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 0;
+                height: 0.5px;
+                background: rgba(0, 0, 0, 0.13);
+                transform: scaleY(0.5);
+                transform-origin: top center;
+                pointer-events: none;
+            }
+
+            .cash-book-master-print .total-row::after {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 0.5px;
+                background: rgba(0, 0, 0, 0.13);
+                transform: scaleY(0.5);
+                transform-origin: bottom center;
+                pointer-events: none;
+            }
+
+            .cash-book-master-print .total-label {
+                text-align: right;
+                padding-right: 5px;
+                font-weight: 700;
+            }
+
+            .cash-book-master-print .total-value {
+                text-align: right;
+                font-weight: 700;
+            }
+
+            /* =========================================================
+               SUMMARY BOX
+            ========================================================= */
+            .cash-book-master-print .summary-box {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-top: 5px;
+                padding: 4px 6px;
+                background: #fafbfc;
+                position: relative;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .cash-book-master-print .summary-box::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                border: 0.5px solid rgba(0, 0, 0, 0.11);
+                transform: scale(0.995);
+                pointer-events: none;
+            }
+
+            .cash-book-master-print .summary-item {
+                text-align: center;
+                min-width: 0;
+            }
+
+            .cash-book-master-print .summary-item .title {
+                display: block;
+                color: #555;
+                font-size: 7.5px;
+                font-weight: 600;
+                text-transform: uppercase;
+                margin-bottom: 1px;
+            }
+
+            .cash-book-master-print .summary-item .val {
+                font-weight: 700;
+                color: #000;
+                font-size: 10px;
+            }
+
+            .cash-book-master-print .summary-symbol {
+                font-weight: 700;
+                font-size: 10px;
+                padding: 0 2px;
+            }
+
+            .cash-book-master-print .summary-divider {
+                width: 0.5px;
+                height: 18px;
+                background: rgba(0, 0, 0, 0.11);
+                transform: scaleX(0.5);
+                transform-origin: center;
+            }
+
+            /* =========================================================
+               SIGNATURES
+            ========================================================= */
+            .cash-book-master-print .signature-area {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 15px;
+                padding: 0 6px;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .cash-book-master-print .sig-block {
+                text-align: center;
+                width: 75px;
+            }
+
+            .cash-book-master-print .sig-line {
+                height: 0.5px;
+                margin-bottom: 2px;
+                background: repeating-linear-gradient(
+                    to right,
+                    rgba(0, 0, 0, 0.18) 0,
+                    rgba(0, 0, 0, 0.18) 2px,
+                    transparent 2px,
+                    transparent 4px
+                );
+                transform: scaleY(0.5);
+                transform-origin: bottom;
+            }
+
+            .cash-book-master-print .sig-text {
+                font-size: 7.5px;
+                color: #333;
+                font-weight: 400;
+            }
+
+            /* =========================================================
+               PRINT MEDIA STYLES
+            ========================================================= */
             @media print {
-              @page {
-                size: A5 landscape;
-                margin: 5mm;
-              }
+                @page {
+                    size: A5 portrait;
+                    margin: 5mm;
+                }
 
-              html, body {
-                background: #ffffff !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                width: 100% !important;
-                height: auto !important;
-                min-height: 0 !important;
-                overflow: visible !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-              }
+                html, body {
+                    width: 100% !important;
+                    height: auto !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                }
 
-              #print-root {
-                display: block !important;
-                position: static !important;
-                width: 100% !important;
-                max-width: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                height: auto !important;
-                min-height: 0 !important;
-              }
+                #print-root {
+                    display: block !important;
+                    position: static !important;
+                    width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                }
 
-              .cash-book-print {
-                width: 100% !important;
-                max-width: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                height: auto !important;
-                min-height: 0 !important;
-                box-sizing: border-box !important;
-                font-family: system-ui, -apple-system, sans-serif !important;
-                font-size: 8.5px !important;
-                line-height: 1.1 !important;
-                color: #000000 !important;
-              }
+                .cash-book-master-print {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                    font-size: 8.8px;
+                }
 
-              .cash-book-print * {
-                box-sizing: border-box !important;
-                page-break-before: auto !important;
-                break-before: auto !important;
-                page-break-after: auto !important;
-                break-after: auto !important;
-              }
+                .cash-book-master-print .no-print {
+                    display: none !important;
+                }
 
-              /* Compact Header */
-              .cash-book-print .print-header {
-                margin-bottom: 2.5px !important;
-                padding-bottom: 2px !important;
-                border-bottom: 1.5px solid #0f172a !important;
-                text-align: center !important;
-              }
+                .cash-book-master-print .page {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                    box-shadow: none !important;
+                }
 
-              .cash-book-print .print-header h1 {
-                font-size: 13px !important;
-                font-weight: 900 !important;
-                line-height: 1.1 !important;
-                margin: 0 !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.05em !important;
-              }
+                .cash-book-master-print .css-row {
+                    background: transparent !important;
+                    border: none !important;
+                    outline: none !important;
+                }
 
-              .cash-book-print .print-header p {
-                font-size: 8px !important;
-                line-height: 1.1 !important;
-                margin: 1px 0 0 0 !important;
-                color: #475569 !important;
-              }
+                .cash-book-master-print .css-row::after {
+                    content: "" !important;
+                    display: block !important;
+                    position: absolute !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    bottom: 0 !important;
+                    height: 0.5px !important;
+                    background: rgba(0, 0, 0, 0.11) !important;
+                    transform: scaleY(0.5) !important;
+                    transform-origin: bottom center !important;
+                }
 
-              .cash-book-print .doc-badge {
-                display: inline-block !important;
-                font-size: 9px !important;
-                font-weight: 800 !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.05em !important;
-                background-color: #f1f5f9 !important;
-                border: 0.5px solid #64748b !important;
-                padding: 1px 8px !important;
-                border-radius: 2px !important;
-                margin-top: 2px !important;
-              }
+                .cash-book-master-print .css-header {
+                    background: #f6f7f9 !important;
+                }
 
-              /* Compact Metadata / Filter Bar */
-              .cash-book-print .meta-bar {
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                font-size: 8px !important;
-                line-height: 1.15 !important;
-                margin-bottom: 3px !important;
-                padding-bottom: 2px !important;
-                border-bottom: 0.5px solid #cbd5e1 !important;
-              }
+                .cash-book-master-print .css-header::before {
+                    height: 0.5px !important;
+                    background: rgba(0, 0, 0, 0.11) !important;
+                    transform: scaleY(0.5) !important;
+                }
 
-              /* Top Financial Summary Cards */
-              .cash-book-print .kpi-grid {
-                display: grid !important;
-                grid-template-columns: repeat(4, 1fr) !important;
-                gap: 4px !important;
-                margin-bottom: 3.5px !important;
-              }
+                .cash-book-master-print .css-header::after {
+                    height: 0.5px !important;
+                    background: rgba(0, 0, 0, 0.13) !important;
+                    transform: scaleY(0.5) !important;
+                }
 
-              .cash-book-print .kpi-card {
-                padding: 2px 4px !important;
-                border: 0.5px solid #cbd5e1 !important;
-                border-radius: 2px !important;
-                background-color: #f8fafc !important;
-                text-align: center !important;
-              }
+                .cash-book-master-print .total-row {
+                    background: #fafafa !important;
+                }
 
-              .cash-book-print .kpi-card.highlight {
-                border: 1px solid #047857 !important;
-                background-color: #ecfdf5 !important;
-              }
+                .cash-book-master-print .total-row::before {
+                    height: 0.5px !important;
+                    background: rgba(0, 0, 0, 0.13) !important;
+                    transform: scaleY(0.5) !important;
+                }
 
-              .cash-book-print .kpi-label {
-                font-size: 7px !important;
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.04em !important;
-                color: #475569 !important;
-                display: block !important;
-                line-height: 1 !important;
-              }
+                .cash-book-master-print .total-row::after {
+                    height: 0.5px !important;
+                    background: rgba(0, 0, 0, 0.13) !important;
+                    transform: scaleY(0.5) !important;
+                }
 
-              .cash-book-print .kpi-value {
-                font-size: 9.5px !important;
-                font-weight: 800 !important;
-                display: block !important;
-                margin-top: 1px !important;
-                line-height: 1.1 !important;
-              }
+                .cash-book-master-print .header::after {
+                    height: 0.5px !important;
+                    background: rgba(0, 0, 0, 0.11) !important;
+                    transform: scaleY(0.5) !important;
+                }
 
-              /* Core Cash Book Table - 100% Full Width */
-              .cash-book-print table.cash-book-table {
-                width: 100% !important;
-                max-width: none !important;
-                border-collapse: collapse !important;
-                table-layout: fixed !important;
-                margin: 0 !important;
-                box-sizing: border-box !important;
-              }
+                .cash-book-master-print .meta-info {
+                    background: #fafafa !important;
+                }
 
-              .cash-book-print thead {
-                display: table-header-group !important;
-              }
+                .cash-book-master-print .meta-info::before {
+                    border: 0.5px solid rgba(0, 0, 0, 0.11) !important;
+                }
 
-              .cash-book-print tfoot {
-                display: table-footer-group !important;
-              }
+                .cash-book-master-print .header .doc-title::before {
+                    border: 0.5px solid rgba(0, 0, 0, 0.12) !important;
+                }
 
-              .cash-book-print tr {
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-              }
+                .cash-book-master-print .summary-box {
+                    background: #fafbfc !important;
+                }
 
-              .cash-book-print th,
-              .cash-book-print td {
-                padding: 2px 3px !important;
-                line-height: 1.1 !important;
-                font-size: 8.5px !important;
-                border: 0.5px solid #94a3b8 !important;
-                vertical-align: middle !important;
-                box-sizing: border-box !important;
-              }
+                .cash-book-master-print .summary-box::before {
+                    border: 0.5px solid rgba(0, 0, 0, 0.11) !important;
+                }
 
-              .cash-book-print th {
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                background-color: #f1f5f9 !important;
-                padding: 2.5px 3px !important;
-              }
+                .cash-book-master-print .summary-divider {
+                    width: 0.5px !important;
+                    background: rgba(0, 0, 0, 0.11) !important;
+                    transform: scaleX(0.5) !important;
+                }
 
-              /* Prevent unwanted margin/padding on elements inside table cells */
-              .cash-book-print td p,
-              .cash-book-print td div,
-              .cash-book-print td span {
-                margin: 0 !important;
-                padding: 0 !important;
-                line-height: 1.1 !important;
-              }
+                .cash-book-master-print .sig-line {
+                    height: 0.5px !important;
+                    background: repeating-linear-gradient(
+                        to right,
+                        rgba(0, 0, 0, 0.18) 0,
+                        rgba(0, 0, 0, 0.18) 2px,
+                        transparent 2px,
+                        transparent 4px
+                    ) !important;
+                    transform: scaleY(0.5) !important;
+                }
 
-              /* Preserving financial colors */
-              .cash-book-print .debit-cell {
-                color: #b91c1c !important;
-                font-weight: 600 !important;
-                text-align: right !important;
-                white-space: nowrap !important;
-              }
-
-              .cash-book-print .credit-cell {
-                color: #047857 !important;
-                font-weight: 600 !important;
-                text-align: right !important;
-                white-space: nowrap !important;
-              }
-
-              .cash-book-print .balance-cell {
-                color: #020617 !important;
-                font-weight: 700 !important;
-                text-align: right !important;
-                white-space: nowrap !important;
-              }
-
-              /* Table Footer */
-              .cash-book-print table.cash-book-table tfoot td {
-                padding: 2.5px 3px !important;
-                line-height: 1.1 !important;
-                font-size: 8.5px !important;
-                font-weight: 700 !important;
-                background-color: #f8fafc !important;
-                border: 0.5px solid #64748b !important;
-                border-top: 1px solid #0f172a !important;
-              }
-
-              /* Bottom Summary Box */
-              .cash-book-print .bottom-summary-box {
-                margin-top: 3.5px !important;
-                padding: 2.5px 6px !important;
-                font-size: 8px !important;
-                border: 0.5px solid #cbd5e1 !important;
-                border-radius: 2px !important;
-                background-color: #f8fafc !important;
-              }
-
-              /* Document Running Footer */
-              .cash-book-print .print-footer {
-                margin-top: 3.5px !important;
-                padding-top: 2px !important;
-                font-size: 7px !important;
-                line-height: 1 !important;
-                border-top: 0.5px solid #cbd5e1 !important;
-                color: #64748b !important;
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-              }
+                * {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
             }
           `,
         }}
       />
 
-      {/* 1. Header */}
-      <header className="print-header mb-1 pb-1 border-b-[1.5px] border-slate-900 text-center">
-        <h1 className="text-[13px] font-black uppercase tracking-wider text-slate-950 leading-tight">
-          {settings.business_name || "BUSINESS ENTERPRISE HUB"}
-        </h1>
-        {contactItems.length > 0 && (
-          <p className="text-[8px] text-slate-600 mt-0.5 leading-tight">
-            {contactItems.join("  •  ")}
-          </p>
-        )}
-        <div className="doc-badge mt-1 inline-block text-[9px] font-black uppercase tracking-wider text-slate-950 bg-slate-100 border border-slate-400 px-2 py-0.5 rounded">
-          CASH STATEMENT / CASH BOOK
+      {/* A5 PAGE CONTAINER */}
+      <div className="page">
+        {/* =====================================================
+             HEADER
+        ===================================================== */}
+        <div className="header">
+          <h1>{businessName}</h1>
+          {businessContact && <p>{businessContact}</p>}
+          <div className="doc-title">Daily Sales & Cash Statement</div>
         </div>
-      </header>
 
-      {/* 2. Metadata Bar */}
-      <div className="meta-bar flex justify-between items-center text-[8px] mb-1 pb-1 border-b border-slate-200">
-        <div className="flex gap-4">
-          <span>
-            <strong className="font-bold text-slate-900">Date: </strong>
-            <span className="text-slate-800 font-semibold">{summary.date}</span>
-          </span>
-          <span>
-            <strong className="font-bold text-slate-900">Timezone: </strong>
-            <span className="text-slate-800">{summary.timezone}</span>
-          </span>
-          <span>
-            <strong className="font-bold text-slate-900">Currency: </strong>
-            <span className="text-slate-800">{summary.currency_symbol}</span>
-          </span>
-        </div>
-        <div className="flex gap-4">
-          <span>
-            <strong className="font-bold text-slate-900">Printed: </strong>
-            <span className="text-slate-800">{currentPrintTime}</span>
-          </span>
-          <span>
-            <strong className="font-bold text-slate-900">By: </strong>
-            <span className="text-slate-800">{currentUser}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* 3. Top Financial Summary Cards */}
-      <div className="kpi-grid grid grid-cols-4 gap-1 mb-1">
-        <div className="kpi-card border border-slate-300 bg-slate-50 p-1 rounded text-center">
-          <span className="kpi-label text-[7px] font-bold uppercase tracking-wider text-slate-600 block leading-tight">
-            Previous Balance
-          </span>
-          <span className="kpi-value text-[9.5px] font-black text-slate-900 block mt-0.5 leading-tight">
+        {/* =====================================================
+             META INFORMATION
+        ===================================================== */}
+        <div className="meta-info">
+          <div>
+            <strong>Date:</strong> {formattedDate}
+          </div>
+          <div>
+            <strong>B/F (Opening Cash):</strong>{" "}
             {formatCurrency(summary.previous_balance)}
-          </span>
+          </div>
+          <div>
+            <strong>Sheet No:</strong> 01
+          </div>
         </div>
 
-        <div className="kpi-card border border-slate-300 bg-slate-50 p-1 rounded text-center">
-          <span className="kpi-label text-[7px] font-bold uppercase tracking-wider text-slate-600 block leading-tight">
-            Today&apos;s Cash Received
-          </span>
-          <span className="kpi-value text-[9.5px] font-black text-emerald-700 block mt-0.5 leading-tight">
-            {formatCurrency(summary.today_cash_received)}
-          </span>
-        </div>
+        {/* =====================================================
+             1. CASH SALES & COLLECTION
+        ===================================================== */}
+        <div className="section-title">1. Cash Sales & Collection</div>
 
-        <div className="kpi-card border border-slate-300 bg-slate-50 p-1 rounded text-center">
-          <span className="kpi-label text-[7px] font-bold uppercase tracking-wider text-slate-600 block leading-tight">
-            Today&apos;s Cash Expense
-          </span>
-          <span className="kpi-value text-[9.5px] font-black text-rose-700 block mt-0.5 leading-tight">
-            {formatCurrency(summary.today_cash_expense)}
-          </span>
-        </div>
+        <div className="css-table cash-table">
+          {/* HEADER */}
+          <div className="css-row css-header">
+            <div className="css-cell">#</div>
+            <div className="css-cell">Customer Name</div>
+            <div className="css-cell">Product Name</div>
+            <div className="css-cell">Unit/Qty</div>
+            <div className="css-cell">Rate ({currencySymbol})</div>
+            <div className="css-cell">Amount ({currencySymbol})</div>
+          </div>
 
-        <div className="kpi-card highlight border border-slate-900 bg-emerald-50 p-1 rounded text-center">
-          <span className="kpi-label text-[7px] font-bold uppercase tracking-wider text-slate-900 block leading-tight">
-            Cash in Hand
-          </span>
-          <span className="kpi-value text-[9.5px] font-black text-emerald-900 block mt-0.5 leading-tight">
-            {formatCurrency(summary.cash_in_hand)}
-          </span>
-        </div>
-      </div>
-
-      {/* 4. Cash Transactions Table (A5 Landscape Proportions) */}
-      <table className="cash-book-table w-full border-collapse border border-slate-400 text-[8.5px] my-0 table-fixed">
-        <colgroup>
-          <col style={{ width: "5%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "15%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
-        </colgroup>
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="border border-slate-400 px-1 py-[2px] text-center font-bold uppercase text-[8.5px] leading-[1.1] whitespace-nowrap">
-              #
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-left font-bold uppercase text-[8.5px] leading-[1.1] whitespace-nowrap">
-              Date
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-left font-bold uppercase text-[8.5px] leading-[1.1]">
-              Description
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-left font-bold uppercase text-[8.5px] leading-[1.1] whitespace-nowrap">
-              Code
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-left font-bold uppercase text-[8.5px] leading-[1.1]">
-              Name
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-left font-bold uppercase text-[8.5px] leading-[1.1] whitespace-nowrap">
-              Invoice
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-right font-bold uppercase text-[8.5px] leading-[1.1] whitespace-nowrap">
-              Debit (Out)
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-right font-bold uppercase text-[8.5px] leading-[1.1] whitespace-nowrap">
-              Credit (In)
-            </th>
-            <th className="border border-slate-400 px-1 py-[2px] text-right font-bold uppercase text-[8.5px] leading-[1.1] whitespace-nowrap">
-              Balance
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {summary.items.map((item, idx) => (
-            <tr key={item.id} className={idx === 0 ? "bg-slate-50 font-bold" : ""}>
-              <td className="border border-slate-300 px-1 py-[2px] text-center text-slate-600 whitespace-nowrap leading-[1.1]">
-                {idx === 0 ? "—" : idx}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] text-slate-800 whitespace-nowrap leading-[1.1]">
-                {item.formatted_date}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] text-slate-900 break-words leading-[1.1]">
-                {item.description}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] text-slate-700 whitespace-nowrap leading-[1.1]">
-                {item.code}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] text-slate-900 break-words leading-[1.1]">
-                {item.name}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] font-semibold text-slate-900 whitespace-nowrap leading-[1.1]">
-                {item.invoice}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] text-right tabular-nums whitespace-nowrap text-rose-700 font-semibold debit-cell leading-[1.1]">
-                {item.debit > 0 ? formatCurrency(item.debit) : "0"}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] text-right tabular-nums whitespace-nowrap text-emerald-700 font-semibold credit-cell leading-[1.1]">
-                {item.credit > 0 ? formatCurrency(item.credit) : "0"}
-              </td>
-              <td className="border border-slate-300 px-1 py-[2px] text-right tabular-nums whitespace-nowrap font-bold text-slate-950 balance-cell leading-[1.1]">
-                {formatCurrency(item.balance)}
-              </td>
-            </tr>
+          {/* ROWS */}
+          {cashInflowRows.map((row, idx) => (
+            <div key={row.id} className="css-row">
+              <div className="css-cell text-center">{idx + 1}</div>
+              <div className="css-cell text-left">{row.customerName}</div>
+              <div className="css-cell text-left">{row.productName}</div>
+              <div className="css-cell text-center">{row.unitQty}</div>
+              <div className="css-cell text-right">{row.rate}</div>
+              <div className="css-cell text-right">
+                {formatNumber(row.amount)}
+              </div>
+            </div>
           ))}
-          {summary.items.length === 0 && (
-            <tr>
-              <td colSpan={9} className="border border-slate-300 p-4 text-center text-slate-500 italic">
-                No cash transactions recorded for this period.
-              </td>
-            </tr>
-          )}
-        </tbody>
-        <tfoot className="bg-slate-100 font-bold text-[8.5px]">
-          <tr>
-            <td colSpan={6} className="border border-slate-400 px-2 py-1 text-right leading-[1.1]">
-              Total Transactions Summary
-            </td>
-            <td className="border border-slate-400 px-1 py-1 text-right text-rose-800 tabular-nums whitespace-nowrap debit-cell leading-[1.1]">
-              {formatCurrency(summary.today_cash_expense)}
-            </td>
-            <td className="border border-slate-400 px-1 py-1 text-right text-emerald-800 tabular-nums whitespace-nowrap credit-cell leading-[1.1]">
-              {formatCurrency(summary.today_cash_received)}
-            </td>
-            <td className="border border-slate-400 px-1 py-1 text-right text-slate-950 tabular-nums whitespace-nowrap balance-cell font-black leading-[1.1]">
-              {formatCurrency(summary.closing_cash_balance)}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
 
-      {/* 5. Bottom Summary Block */}
-      <div className="bottom-summary-box mt-1 p-1 bg-slate-50 border border-slate-300 rounded text-[8px]">
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div>
-            <span className="text-slate-500 block text-[7px] uppercase font-semibold">Previous Balance</span>
-            <span className="font-bold text-slate-900 text-[9px] leading-tight block">
-              {formatCurrency(summary.previous_balance)}
-            </span>
+          {cashInflowRows.length === 0 && (
+            <div className="css-row">
+              <div
+                className="css-cell text-center"
+                style={{
+                  gridColumn: "1 / 7",
+                  fontStyle: "italic",
+                  color: "#666",
+                  padding: "6px",
+                }}
+              >
+                No cash sales or collections for this date.
+              </div>
+            </div>
+          )}
+
+          {/* TOTAL */}
+          <div className="css-row total-row">
+            <div className="css-cell total-label" style={{ gridColumn: "1 / 6" }}>
+              Total Cash Collection:
+            </div>
+            <div className="css-cell total-value">
+              {formatCurrency(totalCashCollection)}
+            </div>
           </div>
-          <div>
-            <span className="text-slate-500 block text-[7px] uppercase font-semibold">Total Cash Received</span>
-            <span className="font-bold text-emerald-700 text-[9px] leading-tight block">
-              {formatCurrency(summary.total_cash_received)}
-            </span>
+        </div>
+
+        {/* =====================================================
+             2. DUE SALES (CREDIT)
+        ===================================================== */}
+        <div className="section-title">2. Due Sales (Credit)</div>
+
+        <div className="css-table due-table">
+          {/* HEADER */}
+          <div className="css-row css-header">
+            <div className="css-cell">#</div>
+            <div className="css-cell">Customer Name</div>
+            <div className="css-cell">Product Name</div>
+            <div className="css-cell">Unit/Qty</div>
+            <div className="css-cell">Rate ({currencySymbol})</div>
+            <div className="css-cell">Due ({currencySymbol})</div>
           </div>
-          <div>
-            <span className="text-slate-500 block text-[7px] uppercase font-semibold">Total Cash Paid</span>
-            <span className="font-bold text-rose-700 text-[9px] leading-tight block">
-              {formatCurrency(summary.total_cash_paid)}
-            </span>
+
+          {/* ROWS */}
+          {dueSaleRows.map((row, idx) => (
+            <div key={row.id} className="css-row">
+              <div className="css-cell text-center">{idx + 1}</div>
+              <div className="css-cell text-left">{row.customerName}</div>
+              <div className="css-cell text-left">{row.productName}</div>
+              <div className="css-cell text-center">{row.unitQty}</div>
+              <div className="css-cell text-right">{row.rate}</div>
+              <div className="css-cell text-right">
+                {formatNumber(row.dueAmount)}
+              </div>
+            </div>
+          ))}
+
+          {dueSaleRows.length === 0 && (
+            <div className="css-row">
+              <div
+                className="css-cell text-center"
+                style={{
+                  gridColumn: "1 / 7",
+                  fontStyle: "italic",
+                  color: "#666",
+                  padding: "6px",
+                }}
+              >
+                No due sales for this date.
+              </div>
+            </div>
+          )}
+
+          {/* TOTAL */}
+          <div className="css-row total-row">
+            <div
+              className="css-cell total-label"
+              style={{
+                gridColumn: "1 / 6",
+                color: "#b02a37",
+              }}
+            >
+              Total Due Sales:
+            </div>
+            <div className="css-cell total-value" style={{ color: "#b02a37" }}>
+              {formatCurrency(totalDueSales)}
+            </div>
           </div>
-          <div>
-            <span className="text-slate-500 block text-[7px] uppercase font-semibold">Closing Cash in Hand</span>
-            <span className="font-black text-slate-950 text-[9.5px] leading-tight block">
-              {formatCurrency(summary.closing_cash_balance)}
-            </span>
+        </div>
+
+        {/* =====================================================
+             3. DAILY EXPENSES
+        ===================================================== */}
+        <div className="section-title">3. Daily Expenses</div>
+
+        <div className="css-table expense-table">
+          {/* HEADER */}
+          <div className="css-row css-header">
+            <div className="css-cell">#</div>
+            <div className="css-cell">Expense Description</div>
+            <div className="css-cell">Type</div>
+            <div className="css-cell">Amount ({currencySymbol})</div>
+          </div>
+
+          {/* ROWS */}
+          {expenseRows.map((row, idx) => (
+            <div key={row.id} className="css-row">
+              <div className="css-cell text-center">{idx + 1}</div>
+              <div className="css-cell text-left">{row.description}</div>
+              <div className="css-cell text-center">{row.type}</div>
+              <div className="css-cell text-right">
+                {formatNumber(row.amount)}
+              </div>
+            </div>
+          ))}
+
+          {expenseRows.length === 0 && (
+            <div className="css-row">
+              <div
+                className="css-cell text-center"
+                style={{
+                  gridColumn: "1 / 5",
+                  fontStyle: "italic",
+                  color: "#666",
+                  padding: "6px",
+                }}
+              >
+                No expenses recorded for this date.
+              </div>
+            </div>
+          )}
+
+          {/* TOTAL */}
+          <div className="css-row total-row">
+            <div className="css-cell total-label" style={{ gridColumn: "1 / 4" }}>
+              Total Expense:
+            </div>
+            <div className="css-cell total-value">
+              {formatCurrency(totalExpense)}
+            </div>
+          </div>
+        </div>
+
+        {/* =====================================================
+             FINAL BALANCE SUMMARY
+        ===================================================== */}
+        {(() => {
+          const totalPaid = summary.total_cash_paid ?? summary.today_cash_expense;
+          const hasOtherOutflows =
+            (summary.total_supplier_paid ?? 0) > 0 ||
+            totalPaid > (totalExpense + 0.001);
+
+          return (
+            <div className="summary-box">
+              {/* Opening */}
+              <div className="summary-item">
+                <span className="title">Opening (B/F)</span>
+                <span className="val">{formatCurrency(summary.previous_balance || 0)}</span>
+              </div>
+
+              <div className="summary-symbol">+</div>
+
+              {/* Cash Collection */}
+              <div className="summary-item">
+                <span className="title">Cash Collection</span>
+                <span className="val">
+                  {formatCurrency(summary.today_cash_received || 0)}
+                </span>
+              </div>
+
+              <div className="summary-symbol">-</div>
+
+              {/* Expense / Total Cash Paid */}
+              <div className="summary-item">
+                <span className="title">
+                  {hasOtherOutflows ? "Total Cash Paid" : "Total Expense"}
+                </span>
+                <span className="val">
+                  {formatCurrency(hasOtherOutflows ? totalPaid : totalExpense)}
+                </span>
+                {hasOtherOutflows && (
+                  <span
+                    style={{
+                      fontSize: "6.5px",
+                      color: "#666",
+                      display: "block",
+                      marginTop: "1px",
+                      fontWeight: 500,
+                    }}
+                  >
+                    (Exp: {formatCurrency(totalExpense)} | Supp: {formatCurrency(summary.total_supplier_paid || 0)})
+                  </span>
+                )}
+              </div>
+
+              <div className="summary-symbol">=</div>
+
+              {/* Net Cash */}
+              <div className="summary-item">
+                <span className="title" style={{ color: "#0b5ed7" }}>
+                  Net Cash in Hand
+                </span>
+                <span className="val" style={{ color: "#0b5ed7" }}>
+                  {formatCurrency(summary.closing_cash_balance)}
+                </span>
+              </div>
+
+              {/* Divider */}
+              <div className="summary-divider"></div>
+
+              {/* Due */}
+              <div className="summary-item">
+                <span className="title" style={{ color: "#b02a37" }}>
+                  Total Due Sale
+                </span>
+                <span className="val" style={{ color: "#b02a37" }}>
+                  {formatCurrency(totalDueSales)}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* =====================================================
+             SIGNATURES
+        ===================================================== */}
+        <div className="signature-area">
+          <div className="sig-block">
+            <div className="sig-line"></div>
+            <div className="sig-text">Prepared By</div>
+          </div>
+
+          <div className="sig-block">
+            <div className="sig-line"></div>
+            <div className="sig-text">Verified By</div>
+          </div>
+
+          <div className="sig-block">
+            <div className="sig-line"></div>
+            <div className="sig-text">Proprietor / Manager</div>
           </div>
         </div>
       </div>
-
-      {/* 6. Running Document Footer */}
-      <footer className="print-footer mt-1 pt-1 border-t border-slate-300 flex justify-between items-center text-[7px] text-slate-500">
-        <div>Official Cash Statement • {settings.business_name || "Enterprise"} • System Generated</div>
-        <div>Printed on {currentPrintTime}</div>
-      </footer>
     </div>
   );
 });

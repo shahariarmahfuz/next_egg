@@ -20,7 +20,7 @@ import {
   DollarSign,
   Landmark,
 } from "lucide-react";
-import { accountsService } from "@/services/api";
+import { accountsService, saleService, collectionService } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,10 +88,80 @@ export default function CashBookPage() {
 
   const summary = cashBookData?.data;
 
+  // Pre-fetch sales and collections for the selected date for printing
+  const { data: salesData } = useQuery({
+    queryKey: ["sales-for-cash-book", selectedDate],
+    queryFn: () =>
+      saleService.getSales({
+        start_date: selectedDate,
+        end_date: selectedDate,
+        size: 100,
+      }),
+    enabled: !!selectedDate,
+    retry: 1,
+  });
+
+  const { data: collectionsData } = useQuery({
+    queryKey: ["collections-for-cash-book", selectedDate],
+    queryFn: () =>
+      collectionService.getCollections({
+        start_date: selectedDate,
+        end_date: selectedDate,
+        size: 100,
+      }),
+    enabled: !!selectedDate,
+    retry: 1,
+  });
+
   // Print Handler
   const handlePrint = async () => {
     if (!summary) return;
-    await printDocument(<PrintableCashBookStatement summary={summary} />);
+    try {
+      let sales = salesData?.data?.items;
+      let salesAggregate = salesData?.data?.aggregate;
+      let collections = collectionsData?.data?.items;
+
+      if (!sales || !collections) {
+        try {
+          const [sRes, cRes] = await Promise.allSettled([
+            !sales
+              ? saleService.getSales({
+                  start_date: selectedDate,
+                  end_date: selectedDate,
+                  size: 100,
+                })
+              : Promise.resolve(salesData),
+            !collections
+              ? collectionService.getCollections({
+                  start_date: selectedDate,
+                  end_date: selectedDate,
+                  size: 100,
+                })
+              : Promise.resolve(collectionsData),
+          ]);
+          if (sRes.status === "fulfilled" && sRes.value?.data) {
+            sales = sRes.value.data.items || [];
+            salesAggregate = sRes.value.data.aggregate;
+          }
+          if (cRes.status === "fulfilled" && cRes.value?.data) {
+            collections = cRes.value.data.items || [];
+          }
+        } catch {
+          // Gracefully fallback to whatever was loaded
+        }
+      }
+
+      await printDocument(
+        <PrintableCashBookStatement
+          summary={summary}
+          sales={sales || []}
+          salesAggregate={salesAggregate}
+          collections={collections || []}
+        />
+      );
+    } catch (err) {
+      console.error("Print execution failed:", err);
+    }
   };
 
   // Helper for badge styling based on transaction type
@@ -416,7 +486,7 @@ export default function CashBookPage() {
                         Today's Total Cash Activity
                       </td>
                       <td className="py-3 px-3 text-right tabular-nums text-rose-600 dark:text-rose-400">
-                        {formatCurrency(summary.today_cash_expense)}
+                        {formatCurrency(summary.total_cash_paid ?? summary.today_cash_expense)}
                       </td>
                       <td className="py-3 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400">
                         {formatCurrency(summary.today_cash_received)}

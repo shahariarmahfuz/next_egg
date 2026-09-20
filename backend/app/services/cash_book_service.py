@@ -11,9 +11,7 @@ from app.core.datetime_utils import normalize_date_range
 from app.models.currency import Currency
 from app.models.customer_collection import CustomerCollection
 from app.models.expense import Expense
-from app.models.purchase import Purchase
 from app.models.sale import Sale
-from app.models.sale_return import SaleReturn
 from app.models.supplier_payment import SupplierPayment
 from app.schemas.cash_book import CashBookItem, CashBookSummary
 from app.services.setting_service import setting_service
@@ -83,59 +81,9 @@ class CashBookService:
             end_utc = end_dt_local.astimezone(timezone.utc)
             display_date = today_d.strftime("%Y-%m-%d")
 
-        # 3. Calculate Previous / Opening Balance (Strictly before start_utc)
-        # Inflows before start_utc:
-        # a) Cash portion of sales
-        q_prev_sales = select(func.coalesce(func.sum(Sale.paid_amount), 0.0)).where(
-            Sale.sale_date < start_utc,
-            Sale.paid_amount > 0,
-        )
-        prev_sales_in = Decimal(str((await db.execute(q_prev_sales)).scalar() or 0.0))
-
-        # b) Customer Collections in cash
-        q_prev_collections = select(func.coalesce(func.sum(CustomerCollection.amount), 0.0)).where(
-            CustomerCollection.collection_date < start_utc,
-            CustomerCollection.amount > 0,
-            func.lower(func.coalesce(CustomerCollection.payment_method, "cash")) == "cash",
-        )
-        prev_col_in = Decimal(str((await db.execute(q_prev_collections)).scalar() or 0.0))
-
-        # Outflows before start_utc:
-        # c) Expenses in cash
-        q_prev_expenses = select(func.coalesce(func.sum(Expense.amount), 0.0)).where(
-            Expense.expense_date < start_utc,
-            Expense.amount > 0,
-            func.lower(func.coalesce(Expense.payment_method, "cash")) == "cash",
-        )
-        prev_exp_out = Decimal(str((await db.execute(q_prev_expenses)).scalar() or 0.0))
-
-        # d) Supplier payments in cash
-        q_prev_supplier_payments = select(func.coalesce(func.sum(SupplierPayment.amount), 0.0)).where(
-            SupplierPayment.payment_date < start_utc,
-            SupplierPayment.amount > 0,
-            func.lower(func.coalesce(SupplierPayment.payment_method, "cash")) == "cash",
-        )
-        prev_spay_out = Decimal(str((await db.execute(q_prev_supplier_payments)).scalar() or 0.0))
-
-        # e) Cash paid on purchases
-        q_prev_purchases = select(func.coalesce(func.sum(Purchase.paid_amount), 0.0)).where(
-            Purchase.purchase_date < start_utc,
-            Purchase.paid_amount > 0,
-        )
-        prev_pur_out = Decimal(str((await db.execute(q_prev_purchases)).scalar() or 0.0))
-
-        # f) Sale return cash refunds
-        q_prev_returns = select(func.coalesce(func.sum(SaleReturn.refund_amount), 0.0)).where(
-            SaleReturn.return_date < start_utc,
-            SaleReturn.refund_amount > 0,
-        )
-        prev_ret_out = Decimal(str((await db.execute(q_prev_returns)).scalar() or 0.0))
-
-        total_prev_inflows = prev_sales_in + prev_col_in
-        total_prev_outflows = prev_exp_out + prev_spay_out + prev_pur_out + prev_ret_out
-        previous_balance_dec = (total_prev_inflows - total_prev_outflows).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        # 3. Daily Cash Book Starts From ZERO:
+        # Every day starts independently from ZERO (0.00). No prior-day balance is carried forward.
+        previous_balance_dec = Decimal("0.00")
 
         # 4. Query transactions within [start_utc, end_utc]
         raw_transactions = []
@@ -207,10 +155,11 @@ class CashBookService:
         exp_records = (await db.execute(q_curr_expenses)).scalars().all()
         for e in exp_records:
             cat_name = e.category.name if e.category else "Expense"
+            desc = e.description.strip() if (e.description and e.description.strip()) else (f"Expense - {cat_name}" if cat_name != "Expense" else "Expense")
             raw_transactions.append({
                 "id": f"exp-{e.id}",
                 "timestamp": e.expense_date,
-                "description": f"Expense - {cat_name}" if cat_name != "Expense" else "Expense",
+                "description": desc,
                 "code": e.reference_no or "—",
                 "name": cat_name,
                 "invoice": e.voucher_no,
@@ -246,82 +195,32 @@ class CashBookService:
                 "credit": Decimal("0.00"),
             })
 
-        # E. Purchases (Cash Paid on Purchase)
-        q_curr_purchases = (
-            select(Purchase)
-            .options(selectinload(Purchase.supplier))
-            .where(
-                Purchase.purchase_date >= start_utc,
-                Purchase.purchase_date <= end_utc,
-                Purchase.paid_amount > 0,
-            )
-        )
-        purchase_records = (await db.execute(q_curr_purchases)).scalars().all()
-        for p in purchase_records:
-            supp_name = p.supplier.name if p.supplier else "Supplier"
-            supp_code = p.supplier.supplier_code if (p.supplier and p.supplier.supplier_code) else (p.invoice_no or "—")
-            raw_transactions.append({
-                "id": f"pur-{p.id}",
-                "timestamp": p.purchase_date,
-                "description": "Purchase in Cash",
-                "code": supp_code,
-                "name": supp_name,
-                "invoice": p.purchase_no,
-                "transaction_type": "cash_purchase",
-                "debit": Decimal(str(p.paid_amount)),
-                "credit": Decimal("0.00"),
-            })
-
-        # F. Sale Return Cash Refunds (Cash Outflow)
-        q_curr_returns = (
-            select(SaleReturn)
-            .options(selectinload(SaleReturn.customer))
-            .where(
-                SaleReturn.return_date >= start_utc,
-                SaleReturn.return_date <= end_utc,
-                SaleReturn.refund_amount > 0,
-            )
-        )
-        ret_records = (await db.execute(q_curr_returns)).scalars().all()
-        for r in ret_records:
-            cust_name = r.customer.name if r.customer else "Customer"
-            cust_code = r.customer.customer_code if (r.customer and r.customer.customer_code) else "—"
-            raw_transactions.append({
-                "id": f"ret-{r.id}",
-                "timestamp": r.return_date,
-                "description": "Sale Return Refund",
-                "code": cust_code,
-                "name": cust_name,
-                "invoice": r.return_no,
-                "transaction_type": "sale_return_refund",
-                "debit": Decimal(str(r.refund_amount)),
-                "credit": Decimal("0.00"),
-            })
-
         # 5. Sort transactions chronologically
         raw_transactions.sort(key=lambda item: (item["timestamp"], item["id"]))
 
-        # 6. Build formatted Cash Book Items with Running Balance
+        # 6. Build formatted Cash Book Items with Running Balance starting from ZERO (0.00)
         items: List[CashBookItem] = []
-        running_balance = previous_balance_dec
+        running_balance = Decimal("0.00")
         total_credit_dec = Decimal("0.00")
         total_debit_dec = Decimal("0.00")
+        total_expense_dec = Decimal("0.00")
+        total_supplier_paid_dec = Decimal("0.00")
 
-        # Opening row for Previous Balance
+        # Opening row for Previous / Opening Balance = 0.00
         start_local_dt = start_utc.astimezone(tz)
         opening_item = CashBookItem(
             id="opening-balance",
             date=start_utc,
             formatted_date=start_local_dt.strftime("%d-%m-%Y"),
             formatted_time="—",
-            description="Previous Balance",
+            description="Opening Balance",
             code="—",
             name="—",
             invoice="—",
             transaction_type="opening_balance",
             debit=0.0,
             credit=0.0,
-            balance=float(previous_balance_dec),
+            balance=0.0,
         )
         items.append(opening_item)
 
@@ -330,6 +229,12 @@ class CashBookService:
             debit_val = tx["debit"]
             total_credit_dec += credit_val
             total_debit_dec += debit_val
+
+            tx_type = tx["transaction_type"]
+            if tx_type == "expense":
+                total_expense_dec += debit_val
+            elif tx_type == "supplier_payment":
+                total_supplier_paid_dec += debit_val
 
             running_balance = (running_balance + credit_val - debit_val).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -353,7 +258,7 @@ class CashBookService:
                 )
             )
 
-        closing_cash_dec = (previous_balance_dec + total_credit_dec - total_debit_dec).quantize(
+        closing_cash_dec = (total_credit_dec - total_debit_dec).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
@@ -363,9 +268,13 @@ class CashBookService:
             end_date=end_utc,
             timezone=tz_str,
             currency_symbol=currency_symbol,
-            previous_balance=float(previous_balance_dec),
+            previous_balance=0.0,
             today_cash_received=float(total_credit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            today_cash_expense=float(total_debit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            today_cash_expense=float(total_expense_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_expense=float(total_expense_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_purchase_paid=0.0,
+            total_supplier_paid=float(total_supplier_paid_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_refund_paid=0.0,
             cash_in_hand=float(closing_cash_dec),
             total_cash_received=float(total_credit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             total_cash_paid=float(total_debit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),

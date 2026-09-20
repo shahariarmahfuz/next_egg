@@ -41,11 +41,15 @@ class CashBookSummary(BaseModel):
     # Financial KPI summary cards
     previous_balance: float = Field(..., description="Opening cash before this date")
     today_cash_received: float = Field(..., description="Cash inflows during period")
-    today_cash_expense: float = Field(..., description="Cash outflows during period")
-    cash_in_hand: float = Field(..., description="Closing cash in hand = previous + received - expense")
+    today_cash_expense: float = Field(..., description="Actual cash expenses during period (Expense module only)")
+    total_expense: float = Field(0.0, description="Actual cash expenses during period (Expense module only)")
+    total_purchase_paid: float = Field(0.0, description="Cash paid on purchases during period")
+    total_supplier_paid: float = Field(0.0, description="Cash paid to suppliers during period")
+    total_refund_paid: float = Field(0.0, description="Cash refunded on returns during period")
+    cash_in_hand: float = Field(..., description="Closing cash in hand = previous + received - total_paid")
     
     total_cash_received: float = Field(..., description="Total cash received in period")
-    total_cash_paid: float = Field(..., description="Total cash paid in period")
+    total_cash_paid: float = Field(..., description="Total cash paid in period (all outflows)")
     closing_cash_balance: float = Field(..., description="Closing cash balance")
 
     # Business profile info for print / branding

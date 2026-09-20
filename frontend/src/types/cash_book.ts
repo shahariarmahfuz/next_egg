@@ -29,6 +29,10 @@ export interface CashBookSummary {
   previous_balance: number;
   today_cash_received: number;
   today_cash_expense: number;
+  total_expense?: number;
+  total_purchase_paid?: number;
+  total_supplier_paid?: number;
+  total_refund_paid?: number;
   cash_in_hand: number;
   total_cash_received: number;
   total_cash_paid: number;
