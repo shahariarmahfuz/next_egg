@@ -26,6 +26,7 @@ done
 
 echo "=== 2. Starting Frontend (Next.js on 0.0.0.0:3000) ==="
 cd "$DIR/frontend"
+fuser -k 3000/tcp 2>/dev/null || true
 cp -r "$DIR/frontend/public" "$DIR/frontend/.next/standalone/" 2>/dev/null || true
 cp -r "$DIR/frontend/.next/static" "$DIR/frontend/.next/standalone/.next/" 2>/dev/null || true
 PORT=3000 HOSTNAME=0.0.0.0 node "$DIR/frontend/.next/standalone/server.js" > "$DIR/frontend.log" 2>&1 &

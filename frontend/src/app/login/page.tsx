@@ -43,6 +43,7 @@ export default function LoginPage() {
   const [recoverySessionToken, setRecoverySessionToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [logoError, setLogoError] = useState(false);
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && step === "login") {
@@ -171,6 +172,7 @@ export default function LoginPage() {
 
   const brandName = settings.business_name || "Enterprise Hub";
   const initial = brandName.charAt(0).toUpperCase();
+  const logoUrl = !logoError ? (settings.login_logo_url || settings.business_logo || settings.app_icon_url) : null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -181,10 +183,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in-50 zoom-in-95 duration-500">
         {/* Brand Header */}
         <div className="text-center space-y-2 flex flex-col items-center">
-          {settings.login_logo_url || settings.business_logo ? (
+          {logoUrl ? (
             <img
-              src={settings.login_logo_url || settings.business_logo}
+              src={logoUrl}
               alt={brandName}
+              onError={() => setLogoError(true)}
               className="h-16 w-16 rounded-2xl object-contain bg-white shadow-lg shadow-primary/30"
             />
           ) : (
@@ -192,8 +195,10 @@ export default function LoginPage() {
               {initial}
             </div>
           )}
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-blue-400 to-indigo-400 bg-clip-text text-transparent">
-            {brandName}
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+            <span className="bg-gradient-to-r from-primary via-blue-500 to-indigo-500 bg-clip-text text-transparent">
+              {brandName}
+            </span>
           </h1>
           <p className="text-sm text-muted-foreground">
             Sign in to access your business management portal
