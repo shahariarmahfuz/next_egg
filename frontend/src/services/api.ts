@@ -3,6 +3,8 @@ import {
   BalanceAdjustmentItem,
   BalanceAdjustmentPayload,
   CashBookSummary,
+  CashOutInput,
+  CashOutItem,
   CollectionReportSummaryData,
   CustomerCollectionCreatePayload,
   CustomerCollectionItem,
@@ -841,6 +843,21 @@ export const accountsService = {
   getCashBook: async (params?: { target_date?: string; start_date?: string; end_date?: string }) => {
     return http.get<CashBookSummary>("/accounts/cash-book", params);
   },
+  createCashOut: async (payload: CashOutInput) => {
+    return http.post<CashOutItem>("/accounts/cash-out", payload);
+  },
+  getCashOuts: async (params?: { page?: number; size?: number; start_date?: string; end_date?: string; search?: string }) => {
+    return http.get<PaginatedResult<CashOutItem>>("/accounts/cash-out", params);
+  },
+  getCashOut: async (id: string) => {
+    return http.get<CashOutItem>(`/accounts/cash-out/${id}`);
+  },
+};
+
+export const cashOutService = {
+  createCashOut: accountsService.createCashOut,
+  getCashOuts: accountsService.getCashOuts,
+  getCashOut: accountsService.getCashOut,
 };
 
 

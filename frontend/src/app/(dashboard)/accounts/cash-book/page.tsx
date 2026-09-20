@@ -175,6 +175,8 @@ export default function CashBookPage() {
         return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold">Collection</Badge>;
       case "expense":
         return <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 font-semibold">Expense</Badge>;
+      case "cash_out":
+        return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20 font-semibold">Cash Out</Badge>;
       default:
         return <Badge variant="outline">{type}</Badge>;
     }
@@ -307,6 +309,21 @@ export default function CashBookPage() {
             <div className="mt-2">
               <span className="text-base font-bold text-rose-600 dark:text-rose-400">
                 -{formatCurrency(summary?.today_cash_expense)}
+              </span>
+            </div>
+          </Card>
+
+          {/* 4. Today's Cash Out */}
+          <Card className="glass-card p-3 rounded-xl">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-muted-foreground truncate">Today's Cash Out</span>
+              <div className="h-6 w-6 rounded-md bg-purple-500/10 flex items-center justify-center">
+                <ArrowUpRight className="h-3.5 w-3.5 text-purple-500" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-base font-bold text-purple-600 dark:text-purple-400">
+                -{formatCurrency(summary?.today_cash_out || 0)}
               </span>
             </div>
           </Card>

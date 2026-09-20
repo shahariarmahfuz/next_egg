@@ -3,6 +3,7 @@ from app.models.base import Base, TimestampedBaseModel
 from app.models.customer import Customer
 from app.models.customer_collection import CustomerCollection
 from app.models.balance_adjustment import BalanceAdjustment
+from app.models.cash_out import CashOut
 from app.models.expense import Expense, ExpenseCategory
 from app.models.permission import Permission
 from app.models.product import Product
@@ -51,6 +52,7 @@ __all__ = [
     "ActivityLog",
     "ExpenseCategory",
     "Expense",
+    "CashOut",
     "InventoryBatch",
     "BalanceAdjustment",
     "Currency",

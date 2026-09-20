@@ -11,7 +11,8 @@ export interface CashBookItem {
     | "opening_balance"
     | "cash_sale"
     | "collection"
-    | "expense";
+    | "expense"
+    | "cash_out";
   debit: number;
   credit: number;
   balance: number;
@@ -27,6 +28,8 @@ export interface CashBookSummary {
   today_cash_received: number;
   today_cash_expense: number;
   total_expense?: number;
+  today_cash_out?: number;
+  total_cash_out?: number;
   total_purchase_paid?: number;
   total_supplier_paid?: number;
   total_refund_paid?: number;

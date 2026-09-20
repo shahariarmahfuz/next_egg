@@ -33,6 +33,7 @@ import {
   BookOpen,
   Sprout,
   Landmark,
+  ArrowUpRight,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -55,20 +56,21 @@ export function SidebarContent({
   const { user, logout, hasPermission } = useAuth();
 
   const isCashBookActive = pathname === "/accounts/cash-book";
+  const isCashOutActive = pathname === "/accounts/cash-out";
   const isFilteredDashboardActive = pathname === "/dashboard/filtered";
   const isReportsCenterActive = pathname.startsWith("/reports");
-  const isAccountsActive = isCashBookActive || isFilteredDashboardActive || isReportsCenterActive;
+  const isAccountsActive = isCashBookActive || isCashOutActive || isFilteredDashboardActive || isReportsCenterActive;
 
   // Accordion state: default open if current route is inside accounts, otherwise null (collapsed by default on load)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(() => {
-    if (pathname === "/accounts/cash-book" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
+    if (pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
       return "accounts";
     }
     return null;
   });
 
   useEffect(() => {
-    if (pathname === "/accounts/cash-book" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
+    if (pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
       setExpandedGroup("accounts");
     }
   }, [pathname]);
@@ -1093,6 +1095,22 @@ export function SidebarContent({
                   >
                     <Wallet className="h-3.5 w-3.5 text-primary" />
                     <span>Cash Book</span>
+                  </Link>
+                )}
+
+                {hasPermission(["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]) && (
+                  <Link
+                    href="/accounts/cash-out"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      isCashOutActive
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
+                    <span>Cash Out</span>
                   </Link>
                 )}
 

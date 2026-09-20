@@ -290,6 +290,8 @@ class ExpenseService:
             query = query.where(Expense.expense_date >= start_date)
 
         if end_date:
+            if end_date.hour == 0 and end_date.minute == 0 and end_date.second == 0 and end_date.microsecond == 0:
+                end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
             query = query.where(Expense.expense_date <= end_date)
 
         # Count total

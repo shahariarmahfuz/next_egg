@@ -251,6 +251,37 @@ export const PrintableCashBookStatement = React.forwardRef<
       ? summary.total_expense
       : expenseRows.reduce((sum, r) => sum + (r.amount || 0), 0);
 
+  // -------------------------------------------------------------
+  // 4. CASH OUT (NON-EXPENSE WITHDRAWALS) ROWS
+  // -------------------------------------------------------------
+  interface CashOutRow {
+    id: string;
+    reason: string;
+    voucherNo: string;
+    amount: number;
+  }
+
+  const cashOutRows: CashOutRow[] = [];
+  const actualCashOutItems = (summary.items || []).filter(
+    (it) => it.transaction_type === "cash_out" && it.debit > 0
+  );
+
+  for (const it of actualCashOutItems) {
+    cashOutRows.push({
+      id: it.id,
+      reason: it.name && it.name !== "—" ? it.name : (it.description || "Cash Out"),
+      voucherNo: it.invoice && it.invoice !== "—" ? it.invoice : (it.code || "—"),
+      amount: it.debit,
+    });
+  }
+
+  const totalCashOut =
+    typeof summary.total_cash_out === "number"
+      ? summary.total_cash_out
+      : (typeof summary.today_cash_out === "number"
+          ? summary.today_cash_out
+          : cashOutRows.reduce((sum, r) => sum + (r.amount || 0), 0));
+
   return (
     <div ref={ref} className="cash-book-master-print w-full">
       {/* Complete CSS styles preserved exactly from Master Template */}
@@ -1000,6 +1031,47 @@ export const PrintableCashBookStatement = React.forwardRef<
         </div>
 
         {/* =====================================================
+             4. CASH OUT / WITHDRAWALS
+        ===================================================== */}
+        {cashOutRows.length > 0 && (
+          <>
+            <div className="section-title">4. Cash Out / Withdrawals</div>
+
+            <div className="css-table expense-table">
+              {/* HEADER */}
+              <div className="css-row css-header">
+                <div className="css-cell">#</div>
+                <div className="css-cell">Reason / Description</div>
+                <div className="css-cell">Voucher #</div>
+                <div className="css-cell">Amount ({currencySymbol})</div>
+              </div>
+
+              {/* ROWS */}
+              {cashOutRows.map((row, idx) => (
+                <div key={row.id} className="css-row">
+                  <div className="css-cell text-center">{idx + 1}</div>
+                  <div className="css-cell text-left">{row.reason}</div>
+                  <div className="css-cell text-center">{row.voucherNo}</div>
+                  <div className="css-cell text-right">
+                    {formatNumber(row.amount)}
+                  </div>
+                </div>
+              ))}
+
+              {/* TOTAL */}
+              <div className="css-row total-row">
+                <div className="css-cell total-label" style={{ gridColumn: "1 / 4" }}>
+                  Total Cash Out:
+                </div>
+                <div className="css-cell total-value">
+                  {formatCurrency(totalCashOut)}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* =====================================================
              FINAL BALANCE SUMMARY
         ===================================================== */}
         <div className="summary-box">
@@ -1028,6 +1100,20 @@ export const PrintableCashBookStatement = React.forwardRef<
                   {formatCurrency(totalExpense)}
                 </span>
               </div>
+
+              {totalCashOut > 0 && (
+                <>
+                  <div className="summary-symbol">-</div>
+                  <div className="summary-item">
+                    <span className="title" style={{ color: "#6f42c1" }}>
+                      Cash Out
+                    </span>
+                    <span className="val" style={{ color: "#6f42c1" }}>
+                      {formatCurrency(totalCashOut)}
+                    </span>
+                  </div>
+                </>
+              )}
 
               <div className="summary-symbol">=</div>
 

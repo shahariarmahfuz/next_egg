@@ -1,6 +1,7 @@
 export * from "./api";
 export * from "./balance_adjustment";
 export * from "./cash_book";
+export * from "./cash_out";
 export * from "./customer";
 export * from "./customer_collection";
 export * from "./dashboard";

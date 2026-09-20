@@ -264,8 +264,65 @@ async def test_cash_book_eight_mandatory_tests(async_client: AsyncClient, auth_h
         assert "supplier" not in item["description"].lower()
 
     # -------------------------------------------------------------
+    # TEST 4C: Create a Cash Out of 2,000.
+    # Expected:
+    # 1. Cash Out is saved and assigned voucher number (CO-...).
+    # 2. Appears in Cash Book as CASH OUT transaction (debit = 2000).
+    # 3. Cash Book balance decreases by 2,000: 11,000 - 2,000 = 9,000.
+    # 4. Total Expense does NOT increase (remains 1,000).
+    # 5. Total Cash Out = 2,000. Total Cash Paid = 3,000 (1,000 exp + 2,000 out).
+    # 6. Does NOT create an Expense record in Expense module.
+    # -------------------------------------------------------------
+    res_co = await async_client.post(
+        "/api/v1/accounts/cash-out",
+        headers=auth_headers,
+        json={
+            "amount": 2000.0,
+            "reason": "Owner Withdrawal",
+            "cash_out_date": day1_dt.isoformat(),
+            "notes": "Testing Cash Out module",
+        },
+    )
+    assert res_co.status_code == 201, f"Cash Out creation failed: {res_co.text}"
+    co_data = res_co.json()["data"]
+    assert co_data["amount"] == 2000.0
+    assert co_data["reason"] == "Owner Withdrawal"
+    assert co_data["cash_out_no"].startswith("CO-")
+
+    res_cb_co = await async_client.get(f"/api/v1/accounts/cash-book?target_date={day1_str}", headers=auth_headers)
+    assert res_cb_co.status_code == 200
+    cb_co = res_cb_co.json()["data"]
+    assert cb_co["previous_balance"] == 0.0
+    assert cb_co["today_cash_received"] == 12000.0
+    assert cb_co["today_cash_expense"] == 1000.0  # Unchanged! Still 1,000
+    assert cb_co["total_expense"] == 1000.0
+    assert cb_co["today_cash_out"] == 2000.0
+    assert cb_co["total_cash_out"] == 2000.0
+    assert cb_co["total_cash_paid"] == 3000.0  # 1000 exp + 2000 out
+    assert cb_co["closing_cash_balance"] == 9000.0
+    assert cb_co["cash_in_hand"] == 9000.0
+
+    # Verify Cash Out appears as separate CASH OUT transaction in items
+    co_items = [it for it in cb_co["items"] if it["transaction_type"] == "cash_out"]
+    assert len(co_items) == 1
+    assert co_items[0]["debit"] == 2000.0
+    assert co_items[0]["credit"] == 0.0
+    assert "Owner Withdrawal" in co_items[0]["description"]
+
+    # Verify it does NOT appear in Expenses module
+    res_expenses = await async_client.get(
+        f"/api/v1/expenses?start_date={day1_str}&end_date={day1_str}",
+        headers=auth_headers,
+    )
+    assert res_expenses.status_code == 200
+    exp_list = res_expenses.json()["data"]["items"]
+    for e in exp_list:
+        assert "Owner Withdrawal" not in (e.get("description") or "")
+        assert not e.get("voucher_no", "").startswith("CO-")
+
+    # -------------------------------------------------------------
     # TEST 5: Open the next day's Cash Book.
-    # Expected: Opening Balance = 0. It must NOT show 11,000.
+    # Expected: Opening Balance = 0. It must NOT show 9,000.
     # -------------------------------------------------------------
     res_cb_test5 = await async_client.get(f"/api/v1/accounts/cash-book?target_date={day2_str}", headers=auth_headers)
     assert res_cb_test5.status_code == 200
@@ -273,13 +330,14 @@ async def test_cash_book_eight_mandatory_tests(async_client: AsyncClient, auth_h
     assert cb5["previous_balance"] == 0.0
     assert cb5["today_cash_received"] == 0.0
     assert cb5["today_cash_expense"] == 0.0
+    assert cb5["today_cash_out"] == 0.0
     assert cb5["total_cash_paid"] == 0.0
     assert cb5["closing_cash_balance"] == 0.0
     assert cb5["cash_in_hand"] == 0.0
 
     # -------------------------------------------------------------
     # TEST 6: Select the previous date again.
-    # Expected: That date's Cash Book remains independent (closing = 11,000).
+    # Expected: That date's Cash Book remains independent (closing = 9,000).
     # -------------------------------------------------------------
     res_cb_test6 = await async_client.get(f"/api/v1/accounts/cash-book?target_date={day1_str}", headers=auth_headers)
     assert res_cb_test6.status_code == 200
@@ -287,7 +345,8 @@ async def test_cash_book_eight_mandatory_tests(async_client: AsyncClient, auth_h
     assert cb6["previous_balance"] == 0.0
     assert cb6["today_cash_received"] == 12000.0
     assert cb6["today_cash_expense"] == 1000.0
-    assert cb6["closing_cash_balance"] == 11000.0
+    assert cb6["today_cash_out"] == 2000.0
+    assert cb6["closing_cash_balance"] == 9000.0
 
     # -------------------------------------------------------------
     # TEST 7: A credit sale with no payment.

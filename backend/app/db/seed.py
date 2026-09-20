@@ -54,6 +54,8 @@ DEFAULT_PERMISSIONS = [
 
     # Accounts & Cash Book module
     {"code": "accounts.cash_book.view", "name": "View Cash Book", "module": "accounts", "description": "View daily cash statement and cash movements"},
+    {"code": "accounts.cash_out.view", "name": "View Cash Out", "module": "accounts", "description": "View non-expense cash out records"},
+    {"code": "accounts.cash_out.create", "name": "Create Cash Out", "module": "accounts", "description": "Record non-expense cash out transactions"},
 
     # Sales module
     {"code": "sales.view", "name": "View Sales", "module": "sales", "description": "View sales transactions and records"},

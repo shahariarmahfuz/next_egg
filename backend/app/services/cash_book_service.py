@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.core.datetime_utils import normalize_date_range
 from app.models.currency import Currency
 from app.models.customer_collection import CustomerCollection
+from app.models.cash_out import CashOut
 from app.models.expense import Expense
 from app.models.sale import Sale
 from app.schemas.cash_book import CashBookItem, CashBookSummary
@@ -167,6 +168,30 @@ class CashBookService:
                 "credit": Decimal("0.00"),
             })
 
+        # D. Cash Out (Non-Expense Cash Outflow)
+        q_curr_cash_outs = (
+            select(CashOut)
+            .where(
+                CashOut.cash_out_date >= start_utc,
+                CashOut.cash_out_date <= end_utc,
+                CashOut.amount > 0,
+            )
+        )
+        co_records = (await db.execute(q_curr_cash_outs)).scalars().all()
+        for co in co_records:
+            desc = f"Cash Out - {co.reason.strip()}" if co.reason else "Cash Out"
+            raw_transactions.append({
+                "id": f"co-{co.id}",
+                "timestamp": co.cash_out_date,
+                "description": desc,
+                "code": co.cash_out_no,
+                "name": co.reason.strip(),
+                "invoice": co.cash_out_no,
+                "transaction_type": "cash_out",
+                "debit": Decimal(str(co.amount)),
+                "credit": Decimal("0.00"),
+            })
+
         # 5. Sort transactions chronologically
         raw_transactions.sort(key=lambda item: (item["timestamp"], item["id"]))
 
@@ -175,6 +200,8 @@ class CashBookService:
         running_balance = Decimal("0.00")
         total_credit_dec = Decimal("0.00")
         total_debit_dec = Decimal("0.00")
+        total_expense_dec = Decimal("0.00")
+        total_cash_out_dec = Decimal("0.00")
 
         # Opening row for Previous / Opening Balance = 0.00
         start_local_dt = start_utc.astimezone(tz)
@@ -199,6 +226,12 @@ class CashBookService:
             debit_val = tx["debit"]
             total_credit_dec += credit_val
             total_debit_dec += debit_val
+
+            tx_type = tx["transaction_type"]
+            if tx_type == "expense":
+                total_expense_dec += debit_val
+            elif tx_type == "cash_out":
+                total_cash_out_dec += debit_val
 
             running_balance = (running_balance + credit_val - debit_val).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -234,8 +267,10 @@ class CashBookService:
             currency_symbol=currency_symbol,
             previous_balance=0.0,
             today_cash_received=float(total_credit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            today_cash_expense=float(total_debit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-            total_expense=float(total_debit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            today_cash_expense=float(total_expense_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_expense=float(total_expense_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            today_cash_out=float(total_cash_out_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_cash_out=float(total_cash_out_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             total_purchase_paid=0.0,
             total_supplier_paid=0.0,
             total_refund_paid=0.0,
