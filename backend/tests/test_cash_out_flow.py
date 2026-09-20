@@ -207,3 +207,29 @@ async def test_cash_out_complete_flow_twelve_checks(async_client: AsyncClient, a
     # 12. Verify Cash Book summary includes the Cash Out transaction
     assert cb_after["total_cash_out"] == 2000.0
     assert any(it["transaction_type"] == "cash_out" for it in cb_after["items"])
+
+    # 13. Verify PUT /cash-out/{id} updates amount and Cash Book adjusts
+    co_id = co_obj["id"]
+    res_update = await async_client.put(
+        f"/api/v1/accounts/cash-out/{co_id}",
+        headers=auth_headers,
+        json={"amount": 2500.0, "reason": "Updated Withdrawal"},
+    )
+    assert res_update.status_code == 200
+    assert res_update.json()["data"]["amount"] == 2500.0
+    assert res_update.json()["data"]["reason"] == "Updated Withdrawal"
+
+    res_cb_updated = await async_client.get(f"/api/v1/accounts/cash-book?target_date={day1_str}", headers=auth_headers)
+    assert res_cb_updated.json()["data"]["today_cash_out"] == 2500.0
+    assert res_cb_updated.json()["data"]["closing_cash_balance"] == 6500.0
+
+    # 14. Verify DELETE /cash-out/{id} deletes voucher and Cash Book restores
+    res_delete = await async_client.delete(
+        f"/api/v1/accounts/cash-out/{co_id}",
+        headers=auth_headers,
+    )
+    assert res_delete.status_code == 200
+
+    res_cb_deleted = await async_client.get(f"/api/v1/accounts/cash-book?target_date={day1_str}", headers=auth_headers)
+    assert res_cb_deleted.json()["data"]["today_cash_out"] == 0.0
+    assert res_cb_deleted.json()["data"]["closing_cash_balance"] == 9000.0

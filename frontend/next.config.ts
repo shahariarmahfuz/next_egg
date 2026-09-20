@@ -35,6 +35,16 @@ const nextConfig: NextConfig = {
         destination: "/farm",
         permanent: false,
       },
+      {
+        source: "/accounts/cash-book",
+        destination: "/cash/cash-book",
+        permanent: false,
+      },
+      {
+        source: "/accounts/cash-out",
+        destination: "/cash/cash-out",
+        permanent: false,
+      },
     ];
   },
   async rewrites() {

@@ -16,6 +16,8 @@ export interface CashOutInput {
   amount: number;
   cash_out_date: string;
   reason: string;
-  notes?: string;
-  note?: string;
+  notes?: string | null;
+  note?: string | null;
 }
+
+export type CashOutUpdateInput = Partial<CashOutInput>;

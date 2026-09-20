@@ -23,6 +23,22 @@ class CashOutCreate(CashOutBase):
     pass
 
 
+class CashOutUpdate(BaseModel):
+    amount: Optional[float] = Field(None, gt=0, description="Amount taken out in cash (must be > 0)")
+    cash_out_date: Optional[datetime] = Field(None, description="Date and time when cash was withdrawn")
+    reason: Optional[str] = Field(None, min_length=1, max_length=255, description="Reason for cash out")
+    notes: Optional[str] = Field(None, description="Additional notes")
+    note: Optional[str] = Field(None, description="Alias for notes")
+
+    @model_validator(mode="after")
+    def sync_note_fields(self):
+        val = self.notes if self.notes is not None else self.note
+        if val is not None:
+            self.notes = val
+            self.note = val
+        return self
+
+
 class CashOutResponse(CashOutBase):
     model_config = ConfigDict(from_attributes=True)
 

@@ -5,6 +5,7 @@ import {
   CashBookSummary,
   CashOutInput,
   CashOutItem,
+  CashOutUpdateInput,
   CollectionReportSummaryData,
   CustomerCollectionCreatePayload,
   CustomerCollectionItem,
@@ -852,12 +853,20 @@ export const accountsService = {
   getCashOut: async (id: string) => {
     return http.get<CashOutItem>(`/accounts/cash-out/${id}`);
   },
+  updateCashOut: async (id: string, payload: CashOutUpdateInput) => {
+    return http.put<CashOutItem>(`/accounts/cash-out/${id}`, payload);
+  },
+  deleteCashOut: async (id: string) => {
+    return http.delete<{ id: string }>(`/accounts/cash-out/${id}`);
+  },
 };
 
 export const cashOutService = {
   createCashOut: accountsService.createCashOut,
   getCashOuts: accountsService.getCashOuts,
   getCashOut: accountsService.getCashOut,
+  updateCashOut: accountsService.updateCashOut,
+  deleteCashOut: accountsService.deleteCashOut,
 };
 
 

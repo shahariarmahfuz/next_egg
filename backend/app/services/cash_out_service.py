@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.cash_out import CashOut
 from app.models.user import User
-from app.schemas.cash_out import CashOutCreate, CashOutResponse
+from app.schemas.cash_out import CashOutCreate, CashOutResponse, CashOutUpdate
 
 
 class CashOutService:
@@ -158,6 +158,75 @@ class CashOutService:
             created_at=record.created_at,
             updated_at=record.updated_at,
         )
+
+    async def update_cash_out(
+        self, db: AsyncSession, cash_out_id: str, data: CashOutUpdate
+    ) -> CashOutResponse:
+        result = await db.execute(
+            select(CashOut).options(selectinload(CashOut.created_by)).where(CashOut.id == cash_out_id)
+        )
+        record = result.scalar_one_or_none()
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cash out voucher not found.",
+            )
+
+        if data.amount is not None:
+            if data.amount <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cash out amount must be greater than 0.",
+                )
+            record.amount = data.amount
+
+        if data.cash_out_date is not None:
+            dt = data.cash_out_date
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt = dt.astimezone(timezone.utc)
+            record.cash_out_date = dt
+
+        if data.reason is not None:
+            if not data.reason.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Reason for cash out cannot be empty.",
+                )
+            record.reason = data.reason.strip()
+
+        if data.notes is not None:
+            record.notes = data.notes.strip() if data.notes.strip() else None
+
+        record.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(record)
+
+        return CashOutResponse(
+            id=record.id,
+            cash_out_no=record.cash_out_no,
+            amount=record.amount,
+            cash_out_date=record.cash_out_date,
+            reason=record.reason,
+            notes=record.notes,
+            note=record.notes,
+            created_by_id=record.created_by_id,
+            created_by_name=record.created_by.full_name if record.created_by else None,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    async def delete_cash_out(self, db: AsyncSession, cash_out_id: str) -> None:
+        result = await db.execute(select(CashOut).where(CashOut.id == cash_out_id))
+        record = result.scalar_one_or_none()
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cash out voucher not found.",
+            )
+        await db.delete(record)
+        await db.commit()
 
 
 cash_out_service = CashOutService()

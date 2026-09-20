@@ -8,7 +8,7 @@ from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
 from app.models.user import User
 from app.schemas.cash_book import CashBookSummary
-from app.schemas.cash_out import CashOutCreate, CashOutResponse
+from app.schemas.cash_out import CashOutCreate, CashOutResponse, CashOutUpdate
 from app.schemas.common import PaginatedResponse, ResponseModel
 from app.services.cash_book_service import cash_book_service
 from app.services.cash_out_service import cash_out_service
@@ -124,3 +124,47 @@ async def get_cash_out(
         message="Cash out voucher retrieved successfully.",
         data=cash_out,
     )
+
+
+@router.put(
+    "/cash-out/{cash_out_id}",
+    response_model=ResponseModel[CashOutResponse],
+    dependencies=[Depends(RequirePermission(["accounts.cash_out.edit", "cash_out.edit", "accounts.cash_out.create"]))],
+)
+async def update_cash_out(
+    cash_out_id: str,
+    data: CashOutUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Updates an existing Cash Out voucher.
+    """
+    cash_out = await cash_out_service.update_cash_out(db, cash_out_id, data)
+    return ResponseModel[CashOutResponse](
+        success=True,
+        message="Cash out voucher updated successfully.",
+        data=cash_out,
+    )
+
+
+@router.delete(
+    "/cash-out/{cash_out_id}",
+    response_model=ResponseModel[dict],
+    dependencies=[Depends(RequirePermission(["accounts.cash_out.delete", "cash_out.delete"]))],
+)
+async def delete_cash_out(
+    cash_out_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Deletes a Cash Out voucher.
+    """
+    await cash_out_service.delete_cash_out(db, cash_out_id)
+    return ResponseModel[dict](
+        success=True,
+        message="Cash out voucher deleted successfully.",
+        data={"id": cash_out_id},
+    )
+

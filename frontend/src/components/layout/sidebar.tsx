@@ -34,6 +34,8 @@ import {
   Sprout,
   Landmark,
   ArrowUpRight,
+  Banknote,
+  FileText,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -55,22 +57,30 @@ export function SidebarContent({
   const pathname = usePathname();
   const { user, logout, hasPermission } = useAuth();
 
-  const isCashBookActive = pathname === "/accounts/cash-book";
-  const isCashOutActive = pathname === "/accounts/cash-out";
+  const isCashBookActive = pathname === "/cash/cash-book" || pathname === "/accounts/cash-book";
+  const isCashOutActive = pathname === "/cash/cash-out" || pathname === "/accounts/cash-out";
+  const isCashOutManageActive = pathname === "/cash/cash-out/manage";
+  const isCashActive = pathname.startsWith("/cash") || isCashBookActive || isCashOutActive || isCashOutManageActive;
+
   const isFilteredDashboardActive = pathname === "/dashboard/filtered";
   const isReportsCenterActive = pathname.startsWith("/reports");
-  const isAccountsActive = isCashBookActive || isCashOutActive || isFilteredDashboardActive || isReportsCenterActive;
+  const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive;
 
-  // Accordion state: default open if current route is inside accounts, otherwise null (collapsed by default on load)
+  // Accordion state: default open if current route is inside group, otherwise null
   const [expandedGroup, setExpandedGroup] = useState<string | null>(() => {
-    if (pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
+    if (pathname.startsWith("/cash") || pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out") {
+      return "cash";
+    }
+    if (pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
       return "accounts";
     }
     return null;
   });
 
   useEffect(() => {
-    if (pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
+    if (pathname.startsWith("/cash") || pathname === "/accounts/cash-book" || pathname === "/accounts/cash-out") {
+      setExpandedGroup("cash");
+    } else if (pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
       setExpandedGroup("accounts");
     }
   }, [pathname]);
@@ -1053,8 +1063,89 @@ export function SidebarContent({
           </div>
         )}
 
+        {/* Cash Module Collapsible Group */}
+        {hasPermission(["accounts.cash_book.view", "accounts.cash_out.view", "reports.view"]) && (
+          <div className="space-y-1">
+            <button
+              onClick={() => toggleGroup("cash")}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group",
+                isCashActive
+                  ? "bg-accent/80 text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              )}
+              title={collapsed ? "Cash" : undefined}
+            >
+              <div className="flex items-center space-x-3">
+                <Banknote className="h-5 w-5 shrink-0 text-primary" />
+                {!collapsed && <span>Cash</span>}
+              </div>
+              {!collapsed && (
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    isGroupOpen("cash") ? "rotate-180" : ""
+                  )}
+                />
+              )}
+            </button>
+
+            {isGroupOpen("cash") && !collapsed && (
+              <div className="pl-9 space-y-1 animate-in fade-in-50">
+                {hasPermission(["accounts.cash_book.view", "reports.view"]) && (
+                  <Link
+                    href="/cash/cash-book"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      isCashBookActive
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <BookOpen className="h-3.5 w-3.5 text-primary" />
+                    <span>Cash Book</span>
+                  </Link>
+                )}
+
+                {hasPermission(["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]) && (
+                  <Link
+                    href="/cash/cash-out"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      isCashOutActive
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
+                    <span>Cash Out</span>
+                  </Link>
+                )}
+
+                {hasPermission(["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]) && (
+                  <Link
+                    href="/cash/cash-out/manage"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      isCashOutManageActive
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <FileText className="h-3.5 w-3.5 text-primary" />
+                    <span>Cash Out Manage</span>
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Accounts Module Collapsible Group */}
-        {hasPermission(["accounts.cash_book.view", "dashboard.filtered.view", "reports.view"]) && (
+        {hasPermission(["dashboard.filtered.view", "reports.view"]) && (
           <div className="space-y-1">
             <button
               onClick={() => toggleGroup("accounts")}
@@ -1082,38 +1173,6 @@ export function SidebarContent({
 
             {isGroupOpen("accounts") && !collapsed && (
               <div className="pl-9 space-y-1 animate-in fade-in-50">
-                {hasPermission(["accounts.cash_book.view", "reports.view"]) && (
-                  <Link
-                    href="/accounts/cash-book"
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                      isCashBookActive
-                        ? "bg-primary/15 text-primary font-semibold"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                    )}
-                  >
-                    <Wallet className="h-3.5 w-3.5 text-primary" />
-                    <span>Cash Book</span>
-                  </Link>
-                )}
-
-                {hasPermission(["accounts.cash_out.view", "accounts.cash_book.view", "reports.view"]) && (
-                  <Link
-                    href="/accounts/cash-out"
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                      isCashOutActive
-                        ? "bg-primary/15 text-primary font-semibold"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                    )}
-                  >
-                    <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
-                    <span>Cash Out</span>
-                  </Link>
-                )}
-
                 {hasPermission("dashboard.filtered.view") && (
                   <Link
                     href="/dashboard/filtered"
