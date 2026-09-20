@@ -10,6 +10,8 @@ class PurchaseItemCreate(BaseModel):
     quantity: float = Field(..., gt=0.0, description="Purchase quantity")
     unit_price: float = Field(..., ge=0.0, description="Unit purchase price ($)")
     discount: float = Field(0.0, ge=0.0, description="Line item discount ($)")
+    total_price: Optional[float] = Field(None, ge=0.0, description="Exact line total price ($)")
+    pricing_mode: Optional[str] = Field("unit_price", description="Pricing mode: 'unit_price' or 'total_price'")
 
     @field_validator("quantity")
     def validate_quantity(cls, v: float) -> float:
@@ -29,6 +31,7 @@ class PurchaseItemResponse(BaseModel):
     unit_price: float
     discount: float
     total_price: float
+    pricing_mode: str = "unit_price"
     created_at: datetime
     updated_at: datetime
 

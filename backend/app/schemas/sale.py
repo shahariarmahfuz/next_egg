@@ -11,6 +11,8 @@ class SaleItemCreate(BaseModel):
     quantity: float = Field(..., gt=0.0, description="Quantity sold (> 0)")
     unit_price: float = Field(..., ge=0.0, description="Unit selling price ($)")
     discount: float = Field(0.0, ge=0.0, description="Per-item discount ($)")
+    total_price: Optional[float] = Field(None, ge=0.0, description="Exact line total price ($)")
+    pricing_mode: Optional[str] = Field("unit_price", description="Pricing mode: 'unit_price' or 'total_price'")
 
     @field_validator("quantity")
     def validate_quantity(cls, v: float) -> float:
@@ -29,6 +31,7 @@ class SaleItemResponse(BaseModel):
     unit_price: float
     discount: float
     total_price: float
+    pricing_mode: str = "unit_price"
     created_at: datetime
     updated_at: datetime
     product: Optional[ProductResponse] = None
@@ -112,8 +115,15 @@ class SaleResponse(BaseModel):
 
 class SaleReportSummary(BaseModel):
     total_sales: int = Field(..., description="Total Sales Invoice Count")
+    total_invoices: Optional[int] = Field(None, description="Alias for total_sales")
     total_sale_amount: float = Field(..., description="Total Grand Total Revenue ($)")
+    total_amount: Optional[float] = Field(None, description="Alias for total_sale_amount")
+    total_revenue: Optional[float] = Field(None, description="Alias for total_sale_amount")
     total_discount: float = Field(..., description="Total Order Discount ($)")
     total_paid: float = Field(..., description="Total Amount Collected ($)")
+    paid_amount: Optional[float] = Field(None, description="Alias for total_paid")
     total_due: float = Field(..., description="Total Outstanding Due ($)")
+    due_amount: Optional[float] = Field(None, description="Alias for total_due")
     total_items_sold: float = Field(..., description="Total Line Items Sold Quantity")
+    total_units: Optional[float] = Field(None, description="Alias for total_items_sold")
+

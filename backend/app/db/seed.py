@@ -52,6 +52,9 @@ DEFAULT_PERMISSIONS = [
     # Reports Center module
     {"code": "reports.view", "name": "View Reports Center", "module": "reports", "description": "View centralized analytics & reporting hub"},
 
+    # Accounts & Cash Book module
+    {"code": "accounts.cash_book.view", "name": "View Cash Book", "module": "accounts", "description": "View daily cash statement and cash movements"},
+
     # Sales module
     {"code": "sales.view", "name": "View Sales", "module": "sales", "description": "View sales transactions and records"},
     {"code": "sales.create", "name": "Create Sales", "module": "sales", "description": "Create new sales transactions"},

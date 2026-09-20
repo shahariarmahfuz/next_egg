@@ -31,7 +31,14 @@ import {
 } from "@/components/ui/command";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
-import { calculateLineTotal, calculateUnitPrice, roundToPrecision } from "@/utils/price";
+import {
+  calculateDueAmount,
+  calculateGrandTotal,
+  calculateLineTotal,
+  calculateSubtotal,
+  calculateUnitPrice,
+  roundToPrecision,
+} from "@/utils/price";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -49,6 +56,8 @@ export interface PurchaseFormValues {
     quantity: number;
     unit_price: number;
     discount: number;
+    total_price?: number;
+    pricing_mode?: "unit_price" | "total_price";
   }[];
 }
 
@@ -57,6 +66,7 @@ interface LineItemState {
   quantity: number;
   unit_price: number;
   total_price: number;
+  pricing_mode: "unit_price" | "total_price";
   error?: string;
 }
 
@@ -122,11 +132,18 @@ export function PurchaseForm({
         };
         const qty = item.quantity || 1;
         const price = item.unit_price || 0;
+        const total = item.total_price !== undefined ? roundToPrecision(item.total_price, 4) : calculateLineTotal(qty, price);
+        const mode: "unit_price" | "total_price" = item.pricing_mode || (
+          item.total_price !== undefined && Math.abs(qty * price - item.total_price) > 0.001
+            ? "total_price"
+            : "unit_price"
+        );
         return {
           product: prod as ProductItem,
           quantity: qty,
           unit_price: roundToPrecision(price, 4),
-          total_price: calculateLineTotal(qty, price),
+          total_price: total,
+          pricing_mode: mode,
         };
       });
     }
@@ -173,9 +190,6 @@ export function PurchaseForm({
     }
   }, [suppliers, selectedSupplier]);
 
-  // Line Item Calculations
-  // Using shared calculateLineTotal from @/utils/price
-
   // Add Product to Purchase Line Items
   const handleSelectProduct = (product: ProductItem) => {
     if (product.product_type === "FARM") {
@@ -188,10 +202,20 @@ export function PurchaseForm({
       const existing = lineItems[existingIndex];
       const newQty = existing.quantity + 1;
       const updated = [...lineItems];
+      let newTotal = existing.total_price;
+      let newUnit = existing.unit_price;
+
+      if (existing.pricing_mode === "total_price") {
+        newUnit = calculateUnitPrice(existing.total_price, newQty);
+      } else {
+        newTotal = calculateLineTotal(newQty, existing.unit_price);
+      }
+
       updated[existingIndex] = {
         ...existing,
         quantity: newQty,
-        total_price: calculateLineTotal(newQty, existing.unit_price),
+        unit_price: newUnit,
+        total_price: newTotal,
         error: undefined,
       };
       setLineItems(updated);
@@ -202,6 +226,7 @@ export function PurchaseForm({
         quantity: 1,
         unit_price: roundToPrecision(unitPrice, 4),
         total_price: calculateLineTotal(1, unitPrice),
+        pricing_mode: "unit_price",
       };
       setLineItems([...lineItems, newItem]);
     }
@@ -228,19 +253,27 @@ export function PurchaseForm({
         item.error = undefined;
       }
 
-      // Rule A: If Quantity changes: Unit Price stays the same. Total Price = Quantity * Unit Price
+      // Quantity change:
+      // Mode B (total_price): Total Price is AUTHORITATIVE. Recalculate Unit Price = Total Price / Quantity
+      // Mode A (unit_price): Unit Price is AUTHORITATIVE. Recalculate Total Price = Quantity * Unit Price
       if (value > 0) {
-        item.total_price = calculateLineTotal(item.quantity, item.unit_price);
+        if (item.pricing_mode === "total_price") {
+          item.unit_price = calculateUnitPrice(item.total_price, item.quantity);
+        } else {
+          item.total_price = calculateLineTotal(item.quantity, item.unit_price);
+        }
       }
     } else if (field === "unit_price") {
+      item.pricing_mode = "unit_price";
       item.unit_price = value < 0 ? 0 : roundToPrecision(value, 4);
-      // Rule B: If Unit Price changes: Quantity stays the same. Total Price = Quantity * Unit Price
+      // Mode A: Total Price = Quantity * Unit Price
       if (item.quantity > 0) {
         item.total_price = calculateLineTotal(item.quantity, item.unit_price);
       }
     } else if (field === "total_price") {
+      item.pricing_mode = "total_price";
       item.total_price = value < 0 ? 0 : roundToPrecision(value, 4);
-      // Rule C: If Total Price changes manually: Quantity stays the same. Unit Price = Total Price / Quantity
+      // Mode B: Total Price is authoritative. Unit Price = Total Price / Quantity
       if (item.quantity > 0) {
         item.unit_price = calculateUnitPrice(item.total_price, item.quantity);
       } else {
@@ -258,9 +291,9 @@ export function PurchaseForm({
   };
 
   // Real-time Summary Calculations
-  const subtotal = roundToPrecision(lineItems.reduce((sum, item) => sum + item.total_price, 0), 4);
-  const grandTotal = Math.max(0, roundToPrecision(subtotal - discountAmount + taxAmount, 4));
-  const remainingDue = Math.max(0, roundToPrecision(grandTotal - paidAmount, 4));
+  const subtotal = calculateSubtotal(lineItems);
+  const grandTotal = calculateGrandTotal(subtotal, discountAmount, taxAmount);
+  const remainingDue = calculateDueAmount(grandTotal, paidAmount);
   const projectedSupplierPayable = roundToPrecision((selectedSupplier?.current_balance || 0) + remainingDue, 4);
 
   // Form Submission Handler
@@ -300,6 +333,8 @@ export function PurchaseForm({
         quantity: item.quantity,
         unit_price: roundToPrecision(item.unit_price, 4),
         discount: 0,
+        total_price: roundToPrecision(item.total_price, 4),
+        pricing_mode: item.pricing_mode,
       })),
     };
 

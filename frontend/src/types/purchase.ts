@@ -10,6 +10,7 @@ export interface PurchaseItemDetail {
   unit_price: number;
   discount: number;
   total_price: number;
+  pricing_mode?: "unit_price" | "total_price";
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +20,8 @@ export interface PurchaseItemPayload {
   quantity: number;
   unit_price: number;
   discount: number;
+  total_price?: number;
+  pricing_mode?: "unit_price" | "total_price";
 }
 
 export interface PurchaseItemRow {
@@ -27,6 +30,7 @@ export interface PurchaseItemRow {
   unit_price: number;
   discount: number;
   total_price: number;
+  pricing_mode?: "unit_price" | "total_price";
 }
 
 export interface PurchaseItem {

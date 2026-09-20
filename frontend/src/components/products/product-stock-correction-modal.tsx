@@ -42,6 +42,7 @@ export function ProductStockCorrectionModal({
       toast.success("Stock updated successfully.");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       onClose();
     },
     onError: (err: any) => {

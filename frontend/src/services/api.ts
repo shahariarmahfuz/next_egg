@@ -2,6 +2,7 @@ import { http } from "./http";
 import {
   BalanceAdjustmentItem,
   BalanceAdjustmentPayload,
+  CashBookSummary,
   CollectionReportSummaryData,
   CustomerCollectionCreatePayload,
   CustomerCollectionItem,
@@ -835,6 +836,13 @@ export const profileService = {
     return http.put<UserItem>("/profile", payload);
   },
 };
+
+export const accountsService = {
+  getCashBook: async (params?: { target_date?: string; start_date?: string; end_date?: string }) => {
+    return http.get<CashBookSummary>("/accounts/cash-book", params);
+  },
+};
+
 
 
 

@@ -106,6 +106,7 @@ export default function ManageCollectionsPage() {
       queryClient.invalidateQueries({ queryKey: ["collections-list"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setSelectedDeleteCollection(null);
       setIsDeleting(false);
     },
@@ -124,6 +125,7 @@ export default function ManageCollectionsPage() {
       queryClient.invalidateQueries({ queryKey: ["collections-list"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setHardDeletingCollection(null);
     },
     onError: (err: any) => {

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Sequence
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,7 +17,32 @@ from app.schemas.sale import SaleCreate, SaleItemCreate, SaleUpdate
 
 
 class SaleService:
+    async def _ensure_product_batches(self, db: AsyncSession, product: Product) -> None:
+        """
+        Ensures that an active product with stock has an opening InventoryBatch if none exists.
+        This guarantees backward compatibility for products created with opening stock
+        prior to batch-tracking or initialized directly without calling product_service.create_product.
+        """
+        if product.product_type == "FARM":
+            return
+        q = select(func.count(InventoryBatch.id)).where(InventoryBatch.product_id == product.id)
+        res = await db.execute(q)
+        batch_count = res.scalar() or 0
+        if batch_count == 0 and (product.opening_stock > 0 or product.current_stock > 0):
+            initial_qty = product.opening_stock if product.opening_stock > 0 else product.current_stock
+            batch = InventoryBatch(
+                product_id=product.id,
+                purchase_id=None,
+                quantity=initial_qty,
+                remaining_quantity=product.current_stock,
+                unit_cost=product.opening_stock_unit_cost if product.opening_stock_unit_cost > 0 else 0.0,
+                purchase_date=product.created_at or datetime.now(timezone.utc),
+            )
+            db.add(batch)
+            await db.flush()
+
     async def create_sale(self, db: AsyncSession, user_id: str, sale_in: SaleCreate) -> Sale:
+
         """
         Creates a new Sale invoice inside a single atomic database transaction.
         Automatically decreases product stock and increases customer due balance.
@@ -40,7 +66,7 @@ class SaleService:
 
         # 3. Process Line Items and Validate Stock
         prepared_items = []
-        subtotal = 0.0
+        subtotal_dec = Decimal("0.0")
 
         for item_in in sale_in.items:
             product = await product_repository.get_by_id(db, id=item_in.product_id)
@@ -58,34 +84,62 @@ class SaleService:
                     f"Requested: {item_in.quantity} {product.unit}, Available: {product.current_stock} {product.unit}."
                 )
 
-            item_total = (item_in.quantity * item_in.unit_price) - item_in.discount
-            if item_total < 0:
-                item_total = 0.0
+            qty_dec = Decimal(str(item_in.quantity))
+            discount_dec = Decimal(str(item_in.discount or 0.0))
+            mode = item_in.pricing_mode or "unit_price"
 
-            subtotal += item_total
+            if mode == "total_price" and item_in.total_price is not None:
+                # Mode B: User entered Total Price is AUTHORITATIVE.
+                item_total_dec = Decimal(str(item_in.total_price))
+                if item_total_dec < Decimal("0.0"):
+                    item_total_dec = Decimal("0.0")
+                if item_in.unit_price > 0:
+                    unit_price = item_in.unit_price
+                else:
+                    unit_price = float(((item_total_dec + discount_dec) / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) if qty_dec > 0 else 0.0
+            else:
+                # Mode A: User entered Unit Price is AUTHORITATIVE.
+                mode = "unit_price"
+                unit_price_dec = Decimal(str(item_in.unit_price))
+                item_total_dec = (qty_dec * unit_price_dec) - discount_dec
+                if item_total_dec < Decimal("0.0"):
+                    item_total_dec = Decimal("0.0")
+                unit_price = item_in.unit_price
+
+            item_total = float(item_total_dec)
+            subtotal_dec += item_total_dec
 
             prepared_items.append({
                 "product_id": product.id,
                 "quantity": item_in.quantity,
-                "unit_price": item_in.unit_price,
+                "unit_price": unit_price,
                 "discount": item_in.discount,
                 "total_price": item_total,
+                "pricing_mode": mode,
                 "product_model": product,
             })
 
         # 4. Financial Calculations
-        grand_total = subtotal - sale_in.discount_amount + sale_in.tax_amount
-        if grand_total < 0:
-            grand_total = 0.0
+        discount_amount_dec = Decimal(str(sale_in.discount_amount or 0.0))
+        tax_amount_dec = Decimal(str(sale_in.tax_amount or 0.0))
+        paid_amount_dec = Decimal(str(sale_in.paid_amount or 0.0))
 
-        due_amount = grand_total - sale_in.paid_amount
-        if due_amount <= 0:
-            due_amount = 0.0
+        grand_total_dec = subtotal_dec - discount_amount_dec + tax_amount_dec
+        if grand_total_dec < Decimal("0.0"):
+            grand_total_dec = Decimal("0.0")
+
+        due_amount_dec = grand_total_dec - paid_amount_dec
+        if due_amount_dec <= Decimal("0.0"):
+            due_amount_dec = Decimal("0.0")
             payment_status = "paid"
-        elif sale_in.paid_amount > 0:
+        elif paid_amount_dec > Decimal("0.0"):
             payment_status = "partial"
         else:
             payment_status = "unpaid"
+
+        subtotal = float(subtotal_dec)
+        grand_total = float(grand_total_dec)
+        due_amount = float(due_amount_dec)
 
         sale_date = sale_in.sale_date or datetime.now(timezone.utc)
 
@@ -96,10 +150,10 @@ class SaleService:
             user_id=user_id,
             sale_date=sale_date,
             subtotal=subtotal,
-            discount_amount=sale_in.discount_amount,
-            tax_amount=sale_in.tax_amount,
+            discount_amount=float(discount_amount_dec),
+            tax_amount=float(tax_amount_dec),
             grand_total=grand_total,
-            paid_amount=sale_in.paid_amount,
+            paid_amount=float(paid_amount_dec),
             due_amount=due_amount,
             payment_status=payment_status,
             notes=(sale_in.notes or sale_in.note).strip() if (sale_in.notes or sale_in.note) and (sale_in.notes or sale_in.note).strip() else None,
@@ -109,6 +163,9 @@ class SaleService:
 
         # 6. Create Line Items and Decrease Product Stock
         for item_data in prepared_items:
+            product = item_data["product_model"]
+            await self._ensure_product_batches(db, product)
+
             # FIFO COGS Calculation
             batch_query = select(InventoryBatch).where(
                 InventoryBatch.product_id == item_data["product_id"],
@@ -130,6 +187,14 @@ class SaleService:
                 qty_to_deduct -= deduct
                 db.add(b)
 
+            if qty_to_deduct > 0:
+                fallback_cost = (
+                    product.opening_stock_unit_cost
+                    if (product.opening_stock_unit_cost and product.opening_stock_unit_cost > 0)
+                    else 0.0
+                )
+                total_cogs += qty_to_deduct * fallback_cost
+
             sale_item = SaleItem(
                 sale_id=sale.id,
                 product_id=item_data["product_id"],
@@ -137,7 +202,8 @@ class SaleService:
                 unit_price=item_data["unit_price"],
                 discount=item_data["discount"],
                 total_price=item_data["total_price"],
-                cogs=total_cogs,
+                pricing_mode=item_data["pricing_mode"],
+                cogs=round(total_cogs, 4),
             )
             db.add(sale_item)
 
@@ -204,12 +270,9 @@ class SaleService:
                     qty_to_restore -= restore_amt
                     db.add(b)
 
-            # 2. Clear old items
-            sale.items.clear()
-            await db.flush()
-
-            # 3. Process new items and validate stock availability
-            subtotal = 0.0
+            # 2. Process new items and validate stock availability
+            subtotal_dec = Decimal("0.0")
+            new_items: list[SaleItem] = []
             for item_in in sale_in.items:
                 product = await product_repository.get_by_id(db, id=item_in.product_id)
                 if not product:
@@ -223,11 +286,32 @@ class SaleService:
                         f"Requested: {item_in.quantity} {product.unit}, Available: {product.current_stock} {product.unit}."
                     )
 
-                item_total = (item_in.quantity * item_in.unit_price) - item_in.discount
-                if item_total < 0:
-                    item_total = 0.0
+                qty_dec = Decimal(str(item_in.quantity))
+                discount_dec = Decimal(str(item_in.discount or 0.0))
+                mode = item_in.pricing_mode or "unit_price"
 
-                subtotal += item_total
+                if mode == "total_price" and item_in.total_price is not None:
+                    # Mode B: User entered Total Price is AUTHORITATIVE.
+                    item_total_dec = Decimal(str(item_in.total_price))
+                    if item_total_dec < Decimal("0.0"):
+                        item_total_dec = Decimal("0.0")
+                    if item_in.unit_price > 0:
+                        unit_price = item_in.unit_price
+                    else:
+                        unit_price = float(((item_total_dec + discount_dec) / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) if qty_dec > 0 else 0.0
+                else:
+                    # Mode A: User entered Unit Price is AUTHORITATIVE.
+                    mode = "unit_price"
+                    unit_price_dec = Decimal(str(item_in.unit_price))
+                    item_total_dec = (qty_dec * unit_price_dec) - discount_dec
+                    if item_total_dec < Decimal("0.0"):
+                        item_total_dec = Decimal("0.0")
+                    unit_price = item_in.unit_price
+
+                item_total = float(item_total_dec)
+                subtotal_dec += item_total_dec
+
+                await self._ensure_product_batches(db, product)
 
                 # FIFO COGS Calculation
                 batch_query = select(InventoryBatch).where(
@@ -250,45 +334,61 @@ class SaleService:
                     qty_to_deduct -= deduct
                     db.add(b)
 
+                if qty_to_deduct > 0:
+                    fallback_cost = (
+                        product.opening_stock_unit_cost
+                        if (product.opening_stock_unit_cost and product.opening_stock_unit_cost > 0)
+                        else 0.0
+                    )
+                    total_cogs += qty_to_deduct * fallback_cost
+
                 sale_item = SaleItem(
-                    sale_id=sale.id,
                     product_id=product.id,
                     quantity=item_in.quantity,
-                    unit_price=item_in.unit_price,
+                    unit_price=unit_price,
                     discount=item_in.discount,
                     total_price=item_total,
-                    cogs=total_cogs,
+                    pricing_mode=mode,
+                    cogs=round(total_cogs, 4),
                 )
-                db.add(sale_item)
+                new_items.append(sale_item)
 
                 # Deduct new stock
                 product.current_stock -= item_in.quantity
                 db.add(product)
 
-            sale.subtotal = subtotal
+            # Clear old items and replace with new items
+            sale.items.clear()
+            sale.items = new_items
+            sale.subtotal = float(subtotal_dec)
 
         # Financial Calculations Update
-        discount_amt = sale_in.discount_amount if sale_in.discount_amount is not None else sale.discount_amount
-        tax_amt = sale_in.tax_amount if sale_in.tax_amount is not None else sale.tax_amount
-        paid_amt = sale_in.paid_amount if sale_in.paid_amount is not None else sale.paid_amount
+        discount_amount_dec = Decimal(str(sale_in.discount_amount if sale_in.discount_amount is not None else sale.discount_amount))
+        tax_amount_dec = Decimal(str(sale_in.tax_amount if sale_in.tax_amount is not None else sale.tax_amount))
+        paid_amount_dec = Decimal(str(sale_in.paid_amount if sale_in.paid_amount is not None else sale.paid_amount))
+        subtotal_dec = Decimal(str(sale.subtotal))
 
-        sale.discount_amount = discount_amt
-        sale.tax_amount = tax_amt
-        sale.paid_amount = paid_amt
+        sale.discount_amount = float(discount_amount_dec)
+        sale.tax_amount = float(tax_amount_dec)
+        sale.paid_amount = float(paid_amount_dec)
 
-        grand_total = sale.subtotal - discount_amt + tax_amt
-        sale.grand_total = max(0.0, grand_total)
+        grand_total_dec = subtotal_dec - discount_amount_dec + tax_amount_dec
+        if grand_total_dec < Decimal("0.0"):
+            grand_total_dec = Decimal("0.0")
+        sale.grand_total = float(grand_total_dec)
 
-        new_due = max(0.0, sale.grand_total - paid_amt)
-        sale.due_amount = new_due
-
-        if new_due <= 0:
+        due_amount_dec = grand_total_dec - paid_amount_dec
+        if due_amount_dec <= Decimal("0.0"):
+            sale.due_amount = 0.0
             sale.payment_status = "paid"
-        elif paid_amt > 0:
+        elif paid_amount_dec > Decimal("0.0"):
+            sale.due_amount = float(due_amount_dec)
             sale.payment_status = "partial"
         else:
+            sale.due_amount = float(due_amount_dec)
             sale.payment_status = "unpaid"
 
+        new_due = sale.due_amount
         db.add(sale)
 
         # Update Customer Balance Differences

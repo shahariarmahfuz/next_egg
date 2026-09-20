@@ -9,6 +9,7 @@ export interface SaleItemLine {
   unit_price: number;
   discount: number;
   total_price: number;
+  pricing_mode?: "unit_price" | "total_price";
   created_at: string;
   updated_at: string;
   product?: ProductItem;
@@ -40,6 +41,8 @@ export interface SaleItemCreatePayload {
   quantity: number;
   unit_price: number;
   discount: number;
+  total_price?: number;
+  pricing_mode?: "unit_price" | "total_price";
 }
 
 export interface SaleCreatePayload {
@@ -74,4 +77,10 @@ export interface SaleReportSummaryData {
   total_items_sold: number;
   total_revenue?: number;
   sales_count?: number;
+  total_amount?: number;
+  paid_amount?: number;
+  due_amount?: number;
+  total_units?: number;
+  total_invoices?: number;
 }
+

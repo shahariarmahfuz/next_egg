@@ -65,6 +65,7 @@ export default function PurchasesPage() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete purchase order.";
@@ -81,6 +82,7 @@ export default function PurchasesPage() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setHardDeletingPurchase(null);
     },
     onError: (err: any) => {

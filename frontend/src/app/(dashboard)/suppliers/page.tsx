@@ -74,6 +74,7 @@ export default function SuppliersPage() {
       toast.success("Supplier deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete supplier.";
@@ -88,6 +89,7 @@ export default function SuppliersPage() {
       toast.success("Supplier and all related records deleted permanently");
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setHardDeletingSupplier(null);
     },
     onError: (err: any) => {

@@ -20,6 +20,7 @@ import {
   RotateCcw,
   CheckSquare,
   Square,
+  ChevronsUpDown,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { useDebounce } from "@/hooks/use-debounce";
+import { cn } from "@/lib/utils";
 
 import { saleService, saleReturnService } from "@/services/api";
 import { SaleItem, SaleReturnableSummary, SaleReturnItem } from "@/types";
@@ -67,19 +79,17 @@ interface SaleReturnFormProps {
 
 export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleReturnFormProps) {
   const [saleSearch, setSaleSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSaleId, setSelectedSaleId] = useState<string>(initialData?.sale_id || "");
+  const [selectedSale, setSelectedSale] = useState<SaleItem | null>(null);
+  const [openSalePopover, setOpenSalePopover] = useState(false);
 
-  // Debounce search
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedSearch(saleSearch), 300);
-    return () => clearTimeout(handler);
-  }, [saleSearch]);
+  const debouncedSaleQuery = useDebounce(saleSearch, 300);
 
   // Query Sales list for selection
   const { data: salesSearchData, isLoading: isSearchingSales } = useQuery({
-    queryKey: ["sales-search-select", debouncedSearch],
-    queryFn: () => saleService.getSales({ search: debouncedSearch || undefined, size: 20 }),
+    queryKey: ["sales-search-select", debouncedSaleQuery],
+    queryFn: () => saleService.getSales({ search: debouncedSaleQuery || undefined, size: 20 }),
+    enabled: !initialData,
   });
 
   const searchedSales: SaleItem[] = salesSearchData?.data?.items || [];
@@ -162,7 +172,12 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
   const netCreditToDue = Math.max(0, calculatedReturnTotal - watchedRefund);
 
   const handleSelectSale = (sale: SaleItem) => {
+    setSelectedSale(sale);
     setSelectedSaleId(sale.id);
+    setValue("sale_id", sale.id);
+    if (sale.customer_id) {
+      setValue("customer_id", sale.customer_id);
+    }
   };
 
   const handleFormSubmit = async (values: SaleReturnFormValues) => {
@@ -194,7 +209,7 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       {/* 1. Search & Select Original Sale Invoice */}
       <Card className="glass-card">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 border-b">
           <CardTitle className="text-base font-bold flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-primary" />
             1. Search & Select Original Sale Invoice
@@ -203,103 +218,166 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
             Search by Invoice Number (SL-00001), Customer Name, Phone, or Code.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {!initialData && (
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search invoice # (SL-00001), customer name, phone..."
-                value={saleSearch}
-                onChange={(e) => setSaleSearch(e.target.value)}
-                className="pl-9 pr-4 py-2"
-              />
-            </div>
-          )}
-
-          {/* Search Results List */}
-          {!initialData && !selectedSaleId && (
-            <div className="border rounded-xl max-h-48 overflow-y-auto divide-y bg-card/60 backdrop-blur">
-              {isSearchingSales ? (
-                <div className="p-4 flex items-center justify-center text-sm text-muted-foreground gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  Searching sales directory...
-                </div>
-              ) : searchedSales.length === 0 ? (
-                <div className="p-4 text-center text-sm text-muted-foreground">
-                  No sales invoice found matching "{saleSearch}"
-                </div>
-              ) : (
-                searchedSales.map((sale) => (
-                  <button
-                    key={sale.id}
-                    type="button"
-                    onClick={() => handleSelectSale(sale)}
-                    className="w-full text-left p-3 hover:bg-accent/60 transition-colors flex items-center justify-between group"
+        <CardContent className="p-4 space-y-4">
+          {/* Invoice Selection Dropdown */}
+          <div className="space-y-1.5 w-full">
+            <label className="text-xs font-semibold text-foreground block">
+              Original Sale Invoice
+            </label>
+            <Popover open={openSalePopover} onOpenChange={setOpenSalePopover}>
+              <PopoverTrigger asChild>
+                {selectedSaleId && (saleSummary || selectedSale || initialData?.sale) ? (
+                  /* Entire invoice card is clickable to reopen selector - NO "Change Sale" button */
+                  <div
+                    className={cn(
+                      "p-3 rounded-xl border flex items-center justify-between gap-3 text-xs w-full transition-colors",
+                      initialData
+                        ? "bg-muted/40 border-border cursor-not-allowed"
+                        : "bg-primary/10 border-primary/20 hover:bg-primary/15 cursor-pointer"
+                    )}
+                    onClick={() => {
+                      if (!initialData) {
+                        setOpenSalePopover(true);
+                      }
+                    }}
                   >
-                    <div>
-                      <div className="font-semibold text-sm group-hover:text-primary transition-colors flex items-center gap-2">
-                        <span className="text-primary font-bold">{sale.invoice_no}</span>
-                        <Badge variant="outline" className="text-[10px]">
-                          {formatDate(sale.sale_date)}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
-                        <span className="flex items-center gap-1 font-medium text-foreground">
-                          <User className="h-3 w-3" /> {sale.customer?.name || "Customer"}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {sale.customer?.phone}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                      <span className="font-bold text-foreground truncate">
+                        {saleSummary?.invoice_no || selectedSale?.invoice_no || initialData?.sale?.invoice_no}
+                      </span>
+                      <span className="text-muted-foreground truncate">
+                        • {saleSummary?.customer_name || selectedSale?.customer?.name || initialData?.customer?.name || "Customer"}
+                        {(saleSummary?.customer_phone || selectedSale?.customer?.phone || initialData?.customer?.phone)
+                          ? ` (${saleSummary?.customer_phone || selectedSale?.customer?.phone || initialData?.customer?.phone})`
+                          : ""}
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs font-medium text-muted-foreground">Grand Total</div>
-                      <div className="text-sm font-bold text-foreground">
-                        {formatCurrency(sale.grand_total)}
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* Selected Sale Invoice Banner */}
-          {selectedSaleId && (
-            <div className="p-4 rounded-xl border bg-primary/5 border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                  <ShoppingCart className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="font-bold text-base flex items-center gap-2">
-                    <span className="text-primary">{saleSummary?.invoice_no || initialData?.sale?.invoice_no}</span>
-                    <span className="text-xs text-muted-foreground font-normal">
-                      • {saleSummary?.customer_name || initialData?.customer?.name}
+                    {!initialData && (
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground opacity-70" />
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openSalePopover}
+                    className="w-full justify-between h-10 text-xs font-normal bg-background/50 border-input hover:bg-accent/50"
+                  >
+                    <span className="flex items-center gap-2 text-muted-foreground truncate">
+                      <Search className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                      Select or search sale invoice (Invoice #, Customer, Phone)...
                     </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-3 mt-0.5">
-                    <span>Invoice Total: <strong className="text-foreground">{formatCurrency(saleSummary?.grand_total || initialData?.sale?.grand_total)}</strong></span>
-                    <span>Outstanding Due: <strong className="text-amber-500">{formatCurrency(saleSummary?.due_amount || initialData?.sale?.due_amount)}</strong></span>
-                  </div>
-                </div>
-              </div>
-
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                )}
+              </PopoverTrigger>
               {!initialData && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedSaleId("");
-                    setValue("sale_id", "");
-                    setValue("customer_id", "");
-                  }}
-                >
-                  Change Sale
-                </Button>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search by invoice #, customer name, phone, code..."
+                      value={saleSearch}
+                      onValueChange={setSaleSearch}
+                    />
+                    <CommandList>
+                      {isSearchingSales ? (
+                        <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                          Searching sales directory...
+                        </div>
+                      ) : searchedSales.length === 0 ? (
+                        <CommandEmpty>No sales invoice found.</CommandEmpty>
+                      ) : (
+                        <CommandGroup>
+                          {searchedSales.map((sale) => (
+                            <CommandItem
+                              key={sale.id}
+                              value={`${sale.invoice_no} ${sale.customer?.name || ""} ${sale.customer?.phone || ""} ${sale.customer?.customer_code || ""} ${sale.id}`}
+                              onSelect={() => {
+                                handleSelectSale(sale);
+                                setOpenSalePopover(false);
+                                setSaleSearch("");
+                              }}
+                              className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs flex items-center justify-between gap-2"
+                            >
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-primary">{sale.invoice_no}</span>
+                                  <span className="font-medium text-foreground truncate">
+                                    • {sale.customer?.name || "Walk-in Customer"}
+                                  </span>
+                                  {sale.customer?.phone && (
+                                    <span className="text-[11px] text-muted-foreground">({sale.customer.phone})</span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                                  <span>{formatDate(sale.sale_date)}</span>
+                                  <span>•</span>
+                                  <span>Total: {formatCurrency(sale.grand_total)}</span>
+                                  {sale.due_amount > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-amber-500 font-medium">Due: {formatCurrency(sale.due_amount)}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
               )}
+            </Popover>
+          </div>
+
+          {/* Customer & Invoice Details (Read-only from Sale) */}
+          {selectedSaleId && (saleSummary || selectedSale || initialData?.sale) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground block">
+                  Customer Name
+                </label>
+                <Input
+                  readOnly
+                  value={saleSummary?.customer_name || selectedSale?.customer?.name || initialData?.customer?.name || "N/A"}
+                  className="h-10 text-xs bg-muted/40 text-muted-foreground font-medium"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground block">
+                  Customer Phone
+                </label>
+                <Input
+                  readOnly
+                  value={saleSummary?.customer_phone || selectedSale?.customer?.phone || initialData?.customer?.phone || "N/A"}
+                  className="h-10 text-xs bg-muted/40 text-muted-foreground"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground block">
+                  Invoice Total
+                </label>
+                <Input
+                  readOnly
+                  value={formatCurrency(saleSummary?.grand_total ?? selectedSale?.grand_total ?? initialData?.sale?.grand_total ?? 0)}
+                  className="h-10 text-xs bg-muted/40 text-muted-foreground font-medium"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground block">
+                  Outstanding Due
+                </label>
+                <Input
+                  readOnly
+                  value={formatCurrency(saleSummary?.due_amount ?? selectedSale?.due_amount ?? initialData?.sale?.due_amount ?? 0)}
+                  className="h-10 text-xs bg-muted/40 text-amber-600 font-medium"
+                />
+              </div>
             </div>
           )}
 

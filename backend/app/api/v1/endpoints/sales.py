@@ -14,7 +14,9 @@ from app.schemas.sale import (
     SaleResponse,
     SaleUpdate,
 )
+from app.core.datetime_utils import normalize_date_range
 from app.services.sale_service import sale_service
+from app.services.setting_service import setting_service
 
 router = APIRouter(prefix="/sales", tags=["Sales"])
 
@@ -33,6 +35,10 @@ async def list_sales(
     current_user: User = Depends(RequirePermission("sales.view")),
 ):
     """Server-side paginated sales list with search, customer, payment status, date range, and sorting."""
+    settings = await setting_service.get_business_settings(db)
+    tz_str = settings.timezone or "UTC"
+    start_date, end_date = normalize_date_range(start_date, end_date, tz_str=tz_str, default_to_today=False)
+
     skip = (page - 1) * size
     sales, total = await sale_service.get_sales_paginated(
         db,
@@ -56,6 +62,7 @@ async def list_sales(
         start_date=start_date,
         end_date=end_date,
     )
+
 
     items = [SaleResponse.model_validate(s) for s in sales]
     paginated_data = PaginatedResponse[SaleResponse](
@@ -85,6 +92,10 @@ async def get_sales_reports(
     current_user: User = Depends(RequirePermission(["reports.view", "sales.report.view"])),
 ):
     """Generates aggregated sales metrics (total sales, total sale amount, total discount, total paid, total due, total items sold)."""
+    settings = await setting_service.get_business_settings(db)
+    tz_str = settings.timezone or "UTC"
+    start_date, end_date = normalize_date_range(start_date, end_date, tz_str=tz_str, default_to_today=False)
+
     summary = await sale_service.get_sale_reports(
         db,
         search=search,

@@ -28,7 +28,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
-import { calculateLineTotal, roundToPrecision } from "@/utils/price";
+import {
+  calculateDueAmount,
+  calculateGrandTotal,
+  calculateLineTotal,
+  calculateSubtotal,
+  calculateUnitPrice,
+  roundToPrecision,
+} from "@/utils/price";
 
 interface LineItemState {
   product: ProductItem;
@@ -36,6 +43,7 @@ interface LineItemState {
   unit_price: number;
   discount: number;
   total_price: number;
+  pricing_mode: "unit_price" | "total_price";
   error?: string;
 }
 
@@ -104,9 +112,14 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
             updated_at: "",
           } as ProductItem),
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          discount: item.discount,
-          total_price: item.total_price,
+          unit_price: roundToPrecision(item.unit_price, 4),
+          discount: roundToPrecision(item.discount || 0, 4),
+          total_price: roundToPrecision(item.total_price, 4),
+          pricing_mode: item.pricing_mode || (
+            Math.abs((item.quantity * item.unit_price - (item.discount || 0)) - item.total_price) > 0.001
+              ? "total_price"
+              : "unit_price"
+          ),
         }));
         setLineItems(mappedItems);
       }
@@ -129,11 +142,6 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
   const customerSuggestions = customerSearchData?.data?.items || [];
   const productSuggestions = productSearchData?.data?.items || [];
 
-  const calculateLineTotal = (qty: number, price: number, disc: number = 0) => {
-    const total = qty * price - disc;
-    return total > 0 ? roundToPrecision(total, 4) : 0;
-  };
-
   const handleSelectProduct = (product: ProductItem) => {
     const existingIndex = lineItems.findIndex((item) => item.product.id === product.id);
 
@@ -141,10 +149,20 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       const existing = lineItems[existingIndex];
       const newQty = existing.quantity + 1;
       const updated = [...lineItems];
+      let newTotal = existing.total_price;
+      let newUnit = existing.unit_price;
+
+      if (existing.pricing_mode === "total_price") {
+        newUnit = calculateUnitPrice(existing.total_price, newQty, existing.discount);
+      } else {
+        newTotal = calculateLineTotal(newQty, existing.unit_price, existing.discount);
+      }
+
       updated[existingIndex] = {
         ...existing,
         quantity: newQty,
-        total_price: calculateLineTotal(newQty, existing.unit_price, existing.discount),
+        unit_price: newUnit,
+        total_price: newTotal,
       };
       setLineItems(updated);
     } else {
@@ -154,6 +172,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
         unit_price: roundToPrecision(product.selling_price, 4),
         discount: 0,
         total_price: calculateLineTotal(1, product.selling_price, 0),
+        pricing_mode: "unit_price",
       };
       setLineItems([...lineItems, newItem]);
     }
@@ -162,19 +181,42 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
     setShowProductDropdown(false);
   };
 
-  const handleUpdateItem = (index: number, field: "quantity" | "unit_price" | "discount", value: number) => {
+  const handleUpdateItem = (
+    index: number,
+    field: "quantity" | "unit_price" | "discount" | "total_price",
+    value: number
+  ) => {
     const updated = [...lineItems];
     const item = { ...updated[index] };
 
     if (field === "quantity") {
       item.quantity = value <= 0 ? 1 : value;
+      if (item.pricing_mode === "total_price") {
+        // Mode B: Total price is authoritative, recalculate unit price
+        item.unit_price = calculateUnitPrice(item.total_price, item.quantity, item.discount);
+      } else {
+        // Mode A: Unit price is authoritative, recalculate total price
+        item.total_price = calculateLineTotal(item.quantity, item.unit_price, item.discount);
+      }
     } else if (field === "unit_price") {
+      item.pricing_mode = "unit_price";
       item.unit_price = value < 0 ? 0 : roundToPrecision(value, 4);
+      item.total_price = calculateLineTotal(item.quantity, item.unit_price, item.discount);
+    } else if (field === "total_price") {
+      item.pricing_mode = "total_price";
+      item.total_price = value < 0 ? 0 : roundToPrecision(value, 4);
+      if (item.quantity > 0) {
+        item.unit_price = calculateUnitPrice(item.total_price, item.quantity, item.discount);
+      }
     } else if (field === "discount") {
       item.discount = value < 0 ? 0 : roundToPrecision(value, 4);
+      if (item.pricing_mode === "total_price") {
+        item.unit_price = calculateUnitPrice(item.total_price, item.quantity, item.discount);
+      } else {
+        item.total_price = calculateLineTotal(item.quantity, item.unit_price, item.discount);
+      }
     }
 
-    item.total_price = calculateLineTotal(item.quantity, item.unit_price, item.discount);
     updated[index] = item;
     setLineItems(updated);
   };
@@ -183,17 +225,20 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  const subtotal = roundToPrecision(lineItems.reduce((sum, item) => sum + item.total_price, 0), 4);
-  const grandTotal = Math.max(0, roundToPrecision(subtotal - orderDiscount + taxAmount, 4));
-  const dueAmount = Math.max(0, roundToPrecision(grandTotal - paidAmount, 4));
+  const subtotal = calculateSubtotal(lineItems);
+  const grandTotal = calculateGrandTotal(subtotal, orderDiscount, taxAmount);
+  const dueAmount = calculateDueAmount(grandTotal, paidAmount);
 
   const updateSaleMutation = useMutation({
     mutationFn: (payload: SaleUpdatePayload) => saleService.updateSale(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-reports"] });
       queryClient.invalidateQueries({ queryKey: ["sale", id] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
       router.push("/sales");
     },
   });
@@ -220,6 +265,8 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
           quantity: item.quantity,
           unit_price: roundToPrecision(item.unit_price, 4),
           discount: roundToPrecision(item.discount, 4),
+          total_price: roundToPrecision(item.total_price, 4),
+          pricing_mode: item.pricing_mode,
         })),
       };
 
@@ -407,7 +454,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                       <th className="p-3 text-center w-24">Qty</th>
                       <th className="p-3 text-center w-28">Price ($)</th>
                       <th className="p-3 text-center w-24">Discount ($)</th>
-                      <th className="p-3 text-right">Total</th>
+                      <th className="p-3 text-right w-28">Total ($)</th>
                       <th className="p-3 text-center w-12"></th>
                     </tr>
                   </thead>
@@ -445,7 +492,16 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                             className="h-8 text-center text-amber-500"
                           />
                         </td>
-                        <td className="p-3 text-right font-bold">{formatCurrency(item.total_price)}</td>
+                        <td className="p-3 text-right">
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={item.total_price}
+                            onChange={(e) => handleUpdateItem(idx, "total_price", parseFloat(e.target.value) || 0)}
+                            className="h-8 text-right font-bold w-28 ml-auto"
+                          />
+                        </td>
                         <td className="p-3 text-center">
                           <Button
                             variant="ghost"

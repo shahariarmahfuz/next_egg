@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { SaleViewModal } from "@/components/sales/sale-view-modal";
 import { useDebounce } from "@/hooks/use-debounce";
-import { formatCurrency, formatDate } from "@/utils/formatters";
+import { formatCurrency, formatDate, formatNumber } from "@/utils/formatters";
 
 export default function SalesReportPage() {
   const today = new Date().toLocaleDateString('en-CA');
@@ -43,7 +43,11 @@ export default function SalesReportPage() {
   const sales: SaleItem[] = salesData?.data?.items || [];
   const totalPages = salesData?.data?.pages || 1;
   const pageSize = 15;
-  const aggregate = salesData?.data?.aggregate || { total_amount: 0, paid_amount: 0, due_amount: 0 };
+  const aggregate = salesData?.data?.aggregate || {};
+  const totalSales = aggregate.total_sales ?? aggregate.total_sale_amount ?? aggregate.total_amount ?? aggregate.total_revenue ?? 0;
+  const totalPaid = aggregate.total_paid ?? aggregate.paid_amount ?? 0;
+  const totalDue = aggregate.total_due ?? aggregate.due_amount ?? 0;
+  const totalUnits = aggregate.total_units ?? aggregate.total_items_sold ?? 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -74,23 +78,29 @@ export default function SalesReportPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card className="glass-card border-blue-500/30 bg-blue-500/5">
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">Total Sales</div>
-            <div className="text-xl font-extrabold text-blue-500">{formatCurrency(aggregate.total_amount)}</div>
+            <div className="text-xl font-extrabold text-blue-500">{formatCurrency(totalSales)}</div>
           </CardContent>
         </Card>
         <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Paid</div>
-            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(aggregate.paid_amount)}</div>
+            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(totalPaid)}</div>
           </CardContent>
         </Card>
         <Card className="glass-card border-orange-500/30 bg-orange-500/5">
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-orange-600 uppercase tracking-wider mb-1">Total Due</div>
-            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(aggregate.due_amount)}</div>
+            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(totalDue)}</div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card border-purple-500/30 bg-purple-500/5">
+          <CardContent className="p-4">
+            <div className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-1">Total Units</div>
+            <div className="text-xl font-extrabold text-purple-500">{formatNumber(totalUnits)}</div>
           </CardContent>
         </Card>
       </div>

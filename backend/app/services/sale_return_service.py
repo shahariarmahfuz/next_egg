@@ -9,6 +9,7 @@ from app.exceptions.custom import BadRequestException, NotFoundException
 from app.models.activity_log import ActivityLog
 from app.models.customer import Customer
 from app.models.product import Product
+from app.models.inventory_batch import InventoryBatch
 from app.models.sale import Sale, SaleItem
 from app.models.sale_return import SaleReturn, SaleReturnItem
 from app.repositories.customer_repository import customer_repository
@@ -174,6 +175,38 @@ class SaleReturnService:
                 product.current_stock += item_data["quantity"]
                 db.add(product)
 
+                # Restore InventoryBatches (reverse FIFO)
+                qty_to_restore = item_data["quantity"]
+                restore_query = (
+                    select(InventoryBatch)
+                    .where(
+                        InventoryBatch.product_id == item_data["product_id"],
+                        InventoryBatch.remaining_quantity < InventoryBatch.quantity
+                    )
+                    .order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+                )
+                restore_result = await db.execute(restore_query)
+                for b in restore_result.scalars().all():
+                    if qty_to_restore <= 0:
+                        break
+                    can_restore = b.quantity - b.remaining_quantity
+                    restore_amt = min(can_restore, qty_to_restore)
+                    b.remaining_quantity += restore_amt
+                    qty_to_restore -= restore_amt
+                    db.add(b)
+
+                if qty_to_restore > 0:
+                    cost = item_data["unit_price"] or product.opening_stock_unit_cost or 0.0
+                    new_batch = InventoryBatch(
+                        product_id=product.id,
+                        purchase_id=None,
+                        quantity=qty_to_restore,
+                        remaining_quantity=qty_to_restore,
+                        unit_cost=cost,
+                        purchase_date=ret_date,
+                    )
+                    db.add(new_batch)
+
             # 7. Recalculate Customer Due & Sale Due Summary
             credit_adjustment = return_grand_total - return_in.refund_amount
             customer.current_balance -= credit_adjustment
@@ -234,12 +267,30 @@ class SaleReturnService:
             # 1. Revert previous return effects
             old_credit = sale_return.grand_total - sale_return.refund_amount
 
-            # Revert product stock
+            # Revert product stock & batch allocations
             for old_item in sale_return.items:
                 prod = await product_repository.get_by_id(db, id=old_item.product_id)
                 if prod:
                     prod.current_stock -= old_item.quantity
                     db.add(prod)
+
+                qty_to_consume = old_item.quantity
+                consume_query = (
+                    select(InventoryBatch)
+                    .where(
+                        InventoryBatch.product_id == old_item.product_id,
+                        InventoryBatch.remaining_quantity > 0
+                    )
+                    .order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
+                )
+                consume_result = await db.execute(consume_query)
+                for b in consume_result.scalars().all():
+                    if qty_to_consume <= 0:
+                        break
+                    consumed = min(b.remaining_quantity, qty_to_consume)
+                    b.remaining_quantity -= consumed
+                    qty_to_consume -= consumed
+                    db.add(b)
 
             # Revert customer due & sale due
             if customer:
@@ -298,6 +349,38 @@ class SaleReturnService:
                     # Increase stock with new return quantity
                     product.current_stock += item_in.quantity
                     db.add(product)
+
+                    # Restore to InventoryBatch (reverse FIFO)
+                    qty_to_restore = item_in.quantity
+                    restore_query = (
+                        select(InventoryBatch)
+                        .where(
+                            InventoryBatch.product_id == item_in.product_id,
+                            InventoryBatch.remaining_quantity < InventoryBatch.quantity
+                        )
+                        .order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+                    )
+                    restore_result = await db.execute(restore_query)
+                    for b in restore_result.scalars().all():
+                        if qty_to_restore <= 0:
+                            break
+                        can_restore = b.quantity - b.remaining_quantity
+                        restore_amt = min(can_restore, qty_to_restore)
+                        b.remaining_quantity += restore_amt
+                        qty_to_restore -= restore_amt
+                        db.add(b)
+
+                    if qty_to_restore > 0:
+                        cost = item_in.unit_price or product.opening_stock_unit_cost or 0.0
+                        new_batch = InventoryBatch(
+                            product_id=product.id,
+                            purchase_id=None,
+                            quantity=qty_to_restore,
+                            remaining_quantity=qty_to_restore,
+                            unit_cost=cost,
+                            purchase_date=sale_return.return_date or datetime.now(timezone.utc),
+                        )
+                        db.add(new_batch)
 
                 sale_return.items = new_items
                 sale_return.grand_total = round(new_grand_total, 2)
@@ -369,6 +452,24 @@ class SaleReturnService:
                 if product:
                     product.current_stock -= item.quantity
                     db.add(product)
+
+                qty_to_consume = item.quantity
+                consume_query = (
+                    select(InventoryBatch)
+                    .where(
+                        InventoryBatch.product_id == item.product_id,
+                        InventoryBatch.remaining_quantity > 0
+                    )
+                    .order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
+                )
+                consume_result = await db.execute(consume_query)
+                for b in consume_result.scalars().all():
+                    if qty_to_consume <= 0:
+                        break
+                    consumed = min(b.remaining_quantity, qty_to_consume)
+                    b.remaining_quantity -= consumed
+                    qty_to_consume -= consumed
+                    db.add(b)
 
             # 2. Restore customer due & sale due
             if customer:

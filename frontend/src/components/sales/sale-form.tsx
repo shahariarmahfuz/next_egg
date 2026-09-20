@@ -38,7 +38,14 @@ import {
 } from "@/components/ui/command";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
-import { calculateLineTotal, calculateUnitPrice, roundToPrecision } from "@/utils/price";
+import {
+  calculateDueAmount,
+  calculateGrandTotal,
+  calculateLineTotal,
+  calculateSubtotal,
+  calculateUnitPrice,
+  roundToPrecision,
+} from "@/utils/price";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -47,6 +54,7 @@ interface LineItemState {
   quantity: number;
   unit_price: number;
   total_price: number;
+  pricing_mode: "unit_price" | "total_price";
   error?: string;
 }
 
@@ -123,10 +131,20 @@ export function SaleForm() {
       }
 
       const updated = [...lineItems];
+      let newTotal = existing.total_price;
+      let newUnit = existing.unit_price;
+
+      if (existing.pricing_mode === "total_price") {
+        newUnit = calculateUnitPrice(existing.total_price, newQty);
+      } else {
+        newTotal = calculateLineTotal(newQty, existing.unit_price);
+      }
+
       updated[existingIndex] = {
         ...existing,
         quantity: newQty,
-        total_price: calculateLineTotal(newQty, existing.unit_price),
+        unit_price: newUnit,
+        total_price: newTotal,
         error: undefined,
       };
       setLineItems(updated);
@@ -141,6 +159,7 @@ export function SaleForm() {
         quantity: 1,
         unit_price: product.selling_price,
         total_price: calculateLineTotal(1, product.selling_price),
+        pricing_mode: "unit_price",
       };
       setLineItems([...lineItems, newItem]);
     }
@@ -169,19 +188,27 @@ export function SaleForm() {
         item.error = undefined;
       }
 
-      // Rule A: If Quantity changes: Unit Price stays the same. Total Price = Quantity * Unit Price
+      // Quantity change:
+      // Mode B (total_price): Total Price is AUTHORITATIVE. Recalculate Unit Price = Total Price / Quantity
+      // Mode A (unit_price): Unit Price is AUTHORITATIVE. Recalculate Total Price = Quantity * Unit Price
       if (value > 0) {
-        item.total_price = calculateLineTotal(item.quantity, item.unit_price);
+        if (item.pricing_mode === "total_price") {
+          item.unit_price = calculateUnitPrice(item.total_price, item.quantity);
+        } else {
+          item.total_price = calculateLineTotal(item.quantity, item.unit_price);
+        }
       }
     } else if (field === "unit_price") {
+      item.pricing_mode = "unit_price";
       item.unit_price = value < 0 ? 0 : roundToPrecision(value, 4);
-      // Rule B: If Unit Price changes: Quantity stays the same. Total Price = Quantity * Unit Price
+      // Mode A: Total Price = Quantity * Unit Price
       if (item.quantity > 0) {
         item.total_price = calculateLineTotal(item.quantity, item.unit_price);
       }
     } else if (field === "total_price") {
+      item.pricing_mode = "total_price";
       item.total_price = value < 0 ? 0 : roundToPrecision(value, 4);
-      // Rule C: If Total Price changes manually: Quantity stays the same. Unit Price = Total Price / Quantity
+      // Mode B: Total Price is authoritative. Unit Price = Total Price / Quantity
       if (item.quantity > 0) {
         item.unit_price = calculateUnitPrice(item.total_price, item.quantity);
       } else {
@@ -199,19 +226,25 @@ export function SaleForm() {
   };
 
   // Real-time Summary Calculations
-  const subtotal = roundToPrecision(lineItems.reduce((sum, item) => sum + item.total_price, 0), 4);
-  const grandTotal = Math.max(0, roundToPrecision(subtotal - orderDiscount + taxAmount, 4));
-  const dueAmount = Math.max(0, roundToPrecision(grandTotal - paidAmount, 4));
+  const subtotal = calculateSubtotal(lineItems);
+  const grandTotal = calculateGrandTotal(subtotal, orderDiscount, taxAmount);
+  const dueAmount = calculateDueAmount(grandTotal, paidAmount);
 
-  const projectedCustomerDue = roundToPrecision((selectedCustomer?.current_balance || 0) + dueAmount, 4);
+  const projectedCustomerDue = roundToPrecision(
+    (selectedCustomer?.current_balance || 0) + dueAmount,
+    4
+  );
 
   // Form Submit Handler
   const createSaleMutation = useMutation({
     mutationFn: (payload: SaleCreatePayload) => saleService.createSale(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-reports"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
     },
   });
 
@@ -247,6 +280,8 @@ export function SaleForm() {
           quantity: item.quantity,
           unit_price: roundToPrecision(item.unit_price, 4),
           discount: 0,
+          total_price: roundToPrecision(item.total_price, 4),
+          pricing_mode: item.pricing_mode,
         })),
         discount_amount: roundToPrecision(orderDiscount, 4),
         tax_amount: roundToPrecision(taxAmount, 4),

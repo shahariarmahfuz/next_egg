@@ -243,5 +243,109 @@
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
+
+  /* 7. Cash Book Dedicated Readable A5 Landscape Print Styles */
+  .cash-book-print {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 8.5px !important;
+    line-height: 1.1 !important;
+    color: #000000 !important;
+    box-sizing: border-box !important;
+    height: auto !important;
+    min-height: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .cash-book-print,
+  .cash-book-print main,
+  .cash-book-print table,
+  .cash-book-print tbody {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .cash-book-print tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .cash-book-print table.cash-book-table {
+    width: 100% !important;
+    max-width: none !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .cash-book-print thead {
+    display: table-header-group !important;
+  }
+
+  .cash-book-print tfoot {
+    display: table-footer-group !important;
+  }
+
+  .cash-book-print th,
+  .cash-book-print td {
+    padding: 2px 3px !important;
+    line-height: 1.1 !important;
+    font-size: 8.5px !important;
+    border: 0.5px solid #94a3b8 !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+  }
+
+  .cash-book-print th {
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    background-color: #f1f5f9 !important;
+    padding: 2.5px 3px !important;
+  }
+
+  .cash-book-print td p,
+  .cash-book-print td div,
+  .cash-book-print td span {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.1 !important;
+  }
+
+  .cash-book-print .debit-cell {
+    color: #b91c1c !important;
+    font-weight: 600 !important;
+  }
+
+  .cash-book-print .credit-cell {
+    color: #047857 !important;
+    font-weight: 600 !important;
+  }
+
+  .cash-book-print .balance-cell {
+    color: #020617 !important;
+    font-weight: 700 !important;
+  }
+
+  .cash-book-print table.cash-book-table tfoot td {
+    padding: 2.5px 3px !important;
+    line-height: 1.1 !important;
+    font-size: 8.5px !important;
+    font-weight: 700 !important;
+    background-color: #f8fafc !important;
+    border: 0.5px solid #64748b !important;
+    border-top: 1px solid #0f172a !important;
+  }
 }
+
 

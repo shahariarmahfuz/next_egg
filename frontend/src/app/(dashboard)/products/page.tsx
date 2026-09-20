@@ -67,6 +67,7 @@ export default function ProductsPage() {
       toast.success("Product deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete product.";
@@ -81,6 +82,7 @@ export default function ProductsPage() {
       toast.success("Product and all transaction line items deleted permanently");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setHardDeletingProduct(null);
     },
     onError: (err: any) => {

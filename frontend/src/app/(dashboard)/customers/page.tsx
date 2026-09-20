@@ -63,6 +63,7 @@ export default function CustomersPage() {
       toast.success("Customer profile deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete customer.";
@@ -77,6 +78,7 @@ export default function CustomersPage() {
       toast.success("Customer and all related records deleted permanently");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setHardDeletingCustomer(null);
     },
     onError: (err: any) => {

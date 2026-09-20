@@ -14,6 +14,10 @@ class DashboardCardsSummary(BaseModel):
     customer_due: float
     supplier_due: float
     total_profit: float
+    total_due: Optional[float] = None
+    total_units_sold: Optional[float] = None
+    total_cogs: Optional[float] = None
+
 
 
 class RecentSaleItem(BaseModel):

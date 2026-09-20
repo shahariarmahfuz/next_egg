@@ -9,6 +9,9 @@ export interface DashboardCardsSummary {
   customer_due: number;
   supplier_due: number;
   total_profit: number;
+  total_due?: number;
+  total_units_sold?: number;
+  total_cogs?: number;
 }
 
 export interface RecentSaleItem {

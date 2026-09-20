@@ -41,6 +41,7 @@ export default function NewPurchasePage() {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       toast.success("Purchase added successfully.");
       router.push("/purchases");
     },

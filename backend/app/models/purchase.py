@@ -64,6 +64,7 @@ class PurchaseItem(TimestampedBaseModel):
     unit_price: Mapped[float] = mapped_column(Float, nullable=False)
     discount: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     total_price: Mapped[float] = mapped_column(Float, nullable=False)
+    pricing_mode: Mapped[str] = mapped_column(String(20), default="unit_price", server_default="unit_price", nullable=False)
 
     # Relationships
     purchase: Mapped["Purchase"] = relationship("Purchase", back_populates="items")

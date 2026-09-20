@@ -32,8 +32,9 @@ import {
   Undo2,
   BookOpen,
   Sprout,
+  Landmark,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers/auth-provider";
@@ -53,8 +54,24 @@ export function SidebarContent({
   const pathname = usePathname();
   const { user, logout, hasPermission } = useAuth();
 
-  // Accordion state: default null (all expandable groups collapsed by default on load)
-  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const isCashBookActive = pathname === "/accounts/cash-book";
+  const isFilteredDashboardActive = pathname === "/dashboard/filtered";
+  const isReportsCenterActive = pathname.startsWith("/reports");
+  const isAccountsActive = isCashBookActive || isFilteredDashboardActive || isReportsCenterActive;
+
+  // Accordion state: default open if current route is inside accounts, otherwise null (collapsed by default on load)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(() => {
+    if (pathname === "/accounts/cash-book" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
+      return "accounts";
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (pathname === "/accounts/cash-book" || pathname === "/dashboard/filtered" || pathname.startsWith("/reports")) {
+      setExpandedGroup("accounts");
+    }
+  }, [pathname]);
 
   const toggleGroup = (groupKey: string) => {
     setExpandedGroup((prev) => (prev === groupKey ? null : groupKey));
@@ -136,42 +153,6 @@ export function SidebarContent({
           >
             <LayoutDashboard className="h-5 w-5 shrink-0" />
             {!collapsed && <span>Dashboard</span>}
-          </Link>
-        )}
-
-        {/* Filtered Dashboard */}
-        {hasPermission("dashboard.filtered.view") && (
-          <Link
-            href="/dashboard/filtered"
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-              pathname === "/dashboard/filtered"
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-            )}
-            title={collapsed ? "Filtered Dashboard" : undefined}
-          >
-            <BarChart3 className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>Filtered Dashboard</span>}
-          </Link>
-        )}
-
-        {/* Centralized Reports Hub */}
-        {hasPermission("reports.view") && (
-          <Link
-            href="/reports"
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group relative",
-              pathname.startsWith("/reports")
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-            )}
-            title={collapsed ? "Reports Center" : undefined}
-          >
-            <BarChart3 className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>Reports Center</span>}
           </Link>
         )}
 
@@ -1063,6 +1044,87 @@ export function SidebarContent({
                   >
                     <BarChart3 className="h-3.5 w-3.5 text-indigo-500" />
                     <span>Production & Delivery Report</span>
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Accounts Module Collapsible Group */}
+        {hasPermission(["accounts.cash_book.view", "dashboard.filtered.view", "reports.view"]) && (
+          <div className="space-y-1">
+            <button
+              onClick={() => toggleGroup("accounts")}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group",
+                isAccountsActive
+                  ? "bg-accent/80 text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              )}
+              title={collapsed ? "Accounts" : undefined}
+            >
+              <div className="flex items-center space-x-3">
+                <Landmark className="h-5 w-5 shrink-0 text-primary" />
+                {!collapsed && <span>Accounts</span>}
+              </div>
+              {!collapsed && (
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    isGroupOpen("accounts") ? "rotate-180" : ""
+                  )}
+                />
+              )}
+            </button>
+
+            {isGroupOpen("accounts") && !collapsed && (
+              <div className="pl-9 space-y-1 animate-in fade-in-50">
+                {hasPermission(["accounts.cash_book.view", "reports.view"]) && (
+                  <Link
+                    href="/accounts/cash-book"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      isCashBookActive
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <Wallet className="h-3.5 w-3.5 text-primary" />
+                    <span>Cash Book</span>
+                  </Link>
+                )}
+
+                {hasPermission("dashboard.filtered.view") && (
+                  <Link
+                    href="/dashboard/filtered"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      isFilteredDashboardActive
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5 text-primary" />
+                    <span>Filtered Dashboard</span>
+                  </Link>
+                )}
+
+                {hasPermission("reports.view") && (
+                  <Link
+                    href="/reports"
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+                      isReportsCenterActive
+                        ? "bg-primary/15 text-primary font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                    <span>Reports Center</span>
                   </Link>
                 )}
               </div>

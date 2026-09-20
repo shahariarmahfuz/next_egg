@@ -108,6 +108,7 @@ export default function ManageSupplierPaymentsPage() {
       queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setSelectedDeletePayment(null);
       setIsDeleting(false);
     },
@@ -127,6 +128,7 @@ export default function ManageSupplierPaymentsPage() {
       queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setHardDeletingPayment(null);
     },
     onError: (err: any) => {

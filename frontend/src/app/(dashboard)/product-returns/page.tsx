@@ -105,6 +105,7 @@ export default function ManageProductReturnsPage() {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setSelectedDeleteReturn(null);
       setIsDeleting(false);
     },
@@ -124,6 +125,7 @@ export default function ManageProductReturnsPage() {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setHardDeletingReturn(null);
     },
     onError: (err: any) => {

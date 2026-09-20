@@ -262,7 +262,7 @@ export default function FilteredDashboardPage() {
               </div>
             )}
             <div className="text-[11px] text-muted-foreground mt-1">
-              Sales − Purchases − Expenses
+              Sales − COGS − Expenses
             </div>
           </CardContent>
         </Card>

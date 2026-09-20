@@ -94,8 +94,10 @@ export default function ManageSalesPage() {
     onSuccess: () => {
       toast.success("Sale invoice deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-reports"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
     },
     onError: (err: any) => {
@@ -110,8 +112,10 @@ export default function ManageSalesPage() {
     onSuccess: () => {
       toast.success("Sale invoice and all linked returns/collections deleted permanently");
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-reports"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
       setHardDeletingSale(null);
     },

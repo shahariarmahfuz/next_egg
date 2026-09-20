@@ -171,12 +171,19 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
 
         return {
             "total_sales": int(row.total_sales),
+            "total_invoices": int(row.total_sales),
             "total_sale_amount": float(row.total_sale_amount),
+            "total_amount": float(row.total_sale_amount),
+            "total_revenue": float(row.total_sale_amount),
             "total_discount": float(row.total_discount),
             "total_paid": float(row.total_paid),
+            "paid_amount": float(row.total_paid),
             "total_due": float(row.total_due),
+            "due_amount": float(row.total_due),
             "total_items_sold": float(total_items_sold),
+            "total_units": float(total_items_sold),
         }
+
 
 
 sale_repository = SaleRepository()
