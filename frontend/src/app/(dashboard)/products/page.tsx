@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -39,6 +40,11 @@ export default function ProductsPage() {
   const [viewingProduct, setViewingProduct] = useState<ProductItem | null>(null);
   const [correctingStockProduct, setCorrectingStockProduct] = useState<ProductItem | null>(null);
   const [hardDeletingProduct, setHardDeletingProduct] = useState<ProductItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -96,7 +102,7 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       <PageHeader
         title="Product Inventory Catalog"
         description="Monitor stock balances, unit prices, barcode identifiers, and reorder levels."
@@ -113,7 +119,7 @@ export default function ProductsPage() {
       />
 
       {/* Filter and Server-Side Search Bar */}
-      <Card className="glass-card">
+      <Card className="glass-card w-full">
         <CardContent className="p-4 flex flex-col md:flex-row gap-4 justify-between items-center">
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -339,11 +345,15 @@ export default function ProductsPage() {
       </Card>
 
       {/* Quick View Modal */}
-      <ProductViewModal
-        product={viewingProduct}
-        isOpen={!!viewingProduct}
-        onClose={() => setViewingProduct(null)}
-      />
+      {mounted &&
+        createPortal(
+          <ProductViewModal
+            product={viewingProduct}
+            isOpen={!!viewingProduct}
+            onClose={() => setViewingProduct(null)}
+          />,
+          document.body
+        )}
 
       {/* Stock Correction Modal */}
       <ProductStockCorrectionModal
