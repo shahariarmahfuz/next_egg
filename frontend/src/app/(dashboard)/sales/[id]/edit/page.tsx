@@ -17,6 +17,7 @@ import {
   FileText,
   UserCheck,
   Calendar,
+  ChevronsUpDown,
 } from "lucide-react";
 import { customerService, productService, saleService } from "@/services/api";
 import { CustomerItem, ProductItem, SaleUpdatePayload, SaleItem } from "@/types";
@@ -25,9 +26,19 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { HasPermission } from "@/providers/auth-provider";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
+import { cn } from "@/lib/utils";
 import {
   calculateDueAmount,
   calculateGrandTotal,
@@ -66,7 +77,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   const [productSearch, setProductSearch] = useState("");
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [openProductPopover, setOpenProductPopover] = useState(false);
 
   const [lineItems, setLineItems] = useState<LineItemState[]>([]);
   const [orderDiscount, setOrderDiscount] = useState<number>(0);
@@ -79,7 +90,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const debouncedCustomerQuery = useDebounce(customerSearch, 300);
-  const debouncedProductQuery = useDebounce(productSearch, 250);
+  const debouncedProductQuery = useDebounce(productSearch, 300);
 
   // Prefill state from fetched sale invoice
   useEffect(() => {
@@ -133,16 +144,20 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
     enabled: debouncedCustomerQuery.trim().length >= 1 && !selectedCustomer,
   });
 
-  const { data: productSearchData } = useQuery({
+  const { data: productSearchData, isLoading: isProductLoading } = useQuery({
     queryKey: ["products-search", debouncedProductQuery],
-    queryFn: () => productService.getProducts({ search: debouncedProductQuery, status: "active", size: 10 }),
-    enabled: debouncedProductQuery.trim().length >= 1,
+    queryFn: () => productService.getProducts({ search: debouncedProductQuery, status: "active", product_type: "NORMAL", size: 20 }),
+    enabled: true,
   });
 
   const customerSuggestions = customerSearchData?.data?.items || [];
   const productSuggestions = productSearchData?.data?.items || [];
 
   const handleSelectProduct = (product: ProductItem) => {
+    if (product.product_type === "FARM") {
+      setErrorMsg(`"${product.name}" is a Farm Product (Quantity Tracking Only) and cannot be sold via regular sales.`);
+      return;
+    }
     const existingIndex = lineItems.findIndex((item) => item.product.id === product.id);
 
     if (existingIndex >= 0) {
@@ -178,7 +193,8 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
     }
 
     setProductSearch("");
-    setShowProductDropdown(false);
+    setOpenProductPopover(false);
+    setErrorMsg(null);
   };
 
   const handleUpdateItem = (
@@ -409,35 +425,75 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search product by name, code, barcode..."
-                    value={productSearch}
-                    onChange={(e) => {
-                      setProductSearch(e.target.value);
-                      setShowProductDropdown(true);
-                    }}
-                    className="pl-9 h-10 text-xs"
-                  />
-                  {showProductDropdown && productSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-11 z-50 bg-card border rounded-xl shadow-2xl max-h-64 overflow-y-auto divide-y text-xs">
-                      {productSuggestions.map((prod) => (
-                        <div
-                          key={prod.id}
-                          onClick={() => handleSelectProduct(prod)}
-                          className="p-3 hover:bg-accent cursor-pointer flex justify-between items-center"
-                        >
-                          <div>
-                            <span className="font-bold">{prod.name}</span>
-                            <span className="text-[10px] text-muted-foreground ml-2 ">{prod.product_code}</span>
+                <Popover open={openProductPopover} onOpenChange={setOpenProductPopover}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openProductPopover}
+                      className="w-full justify-between h-10 text-xs font-normal bg-background/50 border-input hover:bg-accent/50"
+                    >
+                      <span className="flex items-center gap-2 text-muted-foreground truncate">
+                        <Search className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                        Scan barcode or search product (Name, Code, Barcode)...
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search product by name, code, or barcode..."
+                        value={productSearch}
+                        onValueChange={setProductSearch}
+                      />
+                      <CommandList>
+                        {isProductLoading ? (
+                          <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Searching products...
                           </div>
-                          <div className="font-bold text-primary">{formatCurrency(prod.selling_price)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        ) : productSuggestions.length === 0 ? (
+                          <CommandEmpty>No products found.</CommandEmpty>
+                        ) : (
+                          <CommandGroup>
+                            {productSuggestions.map((prod) => {
+                              const formattedLabel = `${prod.name}${prod.product_code ? ` (${prod.product_code})` : ""}`;
+
+                              return (
+                                <CommandItem
+                                  key={prod.id}
+                                  value={`${prod.name} ${prod.product_code || ""} ${prod.barcode || ""} ${prod.id}`}
+                                  onSelect={() => {
+                                    handleSelectProduct(prod);
+                                    setOpenProductPopover(false);
+                                    setProductSearch("");
+                                  }}
+                                  className="py-2.5 px-3 border-b last:border-b-0 hover:bg-accent/70 cursor-pointer text-xs flex items-center justify-between"
+                                >
+                                  {/* Single line display: Product Name (Product Code) */}
+                                  <div className="truncate text-xs font-medium text-foreground min-w-0" title={formattedLabel}>
+                                    {formattedLabel}
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "text-[10px] font-semibold shrink-0 ml-2",
+                                      prod.current_stock > 0
+                                        ? "text-muted-foreground"
+                                        : "text-amber-600 dark:text-amber-400 font-bold"
+                                    )}
+                                  >
+                                    Stock: {prod.current_stock}
+                                  </span>
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </CardContent>
             </Card>
 
