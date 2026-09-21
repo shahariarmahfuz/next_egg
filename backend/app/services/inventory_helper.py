@@ -127,7 +127,7 @@ async def reconcile_uncovered_sales_for_batch(
             continue
 
         qty_to_reconcile = min(batch.remaining_quantity, remaining_uncovered)
-        batch.remaining_quantity -= qty_to_reconcile
+        batch.remaining_quantity = max(0.0, round(batch.remaining_quantity - qty_to_reconcile, 4))
         db.add(batch)
 
         sale_item = await db.get(SaleItem, log_entry.entity_id)

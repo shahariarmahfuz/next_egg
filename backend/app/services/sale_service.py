@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Sequence
@@ -6,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.exceptions.custom import BadRequestException, ConflictException, NotFoundException
+from app.models.activity_log import ActivityLog
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.sale import Sale, SaleItem
@@ -33,8 +35,8 @@ class SaleService:
         q = select(func.count(InventoryBatch.id)).where(InventoryBatch.product_id == product.id)
         res = await db.execute(q)
         batch_count = res.scalar() or 0
-        if batch_count == 0 and (product.opening_stock > 0 or product.current_stock > 0):
-            initial_qty = float(product.opening_stock if product.opening_stock > 0 else product.current_stock)
+        if batch_count == 0 and product.opening_stock > 0:
+            initial_qty = float(product.opening_stock)
             if initial_qty <= 0.0:
                 return
             rem_qty = max(0.0, min(initial_qty, float(product.current_stock)))
@@ -47,7 +49,7 @@ class SaleService:
                 product_id=product.id,
                 purchase_id=None,
                 quantity=initial_qty,
-                remaining_quantity=rem_qty,
+                remaining_quantity=round(rem_qty, 4),
                 unit_cost=unit_cost,
                 purchase_date=product.created_at or datetime.now(timezone.utc),
             )
@@ -188,9 +190,9 @@ class SaleService:
                 if qty_to_deduct <= 0:
                     break
                 deduct = min(b.remaining_quantity, qty_to_deduct)
-                b.remaining_quantity -= deduct
+                b.remaining_quantity = max(0.0, round(b.remaining_quantity - deduct, 4))
                 total_cogs += deduct * b.unit_cost
-                qty_to_deduct -= deduct
+                qty_to_deduct = max(0.0, round(qty_to_deduct - deduct, 4))
                 db.add(b)
 
             uncovered_qty = 0.0
@@ -263,30 +265,55 @@ class SaleService:
 
         # Process Line Items Update if provided
         if sale_in.items is not None:
-            # 1. Restore product stock from previous line items
-            await remove_uncovered_sale_logs(db, [old_item.id for old_item in sale.items])
+            # 1. Restore product stock and inventory batches from previous line items
             for old_item in sale.items:
                 product = await product_repository.get_by_id(db, id=old_item.product_id)
                 if product:
                     product.current_stock += old_item.quantity
                     db.add(product)
                 
+                # Determine how much was actually covered by inventory batches vs uncovered
+                q_log = select(ActivityLog).where(
+                    ActivityLog.entity_type == "SaleItem",
+                    ActivityLog.entity_id == old_item.id,
+                    ActivityLog.action.in_(["UNCOVERED_SALE_ITEM", "RECONCILED_SALE_ITEM"])
+                )
+                res_log = await db.execute(q_log)
+                log_entry = res_log.scalar_one_or_none()
+                net_uncovered = 0.0
+                if log_entry:
+                    try:
+                        data = json.loads(log_entry.payload or "{}")
+                        unc = float(data.get("uncovered_quantity", 0.0))
+                        rec = float(data.get("reconciled_quantity", 0.0))
+                        net_uncovered = max(0.0, unc - rec)
+                    except Exception:
+                        pass
+
+                qty_to_restore = max(0.0, round(old_item.quantity - net_uncovered, 4))
+
                 # Restore InventoryBatches (reverse FIFO)
-                qty_to_restore = old_item.quantity
-                restore_query = select(InventoryBatch).where(
-                    InventoryBatch.product_id == old_item.product_id,
-                    InventoryBatch.remaining_quantity < InventoryBatch.quantity
-                ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
-                
-                restore_result = await db.execute(restore_query)
-                for b in restore_result.scalars().all():
-                    if qty_to_restore <= 0:
-                        break
-                    can_restore = b.quantity - b.remaining_quantity
-                    restore_amt = min(can_restore, qty_to_restore)
-                    b.remaining_quantity += restore_amt
-                    qty_to_restore -= restore_amt
-                    db.add(b)
+                if qty_to_restore > 0:
+                    restore_query = select(InventoryBatch).where(
+                        InventoryBatch.product_id == old_item.product_id,
+                        InventoryBatch.remaining_quantity < InventoryBatch.quantity
+                    ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+                    
+                    restore_result = await db.execute(restore_query)
+                    for b in restore_result.scalars().all():
+                        if qty_to_restore <= 0:
+                            break
+                        can_restore = max(0.0, round(b.quantity - b.remaining_quantity, 4))
+                        if can_restore <= 0:
+                            continue
+                        restore_amt = min(can_restore, qty_to_restore)
+                        b.remaining_quantity = min(b.quantity, max(0.0, round(b.remaining_quantity + restore_amt, 4)))
+                        qty_to_restore = max(0.0, round(qty_to_restore - restore_amt, 4))
+                        db.add(b)
+
+            await remove_uncovered_sale_logs(db, [old_item.id for old_item in sale.items])
+            # Explicit flush so PostgreSQL session state is synchronized before Step 2 queries
+            await db.flush()
 
             # 2. Process new items and calculate COGS
             subtotal_dec = Decimal("0.0")
@@ -341,9 +368,9 @@ class SaleService:
                     if qty_to_deduct <= 0:
                         break
                     deduct = min(b.remaining_quantity, qty_to_deduct)
-                    b.remaining_quantity -= deduct
+                    b.remaining_quantity = max(0.0, round(b.remaining_quantity - deduct, 4))
                     total_cogs += deduct * b.unit_cost
-                    qty_to_deduct -= deduct
+                    qty_to_deduct = max(0.0, round(qty_to_deduct - deduct, 4))
                     db.add(b)
 
                 uncovered_qty = 0.0
@@ -451,28 +478,49 @@ class SaleService:
             raise NotFoundException(f"Sale invoice with ID '{sale_id}' not found.")
 
         # 1. Restore Product Current Stock and Inventory Batches
-        await remove_uncovered_sale_logs(db, [item.id for item in sale.items])
         for item in sale.items:
             product = await product_repository.get_by_id(db, id=item.product_id)
             if product:
                 product.current_stock += item.quantity
                 db.add(product)
                 
-            qty_to_restore = item.quantity
-            restore_query = select(InventoryBatch).where(
-                InventoryBatch.product_id == item.product_id,
-                InventoryBatch.remaining_quantity < InventoryBatch.quantity
-            ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
-            
-            restore_result = await db.execute(restore_query)
-            for b in restore_result.scalars().all():
-                if qty_to_restore <= 0:
-                    break
-                can_restore = b.quantity - b.remaining_quantity
-                restore_amt = min(can_restore, qty_to_restore)
-                b.remaining_quantity += restore_amt
-                qty_to_restore -= restore_amt
-                db.add(b)
+            q_log = select(ActivityLog).where(
+                ActivityLog.entity_type == "SaleItem",
+                ActivityLog.entity_id == item.id,
+                ActivityLog.action.in_(["UNCOVERED_SALE_ITEM", "RECONCILED_SALE_ITEM"])
+            )
+            res_log = await db.execute(q_log)
+            log_entry = res_log.scalar_one_or_none()
+            net_uncovered = 0.0
+            if log_entry:
+                try:
+                    data = json.loads(log_entry.payload or "{}")
+                    unc = float(data.get("uncovered_quantity", 0.0))
+                    rec = float(data.get("reconciled_quantity", 0.0))
+                    net_uncovered = max(0.0, unc - rec)
+                except Exception:
+                    pass
+
+            qty_to_restore = max(0.0, round(item.quantity - net_uncovered, 4))
+            if qty_to_restore > 0:
+                restore_query = select(InventoryBatch).where(
+                    InventoryBatch.product_id == item.product_id,
+                    InventoryBatch.remaining_quantity < InventoryBatch.quantity
+                ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+                
+                restore_result = await db.execute(restore_query)
+                for b in restore_result.scalars().all():
+                    if qty_to_restore <= 0:
+                        break
+                    can_restore = max(0.0, round(b.quantity - b.remaining_quantity, 4))
+                    if can_restore <= 0:
+                        continue
+                    restore_amt = min(can_restore, qty_to_restore)
+                    b.remaining_quantity = min(b.quantity, max(0.0, round(b.remaining_quantity + restore_amt, 4)))
+                    qty_to_restore = max(0.0, round(qty_to_restore - restore_amt, 4))
+                    db.add(b)
+
+        await remove_uncovered_sale_logs(db, [item.id for item in sale.items])
 
         # 2. Adjust Customer Due Balance (Reverse the sale due)
         customer = await customer_repository.get_by_id(db, id=sale.customer_id)
@@ -513,28 +561,49 @@ class SaleService:
         await db.execute(delete(CustomerCollection).where(CustomerCollection.sale_id == sale_id))
 
         # 3. Restore Product Current Stock and Inventory Batches
-        await remove_uncovered_sale_logs(db, [item.id for item in sale.items])
         for item in sale.items:
             product = await product_repository.get_by_id(db, id=item.product_id)
             if product:
                 product.current_stock += item.quantity
                 db.add(product)
                 
-            qty_to_restore = item.quantity
-            restore_query = select(InventoryBatch).where(
-                InventoryBatch.product_id == item.product_id,
-                InventoryBatch.remaining_quantity < InventoryBatch.quantity
-            ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
-            
-            restore_result = await db.execute(restore_query)
-            for b in restore_result.scalars().all():
-                if qty_to_restore <= 0:
-                    break
-                can_restore = b.quantity - b.remaining_quantity
-                restore_amt = min(can_restore, qty_to_restore)
-                b.remaining_quantity += restore_amt
-                qty_to_restore -= restore_amt
-                db.add(b)
+            q_log = select(ActivityLog).where(
+                ActivityLog.entity_type == "SaleItem",
+                ActivityLog.entity_id == item.id,
+                ActivityLog.action.in_(["UNCOVERED_SALE_ITEM", "RECONCILED_SALE_ITEM"])
+            )
+            res_log = await db.execute(q_log)
+            log_entry = res_log.scalar_one_or_none()
+            net_uncovered = 0.0
+            if log_entry:
+                try:
+                    data = json.loads(log_entry.payload or "{}")
+                    unc = float(data.get("uncovered_quantity", 0.0))
+                    rec = float(data.get("reconciled_quantity", 0.0))
+                    net_uncovered = max(0.0, unc - rec)
+                except Exception:
+                    pass
+
+            qty_to_restore = max(0.0, round(item.quantity - net_uncovered, 4))
+            if qty_to_restore > 0:
+                restore_query = select(InventoryBatch).where(
+                    InventoryBatch.product_id == item.product_id,
+                    InventoryBatch.remaining_quantity < InventoryBatch.quantity
+                ).order_by(InventoryBatch.purchase_date.desc(), InventoryBatch.created_at.desc())
+                
+                restore_result = await db.execute(restore_query)
+                for b in restore_result.scalars().all():
+                    if qty_to_restore <= 0:
+                        break
+                    can_restore = max(0.0, round(b.quantity - b.remaining_quantity, 4))
+                    if can_restore <= 0:
+                        continue
+                    restore_amt = min(can_restore, qty_to_restore)
+                    b.remaining_quantity = min(b.quantity, max(0.0, round(b.remaining_quantity + restore_amt, 4)))
+                    qty_to_restore = max(0.0, round(qty_to_restore - restore_amt, 4))
+                    db.add(b)
+
+        await remove_uncovered_sale_logs(db, [item.id for item in sale.items])
 
         # 4. Adjust Customer Due Balance (Reverse the sale due)
         customer = await customer_repository.get_by_id(db, id=sale.customer_id)
