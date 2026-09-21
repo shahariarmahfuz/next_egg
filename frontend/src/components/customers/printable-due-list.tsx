@@ -47,8 +47,22 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
         ? totalAmount
         : customers.reduce((sum, c) => sum + (Number(c.current_balance) || 0), 0);
 
+    // Diagnostics: log active layout in browser console for verification
+    if (typeof window !== "undefined") {
+      console.log(
+        `[PrintableDueList] Option A Active: Single continuous table, 1 page container, ${customers.length} customer rows rendered.`
+      );
+    }
+
     return (
-      <div ref={ref} className="customer-due-master-print">
+      <div
+        ref={ref}
+        className="customer-due-master-print"
+        data-option="Option-A-Continuous"
+        data-customer-count={customers.length}
+        data-page-containers="1"
+        data-tables-count="1"
+      >
         <style
           dangerouslySetInnerHTML={{
             __html: `
@@ -260,6 +274,12 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                       margin: 0 !important;
                       box-shadow: none !important;
                       border: none !important;
+                      height: auto !important;
+                      min-height: 0 !important;
+                      max-height: none !important;
+                      overflow: visible !important;
+                      break-inside: auto !important;
+                      page-break-inside: auto !important;
                   }
 
                   .customer-due-master-print .no-print {
@@ -315,7 +335,7 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
         </div>
 
         {/* Continuous Single A5 Page Container */}
-        <div className="page">
+        <div className="page" data-print-container="continuous-single-page">
           {/* Header */}
           <div className="header">
             {settings.business_logo && (
