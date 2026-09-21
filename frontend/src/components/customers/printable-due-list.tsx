@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { CustomerItem } from "@/types";
 import { formatCurrency, formatNumber, formatDate } from "@/utils/formatters";
 import { useSettingsStore } from "@/store/settings";
@@ -12,37 +12,8 @@ export interface PrintableDueListProps {
   totalAmount?: number;
 }
 
-/**
- * Helper to partition customer records across A5 portrait pages
- * Ensures the final page always has sufficient vertical space for the total-row and signature blocks.
- */
-function chunkCustomersForA5<T>(items: T[]): T[][] {
-  if (items.length === 0) return [[]];
-  if (items.length <= 20) return [items];
-
-  const pages: T[][] = [];
-  let remaining = [...items];
-
-  while (remaining.length > 0) {
-    if (remaining.length <= 18) {
-      pages.push(remaining);
-      break;
-    }
-    if (remaining.length <= 36) {
-      const half = Math.ceil(remaining.length / 2);
-      pages.push(remaining.slice(0, half));
-      pages.push(remaining.slice(half));
-      break;
-    }
-    pages.push(remaining.slice(0, 22));
-    remaining = remaining.slice(22);
-  }
-
-  return pages;
-}
-
 export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueListProps>(
-  ({ customers, searchQuery, totalAmount }, ref) => {
+  ({ customers, searchQuery, totalCustomers, totalAmount }, ref) => {
     const { settings } = useSettingsStore();
 
     // Dynamic Business Information
@@ -64,26 +35,17 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
       ? `Filtered: "${searchQuery.trim()}"`
       : "All Outstanding Accounts";
 
+    // Total accounts count
+    const totalAccountsCount =
+      totalCustomers !== undefined && totalCustomers > 0
+        ? totalCustomers
+        : customers.length;
+
     // Complete filtered dataset total due amount
     const calculatedTotalDue =
       totalAmount !== undefined && totalAmount > 0
         ? totalAmount
         : customers.reduce((sum, c) => sum + (Number(c.current_balance) || 0), 0);
-
-    // Split customer records into discrete A5 pages
-    const pagedCustomers = useMemo(() => chunkCustomersForA5(customers), [customers]);
-    const totalPages = pagedCustomers.length;
-
-    // Track starting SL index per page for continuous numbering across pages
-    const pageStartIndices = useMemo(() => {
-      const indices: number[] = [];
-      let running = 0;
-      for (const pageItems of pagedCustomers) {
-        indices.push(running);
-        running += pageItems.length;
-      }
-      return indices;
-    }, [pagedCustomers]);
 
     return (
       <div ref={ref} className="customer-due-master-print">
@@ -129,7 +91,7 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
               /* A5 Page Container */
               .customer-due-master-print .page {
                   width: 148mm;
-                  margin: 0 auto 15px auto;
+                  margin: 0 auto;
                   background: #ffffff;
                   padding: 6mm 7mm;
                   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
@@ -264,11 +226,17 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                   font-weight: 400;
               }
 
-              /* ================= PRINT RULES (ULTRA-THIN HAIRLINE) ================= */
+              /* ================= PRINT RULES (NATURAL A5 PAGINATION) ================= */
               @media print {
                   @page {
                       size: A5 portrait;
                       margin: 5mm 6mm 5mm 6mm;
+                      @bottom-right {
+                          content: "Page " counter(page) " of " counter(pages);
+                          font-size: 7.5px;
+                          font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                          color: #555;
+                      }
                   }
 
                   html, body {
@@ -292,13 +260,6 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                       margin: 0 !important;
                       box-shadow: none !important;
                       border: none !important;
-                      page-break-after: always;
-                      break-after: page;
-                  }
-
-                  .customer-due-master-print .page:last-child {
-                      page-break-after: auto;
-                      break-after: auto;
                   }
 
                   .customer-due-master-print .no-print {
@@ -327,18 +288,19 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                       border-top: 0.25pt dashed #bbb !important;
                   }
 
+                  /* Natural continuous table pagination */
                   .customer-due-master-print thead {
                       display: table-header-group !important;
                   }
 
-                  .customer-due-master-print tr {
-                      page-break-inside: avoid !important;
+                  .customer-due-master-print tbody tr {
                       break-inside: avoid !important;
+                      page-break-inside: avoid !important;
                   }
 
                   .customer-due-master-print .signature-area {
-                      page-break-inside: avoid !important;
                       break-inside: avoid !important;
+                      page-break-inside: avoid !important;
                   }
               }
             `,
@@ -352,110 +314,95 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
           </button>
         </div>
 
-        {/* Multi-page A5 Container */}
-        {pagedCustomers.map((pageItems, pageIndex) => {
-          const isLastPage = pageIndex === totalPages - 1;
-          const startSl = pageStartIndices[pageIndex] || 0;
-          const pageNumberStr = `${String(pageIndex + 1).padStart(2, "0")} of ${String(totalPages).padStart(2, "0")}`;
-
-          return (
-            <div key={pageIndex} className="page">
-              {/* Header */}
-              <div className="header">
-                {settings.business_logo && (
-                  <div style={{ marginBottom: "2px", display: "flex", justifyContent: "center" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={settings.business_logo}
-                      alt={businessName}
-                      style={{ maxHeight: "36px", maxWidth: "160px", objectFit: "contain" }}
-                    />
-                  </div>
-                )}
-                <h1>{businessName}</h1>
-                {businessDetails && <p>{businessDetails}</p>}
-                <div className="doc-title">Customer Due List / Statement</div>
+        {/* Continuous Single A5 Page Container */}
+        <div className="page">
+          {/* Header */}
+          <div className="header">
+            {settings.business_logo && (
+              <div style={{ marginBottom: "2px", display: "flex", justifyContent: "center" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={settings.business_logo}
+                  alt={businessName}
+                  style={{ maxHeight: "36px", maxWidth: "160px", objectFit: "contain" }}
+                />
               </div>
+            )}
+            <h1>{businessName}</h1>
+            {businessDetails && <p>{businessDetails}</p>}
+            <div className="doc-title">Customer Due List / Statement</div>
+          </div>
 
-              {/* Meta Info */}
-              <div className="meta-info">
-                <div><strong>As of Date:</strong> {asOfDate}</div>
-                <div><strong>Statement:</strong> {statementText}</div>
-                <div><strong>Page:</strong> {pageNumberStr}</div>
-              </div>
+          {/* Meta Info */}
+          <div className="meta-info">
+            <div><strong>As of Date:</strong> {asOfDate}</div>
+            <div><strong>Statement:</strong> {statementText}</div>
+            <div><strong>Total Accounts:</strong> {totalAccountsCount}</div>
+          </div>
 
-              {/* Due Customers Table */}
-              <div className="section-title">Customer Due Accounts</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{ width: "6%" }}>#</th>
-                    <th style={{ width: "34%" }}>Customer Name</th>
-                    <th style={{ width: "20%" }}>Contact</th>
-                    <th style={{ width: "22%" }}>Address</th>
-                    <th style={{ width: "18%" }}>Due Amount ({currencySymbol})</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageItems.map((customer, idx) => {
-                    const sl = startSl + idx + 1;
-                    return (
-                      <tr key={customer.id || idx}>
-                        <td className="text-center">{sl}</td>
-                        <td className="text-left">{customer.name}</td>
-                        <td className="text-center">{customer.phone || "-"}</td>
-                        <td className="text-left">{customer.address || "-"}</td>
-                        <td className="text-right">{formatNumber(customer.current_balance)}</td>
-                      </tr>
-                    );
-                  })}
+          {/* Due Customers Table */}
+          <div className="section-title">Customer Due Accounts</div>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: "6%" }}>#</th>
+                <th style={{ width: "34%" }}>Customer Name</th>
+                <th style={{ width: "20%" }}>Contact</th>
+                <th style={{ width: "22%" }}>Address</th>
+                <th style={{ width: "18%" }}>Due Amount ({currencySymbol})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((customer, idx) => (
+                <tr key={customer.id || idx}>
+                  <td className="text-center">{idx + 1}</td>
+                  <td className="text-left">{customer.name}</td>
+                  <td className="text-center">{customer.phone || "-"}</td>
+                  <td className="text-left">{customer.address || "-"}</td>
+                  <td className="text-right">{formatNumber(customer.current_balance)}</td>
+                </tr>
+              ))}
 
-                  {customers.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="text-center" style={{ padding: "10px", color: "#666" }}>
-                        No due records found matching the criteria.
-                      </td>
-                    </tr>
-                  )}
-
-                  {/* Total Due Row on the last page */}
-                  {isLastPage && (
-                    <tr className="total-row">
-                      <td
-                        colSpan={4}
-                        className="text-right"
-                        style={{ paddingRight: "6px", color: "#b02a37" }}
-                      >
-                        Total Due Amount:
-                      </td>
-                      <td className="text-right" style={{ color: "#b02a37" }}>
-                        {formatCurrency(calculatedTotalDue)}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-
-              {/* Signatures on the last page */}
-              {isLastPage && (
-                <div className="signature-area">
-                  <div className="sig-block">
-                    <div className="sig-line"></div>
-                    <div className="sig-text">Prepared By</div>
-                  </div>
-                  <div className="sig-block">
-                    <div className="sig-line"></div>
-                    <div className="sig-text">Verified By</div>
-                  </div>
-                  <div className="sig-block">
-                    <div className="sig-line"></div>
-                    <div className="sig-text">Proprietor / Manager</div>
-                  </div>
-                </div>
+              {customers.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center" style={{ padding: "10px", color: "#666" }}>
+                    No due records found matching the criteria.
+                  </td>
+                </tr>
               )}
+
+              {/* Total Due Row at the end of the complete dataset */}
+              <tr className="total-row">
+                <td
+                  colSpan={4}
+                  className="text-right"
+                  style={{ paddingRight: "6px", color: "#b02a37" }}
+                >
+                  Total Due Amount:
+                </td>
+                <td className="text-right" style={{ color: "#b02a37" }}>
+                  {formatCurrency(calculatedTotalDue)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Signatures at the end of the complete dataset */}
+          <div className="signature-area">
+            <div className="sig-block">
+              <div className="sig-line"></div>
+              <div className="sig-text">Prepared By</div>
             </div>
-          );
-        })}
+            <div className="sig-block">
+              <div className="sig-line"></div>
+              <div className="sig-text">Verified By</div>
+            </div>
+            <div className="sig-block">
+              <div className="sig-line"></div>
+              <div className="sig-text">Proprietor / Manager</div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
