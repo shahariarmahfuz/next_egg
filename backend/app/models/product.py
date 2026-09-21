@@ -31,7 +31,6 @@ class Product(TimestampedBaseModel):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
-        CheckConstraint("current_stock >= 0", name="chk_product_stock_non_negative"),
         CheckConstraint("opening_stock_unit_cost >= 0", name="chk_product_opening_cost_positive"),
         CheckConstraint("selling_price >= 0", name="chk_product_selling_price_positive"),
         Index("idx_product_status_name", "status", "name"),

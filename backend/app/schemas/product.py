@@ -82,7 +82,7 @@ class ProductResponse(BaseModel):
     @property
     def available_stock(self) -> float:
         """Calculated available stock (current stock)."""
-        return max(0.0, self.current_stock)
+        return self.current_stock
 
     @computed_field
     @property

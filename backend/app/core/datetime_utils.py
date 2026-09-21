@@ -40,22 +40,29 @@ def normalize_date_range(
     start_utc = None
     if start_date is not None:
         if start_date.tzinfo is None:
-            start_tz = start_date.replace(tzinfo=tz)
+            start_tz = start_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=tz)
         else:
-            start_tz = start_date.astimezone(tz)
+            start_in_tz = start_date.astimezone(tz)
+            if start_date.hour == 0 and start_date.minute == 0 and start_date.second == 0 and start_date.microsecond == 0:
+                start_tz = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0, 0, tzinfo=tz)
+            elif start_in_tz.hour == 0 and start_in_tz.minute == 0 and start_in_tz.second == 0 and start_in_tz.microsecond == 0:
+                start_tz = start_in_tz
+            else:
+                start_tz = start_in_tz
         start_utc = start_tz.astimezone(timezone.utc)
 
     end_utc = None
     if end_date is not None:
         if end_date.tzinfo is None:
-            if end_date.hour == 0 and end_date.minute == 0 and end_date.second == 0 and end_date.microsecond == 0:
-                end_tz = end_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=tz)
-            else:
-                end_tz = end_date.replace(tzinfo=tz)
+            end_tz = end_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=tz)
         else:
-            end_tz = end_date.astimezone(tz)
-            if end_tz.hour == 0 and end_tz.minute == 0 and end_tz.second == 0 and end_tz.microsecond == 0:
-                end_tz = end_tz.replace(hour=23, minute=59, second=59, microsecond=999999)
+            end_in_tz = end_date.astimezone(tz)
+            if end_in_tz.hour == 0 and end_in_tz.minute == 0 and end_in_tz.second == 0 and end_in_tz.microsecond == 0:
+                end_tz = end_in_tz.replace(hour=23, minute=59, second=59, microsecond=999999)
+            elif end_date.hour == 0 and end_date.minute == 0 and end_date.second == 0 and end_date.microsecond == 0:
+                end_tz = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, 999999, tzinfo=tz)
+            else:
+                end_tz = end_in_tz
         end_utc = end_tz.astimezone(timezone.utc)
 
     return start_utc, end_utc

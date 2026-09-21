@@ -30,6 +30,8 @@ async def list_sales(
     payment_status: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    from_date: Optional[datetime] = Query(None),
+    to_date: Optional[datetime] = Query(None),
     sort_by: Optional[str] = Query("newest", description="newest, oldest, highest_amount, lowest_amount"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("sales.view")),
@@ -37,7 +39,9 @@ async def list_sales(
     """Server-side paginated sales list with search, customer, payment status, date range, and sorting."""
     settings = await setting_service.get_business_settings(db)
     tz_str = settings.timezone or "UTC"
-    start_date, end_date = normalize_date_range(start_date, end_date, tz_str=tz_str, default_to_today=False)
+    effective_start = from_date or start_date
+    effective_end = to_date or end_date
+    start_date, end_date = normalize_date_range(effective_start, effective_end, tz_str=tz_str, default_to_today=False)
 
     skip = (page - 1) * size
     sales, total = await sale_service.get_sales_paginated(
@@ -88,13 +92,17 @@ async def get_sales_reports(
     payment_status: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    from_date: Optional[datetime] = Query(None),
+    to_date: Optional[datetime] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission(["reports.view", "sales.report.view"])),
 ):
     """Generates aggregated sales metrics (total sales, total sale amount, total discount, total paid, total due, total items sold)."""
     settings = await setting_service.get_business_settings(db)
     tz_str = settings.timezone or "UTC"
-    start_date, end_date = normalize_date_range(start_date, end_date, tz_str=tz_str, default_to_today=False)
+    effective_start = from_date or start_date
+    effective_end = to_date or end_date
+    start_date, end_date = normalize_date_range(effective_start, effective_end, tz_str=tz_str, default_to_today=False)
 
     summary = await sale_service.get_sale_reports(
         db,

@@ -14,6 +14,11 @@ from app.repositories.customer_repository import customer_repository
 from app.repositories.product_repository import product_repository
 from app.repositories.sale_repository import sale_repository
 from app.schemas.sale import SaleCreate, SaleItemCreate, SaleUpdate
+from app.services.inventory_helper import (
+    get_last_purchase_cost,
+    record_uncovered_sale_item,
+    remove_uncovered_sale_logs,
+)
 
 
 class SaleService:
@@ -76,13 +81,6 @@ class SaleService:
                 raise BadRequestException(f"Farm products cannot be sold via regular sales (Product: {product.name}).")
             if product.status != "active":
                 raise BadRequestException(f"Product '{product.name}' is inactive and cannot be sold.")
-
-            # NON-NEGATIVE STOCK RULE
-            if product.current_stock < item_in.quantity:
-                raise BadRequestException(
-                    f"Insufficient stock for product '{product.name}'. "
-                    f"Requested: {item_in.quantity} {product.unit}, Available: {product.current_stock} {product.unit}."
-                )
 
             qty_dec = Decimal(str(item_in.quantity))
             discount_dec = Decimal(str(item_in.discount or 0.0))
@@ -187,13 +185,12 @@ class SaleService:
                 qty_to_deduct -= deduct
                 db.add(b)
 
+            uncovered_qty = 0.0
+            fallback_cost = 0.0
             if qty_to_deduct > 0:
-                fallback_cost = (
-                    product.opening_stock_unit_cost
-                    if (product.opening_stock_unit_cost and product.opening_stock_unit_cost > 0)
-                    else 0.0
-                )
-                total_cogs += qty_to_deduct * fallback_cost
+                uncovered_qty = qty_to_deduct
+                fallback_cost = await get_last_purchase_cost(db, product)
+                total_cogs += uncovered_qty * fallback_cost
 
             sale_item = SaleItem(
                 sale_id=sale.id,
@@ -206,8 +203,20 @@ class SaleService:
                 cogs=round(total_cogs, 4),
             )
             db.add(sale_item)
+            await db.flush()
 
-            # DECREASE PRODUCT STOCK
+            if uncovered_qty > 0:
+                await record_uncovered_sale_item(
+                    db=db,
+                    user_id=user_id,
+                    sale_id=sale.id,
+                    sale_item_id=sale_item.id,
+                    product_id=product.id,
+                    uncovered_quantity=uncovered_qty,
+                    provisional_unit_cost=fallback_cost,
+                )
+
+            # DECREASE PRODUCT STOCK (Allows negative stock)
             product = item_data["product_model"]
             product.current_stock -= item_data["quantity"]
             db.add(product)
@@ -247,6 +256,7 @@ class SaleService:
         # Process Line Items Update if provided
         if sale_in.items is not None:
             # 1. Restore product stock from previous line items
+            await remove_uncovered_sale_logs(db, [old_item.id for old_item in sale.items])
             for old_item in sale.items:
                 product = await product_repository.get_by_id(db, id=old_item.product_id)
                 if product:
@@ -270,21 +280,15 @@ class SaleService:
                     qty_to_restore -= restore_amt
                     db.add(b)
 
-            # 2. Process new items and validate stock availability
+            # 2. Process new items and calculate COGS
             subtotal_dec = Decimal("0.0")
-            new_items: list[SaleItem] = []
+            new_items_with_uncovered = []
             for item_in in sale_in.items:
                 product = await product_repository.get_by_id(db, id=item_in.product_id)
                 if not product:
                     raise NotFoundException(f"Product with ID '{item_in.product_id}' not found.")
                 if product.product_type == "FARM":
                     raise BadRequestException(f"Farm products cannot be sold via regular sales (Product: {product.name}).")
-
-                if product.current_stock < item_in.quantity:
-                    raise BadRequestException(
-                        f"Insufficient stock for product '{product.name}'. "
-                        f"Requested: {item_in.quantity} {product.unit}, Available: {product.current_stock} {product.unit}."
-                    )
 
                 qty_dec = Decimal(str(item_in.quantity))
                 discount_dec = Decimal(str(item_in.discount or 0.0))
@@ -334,13 +338,12 @@ class SaleService:
                     qty_to_deduct -= deduct
                     db.add(b)
 
+                uncovered_qty = 0.0
+                fallback_cost = 0.0
                 if qty_to_deduct > 0:
-                    fallback_cost = (
-                        product.opening_stock_unit_cost
-                        if (product.opening_stock_unit_cost and product.opening_stock_unit_cost > 0)
-                        else 0.0
-                    )
-                    total_cogs += qty_to_deduct * fallback_cost
+                    uncovered_qty = qty_to_deduct
+                    fallback_cost = await get_last_purchase_cost(db, product)
+                    total_cogs += uncovered_qty * fallback_cost
 
                 sale_item = SaleItem(
                     product_id=product.id,
@@ -351,16 +354,29 @@ class SaleService:
                     pricing_mode=mode,
                     cogs=round(total_cogs, 4),
                 )
-                new_items.append(sale_item)
+                new_items_with_uncovered.append((sale_item, uncovered_qty, fallback_cost, product.id))
 
-                # Deduct new stock
+                # Deduct new stock (Allows negative stock)
                 product.current_stock -= item_in.quantity
                 db.add(product)
 
             # Clear old items and replace with new items
             sale.items.clear()
-            sale.items = new_items
+            sale.items = [item[0] for item in new_items_with_uncovered]
             sale.subtotal = float(subtotal_dec)
+            await db.flush()
+
+            for s_item, unc_qty, fb_cost, prod_id in new_items_with_uncovered:
+                if unc_qty > 0:
+                    await record_uncovered_sale_item(
+                        db=db,
+                        user_id=sale.user_id,
+                        sale_id=sale.id,
+                        sale_item_id=s_item.id,
+                        product_id=prod_id,
+                        uncovered_quantity=unc_qty,
+                        provisional_unit_cost=fb_cost,
+                    )
 
         # Financial Calculations Update
         discount_amount_dec = Decimal(str(sale_in.discount_amount if sale_in.discount_amount is not None else sale.discount_amount))
@@ -423,6 +439,7 @@ class SaleService:
             raise NotFoundException(f"Sale invoice with ID '{sale_id}' not found.")
 
         # 1. Restore Product Current Stock and Inventory Batches
+        await remove_uncovered_sale_logs(db, [item.id for item in sale.items])
         for item in sale.items:
             product = await product_repository.get_by_id(db, id=item.product_id)
             if product:
@@ -484,6 +501,7 @@ class SaleService:
         await db.execute(delete(CustomerCollection).where(CustomerCollection.sale_id == sale_id))
 
         # 3. Restore Product Current Stock and Inventory Batches
+        await remove_uncovered_sale_logs(db, [item.id for item in sale.items])
         for item in sale.items:
             product = await product_repository.get_by_id(db, id=item.product_id)
             if product:

@@ -14,6 +14,7 @@ from app.repositories.product_repository import product_repository
 from app.repositories.purchase_repository import purchase_repository
 from app.repositories.supplier_repository import supplier_repository
 from app.schemas.purchase import PurchaseCreate, PurchaseReportSummary, PurchaseResponse, PurchaseUpdate
+from app.services.inventory_helper import reconcile_uncovered_sales_for_batch
 
 
 class PurchaseService:
@@ -153,6 +154,8 @@ class PurchaseService:
                 purchase_date=purchase.purchase_date,
             )
             db.add(batch)
+            await db.flush()
+            await reconcile_uncovered_sales_for_batch(db, batch)
             
         await db.flush()
         return await purchase_repository.get_by_id_loaded(db, purchase.id) or purchase
@@ -299,6 +302,9 @@ class PurchaseService:
                 purchase_date=purchase.purchase_date or datetime.now(timezone.utc),
             )
             db.add(new_batch)
+            await db.flush()
+            if remaining > 0:
+                await reconcile_uncovered_sales_for_batch(db, new_batch)
 
             new_items.append(
                 PurchaseItem(

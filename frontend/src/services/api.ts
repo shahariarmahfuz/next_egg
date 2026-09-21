@@ -394,6 +394,8 @@ export const saleService = {
     payment_status?: string;
     start_date?: string;
     end_date?: string;
+    from_date?: string;
+    to_date?: string;
     sort_by?: string;
   }) => {
     return http.get<PaginatedResult<SaleItem>>("/sales", params);
@@ -405,6 +407,8 @@ export const saleService = {
     payment_status?: string;
     start_date?: string;
     end_date?: string;
+    from_date?: string;
+    to_date?: string;
   }) => {
     return http.get<SaleReportSummaryData>("/sales/reports", params);
   },

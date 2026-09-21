@@ -125,11 +125,6 @@ export function SaleForm() {
       const existing = lineItems[existingIndex];
       const newQty = existing.quantity + 1;
 
-      if (newQty > product.current_stock) {
-        setErrorMsg(`Cannot add more "${product.name}". Maximum available stock is ${product.current_stock} ${product.unit}.`);
-        return;
-      }
-
       const updated = [...lineItems];
       let newTotal = existing.total_price;
       let newUnit = existing.unit_price;
@@ -149,11 +144,6 @@ export function SaleForm() {
       };
       setLineItems(updated);
     } else {
-      if (product.current_stock <= 0) {
-        setErrorMsg(`Product "${product.name}" is currently OUT OF STOCK.`);
-        return;
-      }
-
       const newItem: LineItemState = {
         product,
         quantity: 1,
@@ -180,9 +170,7 @@ export function SaleForm() {
 
     if (field === "quantity") {
       item.quantity = value;
-      if (value > item.product.current_stock) {
-        item.error = `Exceeds available stock (${item.product.current_stock} ${item.product.unit})`;
-      } else if (value <= 0) {
+      if (value <= 0) {
         item.error = "Quantity must be greater than zero";
       } else {
         item.error = undefined;
@@ -562,30 +550,29 @@ export function SaleForm() {
                         ) : (
                           <CommandGroup>
                             {productSuggestions.map((prod) => {
-                              const isOutOfStock = prod.current_stock <= 0;
                               const formattedLabel = `${prod.name}${prod.product_code ? ` (${prod.product_code})` : ""}`;
 
                               return (
                                 <CommandItem
                                   key={prod.id}
                                   value={`${prod.name} ${prod.product_code || ""} ${prod.barcode || ""} ${prod.id}`}
-                                  disabled={isOutOfStock}
                                   onSelect={() => {
-                                    if (!isOutOfStock) {
-                                      handleSelectProduct(prod);
-                                      setOpenProductPopover(false);
-                                      setProductSearch("");
-                                    }
+                                    handleSelectProduct(prod);
+                                    setOpenProductPopover(false);
+                                    setProductSearch("");
                                   }}
-                                  className={cn(
-                                    "py-2.5 px-3 border-b last:border-b-0 hover:bg-accent/70 cursor-pointer text-xs truncate",
-                                    isOutOfStock && "opacity-50 cursor-not-allowed bg-muted/20"
-                                  )}
+                                  className="py-2.5 px-3 border-b last:border-b-0 hover:bg-accent/70 cursor-pointer text-xs flex items-center justify-between"
                                 >
                                   {/* Single line display: Product Name (Product Code) */}
-                                  <div className="truncate text-xs font-medium text-foreground w-full" title={formattedLabel}>
+                                  <div className="truncate text-xs font-medium text-foreground min-w-0" title={formattedLabel}>
                                     {formattedLabel}
                                   </div>
+                                  <span className={cn(
+                                    "text-[10px] font-semibold shrink-0 ml-2",
+                                    prod.current_stock > 0 ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400 font-bold"
+                                  )}>
+                                    Stock: {prod.current_stock}
+                                  </span>
                                 </CommandItem>
                               );
                             })}
@@ -635,7 +622,7 @@ export function SaleForm() {
                         <td className="px-3.5 py-3 align-top">
                           <div className="font-bold text-foreground">{item.product.name}</div>
                           <div className="text-[11px] text-muted-foreground">
-                            Code: {item.product.product_code} | Available Stock: {item.product.current_stock} {item.product.unit}
+                            Code: {item.product.product_code} | Current Stock: {item.product.current_stock} {item.product.unit}
                           </div>
                           {item.error && (
                             <div className="text-[10px] font-bold text-destructive mt-1 flex items-center gap-1">
@@ -646,9 +633,8 @@ export function SaleForm() {
                         <td className="px-3.5 py-3 align-top">
                           <Input
                             type="number"
-                            min="1"
+                            min="0.0001"
                             step="any"
-                            max={item.product.current_stock}
                             value={item.quantity}
                             onChange={(e) => handleUpdateItem(idx, "quantity", parseFloat(e.target.value) || 0)}
                             className="h-8 text-xs font-bold w-20"

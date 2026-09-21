@@ -43,44 +43,56 @@ export default function ManageSalesPage() {
 
   const debouncedSearch = useDebounce(search, 300);
 
-  // Compute ISO Start/End Dates based on preset selection
+  // Compute YYYY-MM-DD Date Range based on preset selection
   const getDateRange = () => {
+    const toDateStr = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
     const now = new Date();
     if (dateFilter === "today") {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      return { start_date: start, end_date: undefined };
+      const today = toDateStr(now);
+      return { from_date: today, to_date: today };
     } else if (dateFilter === "yesterday") {
-      const yesterday = new Date(now.setDate(now.getDate() - 1));
-      const start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).toISOString();
-      const end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59).toISOString();
-      return { start_date: start, end_date: end };
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yesterday = toDateStr(y);
+      return { from_date: yesterday, to_date: yesterday };
     } else if (dateFilter === "week") {
-      const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
-      const start = new Date(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate()).toISOString();
-      return { start_date: start, end_date: undefined };
+      const d = new Date();
+      const day = d.getDay();
+      d.setDate(d.getDate() - day);
+      return { from_date: toDateStr(d), to_date: toDateStr(now) };
     } else if (dateFilter === "month") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      return { start_date: start, end_date: undefined };
+      const d = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from_date: toDateStr(d), to_date: toDateStr(now) };
     } else if (dateFilter === "custom" && customStartDate) {
       return {
-        start_date: new Date(customStartDate).toISOString(),
-        end_date: customEndDate ? new Date(customEndDate).toISOString() : undefined,
+        from_date: customStartDate,
+        to_date: customEndDate || customStartDate,
       };
     }
-    return { start_date: undefined, end_date: undefined };
+    return { from_date: undefined, to_date: undefined };
   };
 
-  const { start_date, end_date } = getDateRange();
+  const { from_date, to_date } = getDateRange();
 
   // Fetch Server-Side Paginated Sales
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["sales", page, debouncedSearch, paymentStatus, dateFilter, customStartDate, customEndDate],
+    queryKey: ["sales", page, debouncedSearch, paymentStatus, dateFilter, from_date, to_date],
     queryFn: () =>
       saleService.getSales({
         page,
         size: 15,
         search: debouncedSearch || undefined,
         payment_status: paymentStatus || undefined,
+        from_date: from_date || undefined,
+        to_date: to_date || undefined,
+        start_date: from_date || undefined,
+        end_date: to_date || undefined,
       }),
   });
 
@@ -168,7 +180,10 @@ export default function ManageSalesPage() {
               <Input
                 placeholder="Search invoice #, customer name, phone..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
                 className="pl-9 h-10 text-xs"
               />
             </div>
@@ -177,7 +192,10 @@ export default function ManageSalesPage() {
               {/* Payment Status Selector */}
               <select
                 value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value)}
+                onChange={(e) => {
+                  setPaymentStatus(e.target.value);
+                  setPage(1);
+                }}
                 className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">All Payment Statuses</option>
@@ -189,7 +207,10 @@ export default function ManageSalesPage() {
               {/* Date Filter Selector */}
               <select
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(e) => {
+                  setDateFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="all">All Dates</option>
@@ -211,14 +232,20 @@ export default function ManageSalesPage() {
               <Input
                 type="date"
                 value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
+                onChange={(e) => {
+                  setCustomStartDate(e.target.value);
+                  setPage(1);
+                }}
                 className="h-8 w-40 text-xs"
               />
               <span className="text-xs font-medium text-muted-foreground">End Date:</span>
               <Input
                 type="date"
                 value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
+                onChange={(e) => {
+                  setCustomEndDate(e.target.value);
+                  setPage(1);
+                }}
                 className="h-8 w-40 text-xs"
               />
             </div>

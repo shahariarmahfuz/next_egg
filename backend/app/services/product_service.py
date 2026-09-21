@@ -11,6 +11,7 @@ from app.models.product_return import ProductReturnItem
 from app.models.inventory_batch import InventoryBatch
 from app.repositories.product_repository import product_repository
 from app.schemas.product import ProductCreate, ProductUpdate
+from app.services.inventory_helper import reconcile_uncovered_sales_for_batch
 
 
 class ProductService:
@@ -102,6 +103,8 @@ class ProductService:
                     unit_cost=product.opening_stock_unit_cost,
                 )
                 db.add(batch)
+                await db.flush()
+                await reconcile_uncovered_sales_for_batch(db, batch)
             else:
                 # Decrease stock -> Consume existing batches FIFO
                 qty_to_deduct = abs(diff)
