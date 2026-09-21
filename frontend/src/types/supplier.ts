@@ -33,3 +33,32 @@ export interface SupplierUpdatePayload {
   status?: string;
   notes?: string;
 }
+
+export interface SupplierLedgerTransaction {
+  id: string;
+  date: string;
+  voucher_no: string;
+  type: string;
+  description: string;
+  debit: number;
+  credit: number;
+  running_balance: number;
+  reference_id?: string;
+  reference_type?: "purchase" | "supplier_payment" | "product_return" | "balance_adjustment";
+}
+
+export interface SupplierLedgerSummary {
+  opening_balance: number;
+  total_purchases: number;
+  total_payments: number;
+  total_returns: number;
+  manual_adjustments: number;
+  current_due: number;
+}
+
+export interface SupplierLedgerResponse {
+  supplier: SupplierItem;
+  summary: SupplierLedgerSummary;
+  transactions: SupplierLedgerTransaction[];
+}
+

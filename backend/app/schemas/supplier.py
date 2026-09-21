@@ -41,3 +41,32 @@ class SupplierResponse(SupplierBase):
     current_balance: float
     created_at: datetime
     updated_at: datetime
+
+
+class SupplierLedgerTransaction(BaseModel):
+    id: str
+    date: datetime
+    voucher_no: str
+    type: str
+    description: str
+    debit: float
+    credit: float
+    running_balance: float
+    reference_id: Optional[str] = None
+    reference_type: Optional[str] = None
+
+
+class SupplierLedgerSummary(BaseModel):
+    opening_balance: float
+    total_purchases: float
+    total_payments: float
+    total_returns: float
+    manual_adjustments: float
+    current_due: float
+
+
+class SupplierLedgerResponse(BaseModel):
+    supplier: SupplierResponse
+    summary: SupplierLedgerSummary
+    transactions: list[SupplierLedgerTransaction]
+

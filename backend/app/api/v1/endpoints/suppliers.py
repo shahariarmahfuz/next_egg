@@ -1,4 +1,5 @@
 import math
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +9,13 @@ from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
 from app.models.user import User
 from app.schemas.common import PaginatedResponse, ResponseModel
-from app.schemas.supplier import SupplierCreate, SupplierResponse, SupplierStatusUpdate, SupplierUpdate
+from app.schemas.supplier import (
+    SupplierCreate,
+    SupplierLedgerResponse,
+    SupplierResponse,
+    SupplierStatusUpdate,
+    SupplierUpdate,
+)
 from app.services.supplier_service import supplier_service
 
 router = APIRouter(prefix="/suppliers", tags=["Suppliers"])
@@ -90,6 +97,25 @@ async def create_supplier(
         success=True,
         message="Supplier created successfully",
         data=SupplierResponse.model_validate(supplier),
+    )
+
+
+@router.get("/{supplier_id}/ledger", response_model=ResponseModel[SupplierLedgerResponse])
+async def get_supplier_ledger(
+    supplier_id: str,
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("supplier.view")),
+):
+    """Retrieve complete financial statement / ledger for a supplier."""
+    ledger_data = await supplier_service.get_supplier_ledger(
+        db, supplier_id, start_date=start_date, end_date=end_date
+    )
+    return ResponseModel[SupplierLedgerResponse](
+        success=True,
+        message="Supplier ledger retrieved successfully",
+        data=ledger_data,
     )
 
 

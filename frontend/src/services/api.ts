@@ -70,6 +70,7 @@ import {
   SupplierCreatePayload,
   SupplierFinancialSummary,
   SupplierItem,
+  SupplierLedgerResponse,
   SupplierPaymentCreatePayload,
   SupplierPaymentItem,
   SupplierPaymentReportSummaryData,
@@ -274,6 +275,10 @@ export const supplierService = {
 
   deleteBalanceAdjustment: async (adjustmentId: string) => {
     return http.delete<{ id: string; supplier_id?: string }>(`/supplier-balance-adjustments/${adjustmentId}`);
+  },
+
+  getSupplierLedger: async (id: string, params?: { start_date?: string; end_date?: string }) => {
+    return http.get<SupplierLedgerResponse>(`/suppliers/${id}/ledger`, params);
   },
 };
 
