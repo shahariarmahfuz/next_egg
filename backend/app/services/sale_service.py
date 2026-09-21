@@ -34,13 +34,21 @@ class SaleService:
         res = await db.execute(q)
         batch_count = res.scalar() or 0
         if batch_count == 0 and (product.opening_stock > 0 or product.current_stock > 0):
-            initial_qty = product.opening_stock if product.opening_stock > 0 else product.current_stock
+            initial_qty = float(product.opening_stock if product.opening_stock > 0 else product.current_stock)
+            if initial_qty <= 0.0:
+                return
+            rem_qty = max(0.0, min(initial_qty, float(product.current_stock)))
+            unit_cost = (
+                float(product.opening_stock_unit_cost)
+                if product.opening_stock_unit_cost and product.opening_stock_unit_cost > 0
+                else 0.0
+            )
             batch = InventoryBatch(
                 product_id=product.id,
                 purchase_id=None,
                 quantity=initial_qty,
-                remaining_quantity=product.current_stock,
-                unit_cost=product.opening_stock_unit_cost if product.opening_stock_unit_cost > 0 else 0.0,
+                remaining_quantity=rem_qty,
+                unit_cost=unit_cost,
                 purchase_date=product.created_at or datetime.now(timezone.utc),
             )
             db.add(batch)
@@ -346,6 +354,7 @@ class SaleService:
                     total_cogs += uncovered_qty * fallback_cost
 
                 sale_item = SaleItem(
+                    sale_id=sale.id,
                     product_id=product.id,
                     quantity=item_in.quantity,
                     unit_price=unit_price,
@@ -360,9 +369,12 @@ class SaleService:
                 product.current_stock -= item_in.quantity
                 db.add(product)
 
-            # Clear old items and replace with new items
+            # Clear old items and flush delete first to ensure strict ordering
             sale.items.clear()
-            sale.items = [item[0] for item in new_items_with_uncovered]
+            await db.flush()
+            for s_item, unc_qty, fb_cost, prod_id in new_items_with_uncovered:
+                s_item.sale_id = sale.id
+                sale.items.append(s_item)
             sale.subtotal = float(subtotal_dec)
             await db.flush()
 
