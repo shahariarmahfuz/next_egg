@@ -145,19 +145,18 @@ class ProductService:
         2. PurchaseItem
         3. SaleReturnItem
         4. ProductReturnItem
-        5. FarmTransaction
+        5. InventoryBatch
         6. Product record
         """
         product = await product_repository.get_by_id(db, id=product_id)
         if not product:
             raise NotFoundException(f"Product with ID '{product_id}' not found.")
 
-        from app.models.farm_transaction import FarmTransaction
-        await db.execute(delete(FarmTransaction).where(FarmTransaction.product_id == product_id))
         await db.execute(delete(SaleItem).where(SaleItem.product_id == product_id))
         await db.execute(delete(PurchaseItem).where(PurchaseItem.product_id == product_id))
         await db.execute(delete(SaleReturnItem).where(SaleReturnItem.product_id == product_id))
         await db.execute(delete(ProductReturnItem).where(ProductReturnItem.product_id == product_id))
+        await db.execute(delete(InventoryBatch).where(InventoryBatch.product_id == product_id))
 
         await db.delete(product)
         await db.commit()
