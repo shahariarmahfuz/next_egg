@@ -84,8 +84,12 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
         if supplier_id:
             query = query.where(Purchase.supplier_id == supplier_id)
 
-        if payment_status:
-            query = query.where(Purchase.payment_status == payment_status)
+        if payment_status and payment_status.strip():
+            clean_status = payment_status.strip().lower()
+            if clean_status == "due":
+                query = query.where(Purchase.due_amount > 0)
+            else:
+                query = query.where(Purchase.payment_status == payment_status.strip())
 
         if start_date:
             query = query.where(Purchase.purchase_date >= start_date)

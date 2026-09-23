@@ -61,8 +61,12 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
         if customer_id:
             query = query.where(Sale.customer_id == customer_id)
 
-        if payment_status:
-            query = query.where(Sale.payment_status == payment_status)
+        if payment_status and payment_status.strip():
+            clean_status = payment_status.strip().lower()
+            if clean_status == "due":
+                query = query.where(Sale.due_amount > 0)
+            else:
+                query = query.where(Sale.payment_status == payment_status.strip())
 
         if start_date:
             query = query.where(Sale.sale_date >= start_date)
@@ -131,8 +135,12 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
 
         if customer_id:
             query = query.where(Sale.customer_id == customer_id)
-        if payment_status:
-            query = query.where(Sale.payment_status == payment_status)
+        if payment_status and payment_status.strip():
+            clean_status = payment_status.strip().lower()
+            if clean_status == "due":
+                query = query.where(Sale.due_amount > 0)
+            else:
+                query = query.where(Sale.payment_status == payment_status.strip())
         if start_date:
             query = query.where(Sale.sale_date >= start_date)
         if end_date:
@@ -159,8 +167,12 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
 
         if customer_id:
             items_query = items_query.where(Sale.customer_id == customer_id)
-        if payment_status:
-            items_query = items_query.where(Sale.payment_status == payment_status)
+        if payment_status and payment_status.strip():
+            clean_status = payment_status.strip().lower()
+            if clean_status == "due":
+                items_query = items_query.where(Sale.due_amount > 0)
+            else:
+                items_query = items_query.where(Sale.payment_status == payment_status.strip())
         if start_date:
             items_query = items_query.where(Sale.sale_date >= start_date)
         if end_date:
