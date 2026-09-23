@@ -52,14 +52,14 @@ export default function DashboardLayout({
 
   // 3. Render Dashboard Layout only when fully authenticated
   return (
-    <div className="flex min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="flex min-h-screen md:h-screen md:h-[100dvh] overflow-x-hidden md:overflow-hidden bg-background text-foreground print:h-auto print:overflow-visible">
       {/* Desktop Sidebar - hidden on mobile */}
       <Sidebar />
 
       {/* Main Container */}
-      <div className="flex flex-1 flex-col min-w-0">
+      <div className="flex flex-1 flex-col min-w-0 md:h-full md:min-h-0 md:overflow-hidden print:h-auto print:overflow-visible">
         <Header />
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-full w-full mx-auto animate-in fade-in-50 duration-300">
+        <main className="flex-1 min-h-0 p-4 md:p-6 lg:p-8 max-w-full w-full mx-auto animate-in fade-in-50 duration-300 md:overflow-y-auto print:h-auto print:overflow-visible">
           {children}
         </main>
       </div>
