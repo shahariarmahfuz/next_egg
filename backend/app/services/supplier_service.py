@@ -1,8 +1,13 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import zoneinfo
 from typing import Optional, Sequence
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Centralized baseline cutoff date for historical ledger reconciliation
+RECONCILIATION_BASELINE_DATE = date(2026, 9, 23)
+
+from app.core.datetime_utils import normalize_date_range
 from app.exceptions.custom import BadRequestException, ConflictException, NotFoundException
 from app.models.supplier import Supplier
 from app.models.purchase import Purchase, PurchaseItem
@@ -11,6 +16,7 @@ from app.models.product_return import ProductReturn, ProductReturnItem
 from app.models.balance_adjustment import BalanceAdjustment
 from app.repositories.supplier_repository import supplier_repository
 from app.schemas.supplier import SupplierCreate, SupplierUpdate
+from app.services.setting_service import setting_service
 
 
 def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
@@ -180,29 +186,49 @@ class SupplierService:
         except Exception:
             adjustments = []
 
+        # Determine business timezone and centralized reconciliation baseline
+        try:
+            bs = await setting_service.get_business_settings(db)
+            tz_str = bs.timezone or "Asia/Dhaka"
+        except Exception:
+            tz_str = "Asia/Dhaka"
+
+        try:
+            tz = zoneinfo.ZoneInfo(tz_str)
+        except Exception:
+            tz = timezone.utc
+
+        baseline_start_tz = datetime(
+            RECONCILIATION_BASELINE_DATE.year,
+            RECONCILIATION_BASELINE_DATE.month,
+            RECONCILIATION_BASELINE_DATE.day,
+            0, 0, 0, 0,
+            tzinfo=tz,
+        )
+        baseline_start_utc = baseline_start_tz.astimezone(timezone.utc)
+
         # Existing payment purchase_ids to prevent double counting
         existing_payment_purchase_ids = {p.purchase_id for p in payments if p.purchase_id}
 
-        # Master chronological list of raw events
+        # Master chronological list of raw operational events
         raw_events = []
 
-        # Opening Balance event
-        if supplier.opening_balance != 0 or supplier.created_at:
-            op_debit = supplier.opening_balance if supplier.opening_balance > 0 else 0.0
-            op_credit = abs(supplier.opening_balance) if supplier.opening_balance < 0 else 0.0
-            raw_events.append({
-                "id": f"op-{supplier.id}",
-                "date": supplier.created_at,
-                "voucher_no": supplier.supplier_code,
-                "type": "Opening Balance",
-                "description": "Initial Supplier Opening Balance",
-                "debit": op_debit,
-                "credit": op_credit,
-                "reference_id": supplier.id,
-                "reference_type": None,
-            })
+        # 1. Opening Balance event (always stands as primary baseline)
+        op_debit = supplier.opening_balance if supplier.opening_balance > 0 else 0.0
+        op_credit = abs(supplier.opening_balance) if supplier.opening_balance < 0 else 0.0
+        raw_events.append({
+            "id": f"op-{supplier.id}",
+            "date": supplier.created_at,
+            "voucher_no": supplier.supplier_code,
+            "type": "Opening Balance",
+            "description": "Initial Supplier Opening Balance",
+            "debit": op_debit,
+            "credit": op_credit,
+            "reference_id": supplier.id,
+            "reference_type": None,
+        })
 
-        # Purchases events
+        # 2. Purchases events (all historical and new purchases remain visible)
         for purchase in purchases:
             raw_events.append({
                 "id": f"pur-{purchase.id}",
@@ -228,7 +254,7 @@ class SupplierService:
                     "reference_type": "purchase",
                 })
 
-        # Supplier Payment events
+        # 3. Supplier Payment events (all historical and new payments remain visible)
         for sp in payments:
             pm = sp.payment_method.replace("_", " ").title()
             raw_events.append({
@@ -243,7 +269,7 @@ class SupplierService:
                 "reference_type": "supplier_payment",
             })
 
-        # Return events
+        # 4. Return events (all historical and new returns remain visible)
         for ret in returns:
             net_return = ret.grand_total - (ret.refund_received or 0.0)
             raw_events.append({
@@ -258,8 +284,14 @@ class SupplierService:
                 "reference_type": "product_return",
             })
 
-        # Adjustment events
+        # 5. Balance Adjustment events:
+        # Historical balance adjustments before baseline_start_utc are hidden from visible ledger.
+        # Balance adjustments occurring on/after baseline_start_utc are visible and shown normally.
         for adj in adjustments:
+            adj_date_utc = _to_utc(adj.effective_date)
+            if not adj_date_utc or adj_date_utc < baseline_start_utc:
+                continue
+
             adj_debit = adj.difference if adj.difference > 0 else 0.0
             adj_credit = abs(adj.difference) if adj.difference < 0 else 0.0
             raw_events.append({
@@ -274,10 +306,32 @@ class SupplierService:
                 "reference_type": "balance_adjustment",
             })
 
-        # Sort all events chronologically with safe UTC conversion
-        raw_events.sort(key=lambda x: _to_utc(x["date"]) or datetime.min.replace(tzinfo=timezone.utc))
+        # Sort all events chronologically: Opening Balance is always sorted first
+        def _event_sort_key(x):
+            if x["type"] == "Opening Balance":
+                return (datetime.min.replace(tzinfo=timezone.utc), 0)
+            d = _to_utc(x["date"]) or datetime.min.replace(tzinfo=timezone.utc)
+            type_order = {
+                "Purchase": 1,
+                "Supplier Payment": 2,
+                "Purchase Return": 3,
+                "Balance Adjustment": 4,
+            }.get(x["type"], 5)
+            return (d, type_order)
 
-        # Compute running balance for all events
+        raw_events.sort(key=_event_sort_key)
+
+        # Calculate reconstructed balance without hidden adjustments
+        reconstructed_balance_without_hidden_adjustments = round(
+            sum(ev["debit"] - ev["credit"] for ev in raw_events), 2
+        )
+
+        # Invisible reconciliation offset reconciling reconstructed balance to authoritative supplier.current_balance
+        reconciliation_offset = round(
+            supplier.current_balance - reconstructed_balance_without_hidden_adjustments, 2
+        )
+
+        # Compute sequential running balance incorporating reconciliation offset
         running_bal = 0.0
         calculated_events = []
 
@@ -290,8 +344,9 @@ class SupplierService:
         end_utc = _to_utc(end_date)
 
         for ev in raw_events:
-            running_bal = running_bal + ev["debit"] - ev["credit"]
-            ev["running_balance"] = round(running_bal, 2)
+            running_bal = round(running_bal + ev["debit"] - ev["credit"], 2)
+            ev_copy = dict(ev)
+            ev_copy["running_balance"] = round(running_bal + reconciliation_offset, 2)
 
             if ev["type"] == "Purchase":
                 total_purchases += ev["debit"]
@@ -309,10 +364,11 @@ class SupplierService:
             if end_utc and ev_date_utc and ev_date_utc > end_utc:
                 continue
 
-            calculated_events.append(ev)
+            calculated_events.append(ev_copy)
 
+        effective_op_balance = round(supplier.opening_balance + reconciliation_offset, 2)
         summary = {
-            "opening_balance": supplier.opening_balance,
+            "opening_balance": effective_op_balance,
             "total_purchases": round(total_purchases, 2),
             "total_payments": round(total_payments, 2),
             "total_returns": round(total_returns, 2),

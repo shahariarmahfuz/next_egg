@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import DateTime, Float, Index, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import TimestampedBaseModel
 
@@ -26,7 +26,14 @@ class BalanceAdjustment(TimestampedBaseModel):
     created_by_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
     created_by_user_name: Mapped[str] = mapped_column(String(150), nullable=False)
 
+    # Architectural separation: History UI visibility vs Accounting Ledger persistence
+    is_history_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
+
     __table_args__ = (
         Index("idx_adj_entity", "entity_type", "entity_id"),
         Index("idx_adj_created_at", "created_at"),
+        Index("idx_adj_history_active", "entity_type", "entity_id", "is_history_deleted"),
     )
+

@@ -273,7 +273,13 @@ class CustomerService:
             })
 
         # Sort all events chronologically with safe UTC conversion
-        raw_events.sort(key=lambda x: _to_utc(x["date"]))
+        # Opening balance always stands as the primary baseline before subsequent transactions
+        def _event_sort_key(x):
+            if x["type"] == "Opening Balance":
+                return (datetime.min.replace(tzinfo=timezone.utc), 0)
+            return (_to_utc(x["date"]) or datetime.min.replace(tzinfo=timezone.utc), 1)
+
+        raw_events.sort(key=_event_sort_key)
 
         # Compute running balance for all events
         running_bal = 0.0

@@ -27,3 +27,4 @@ class BalanceAdjustmentResponse(BaseModel):
     created_by_user_id: str
     created_by_user_name: str
     created_at: datetime
+    is_history_deleted: bool = False

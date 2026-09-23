@@ -20,4 +20,5 @@ export interface BalanceAdjustmentItem {
   created_by_user_id: string;
   created_by_user_name: string;
   created_at: string;
+  is_history_deleted?: boolean;
 }

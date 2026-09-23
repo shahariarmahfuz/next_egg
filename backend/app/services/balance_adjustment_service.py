@@ -166,13 +166,15 @@ class BalanceAdjustmentService:
         entity_id: str,
     ) -> Sequence[BalanceAdjustment]:
         """
-        Retrieves all balance adjustment audit history for a customer or supplier ordered by date descending.
+        Retrieves active balance adjustment audit history for a customer or supplier ordered by date descending.
+        Excludes records whose history visibility has been deleted by the user.
         """
         query = (
             select(BalanceAdjustment)
             .where(
                 BalanceAdjustment.entity_type == entity_type,
                 BalanceAdjustment.entity_id == entity_id,
+                BalanceAdjustment.is_history_deleted.is_(False),
             )
             .order_by(BalanceAdjustment.created_at.desc())
         )
@@ -187,11 +189,12 @@ class BalanceAdjustmentService:
         customer_id: str | None = None,
     ) -> dict:
         """
-        Deletes ONLY the customer balance adjustment history record.
-        CRITICAL SAFETY:
+        Deletes ONLY the customer balance adjustment history UI record.
+        CRITICAL ARCHITECTURAL SAFETY:
         - Customer's current balance is strictly NOT changed, reversed, or recalculated.
-        - Sales, returns, collections, payments, and financial transactions are untouched.
-        - Only the BalanceAdjustment history record is removed.
+        - The underlying BalanceAdjustment accounting ledger transaction is preserved.
+        - Only marks is_history_deleted = True so it is excluded from the Adjustment History UI.
+        - Running balance, sales, returns, collections, and financial ledger state are 100% preserved.
         """
         try:
             query = select(BalanceAdjustment).where(
@@ -230,8 +233,9 @@ class BalanceAdjustmentService:
             )
             db.add(activity)
 
-            # Delete ONLY the adjustment history record
-            await db.delete(adjustment)
+            # Mark ONLY the adjustment history record as deleted from history UI
+            adjustment.is_history_deleted = True
+            db.add(adjustment)
 
             # Customer current_balance is intentionally and strictly left unchanged
             await db.commit()
@@ -254,11 +258,12 @@ class BalanceAdjustmentService:
         supplier_id: str | None = None,
     ) -> dict:
         """
-        Deletes ONLY the supplier balance adjustment history record.
-        CRITICAL SAFETY:
+        Deletes ONLY the supplier balance adjustment history UI record.
+        CRITICAL ARCHITECTURAL SAFETY:
         - Supplier's current balance is strictly NOT changed, reversed, or recalculated.
-        - Purchases, returns, payments, vouchers, and financial transactions are untouched.
-        - Only the BalanceAdjustment history record is removed.
+        - The underlying BalanceAdjustment accounting ledger transaction is preserved.
+        - Only marks is_history_deleted = True so it is excluded from the Adjustment History UI.
+        - Running balance, purchases, returns, payments, and financial ledger state are 100% preserved.
         """
         try:
             query = select(BalanceAdjustment).where(
@@ -297,8 +302,9 @@ class BalanceAdjustmentService:
             )
             db.add(activity)
 
-            # Delete ONLY the adjustment history record
-            await db.delete(adjustment)
+            # Mark ONLY the adjustment history record as deleted from history UI
+            adjustment.is_history_deleted = True
+            db.add(adjustment)
 
             # Supplier current_balance is intentionally and strictly left unchanged
             await db.commit()
@@ -312,6 +318,7 @@ class BalanceAdjustmentService:
             await db.rollback()
             logger.error(f"Failed to delete supplier balance adjustment history: {str(e)}")
             raise e
+
 
 
 balance_adjustment_service = BalanceAdjustmentService()
