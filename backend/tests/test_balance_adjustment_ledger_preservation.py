@@ -576,3 +576,116 @@ async def test_supplier_ledger_current_baseline_with_old_and_new_transactions(te
     assert txs[-1]["running_balance"] == supplier.current_balance
 
 
+@pytest.mark.asyncio
+async def test_supplier_ledger_strict_chronological_ordering_and_opening_balance(test_db: AsyncSession, test_user: User):
+    """
+    Verify that:
+    1. Transaction dates/times are strictly non-decreasing.
+    2. Opening Balance is dated at or before the earliest transaction date.
+    3. Deterministic tie-breaker: Opening Balance (0) -> Purchase (1) -> Payment (2).
+    4. Final running balance matches supplier.current_balance exactly.
+    """
+    # Create supplier with created_at set to Aug 23
+    supp = Supplier(
+        id=str(uuid.uuid4()),
+        supplier_code="SUP-TEST-CHRONO",
+        name="Chrono Test Supplier",
+        opening_balance=0.0,
+        current_balance=0.0,
+        created_at=datetime(2026, 8, 23, 6, 52, 43, tzinfo=timezone.utc),
+    )
+    test_db.add(supp)
+    await test_db.flush()
+
+    # Backdated purchase on Aug 14
+    pur1 = Purchase(
+        id=str(uuid.uuid4()),
+        purchase_no="PO-TEST-001",
+        supplier_id=supp.id,
+        user_id=test_user.id,
+        purchase_date=datetime(2026, 8, 14, 0, 0, 0, tzinfo=timezone.utc),
+        subtotal=1000.0,
+        grand_total=1000.0,
+        paid_amount=1000.0,
+        due_amount=0.0,
+        payment_status="paid",
+        created_at=datetime(2026, 8, 23, 6, 53, 47, tzinfo=timezone.utc),
+    )
+    test_db.add(pur1)
+
+    # Purchase on Aug 18
+    pur2 = Purchase(
+        id=str(uuid.uuid4()),
+        purchase_no="PO-TEST-002",
+        supplier_id=supp.id,
+        user_id=test_user.id,
+        purchase_date=datetime(2026, 8, 18, 0, 0, 0, tzinfo=timezone.utc),
+        subtotal=500.0,
+        grand_total=500.0,
+        paid_amount=0.0,
+        due_amount=500.0,
+        payment_status="unpaid",
+        created_at=datetime(2026, 8, 25, 6, 39, 0, tzinfo=timezone.utc),
+    )
+    test_db.add(pur2)
+
+    # Payment on Aug 19
+    sp = SupplierPayment(
+        id=str(uuid.uuid4()),
+        payment_no="SP-TEST-001",
+        supplier_id=supp.id,
+        user_id=test_user.id,
+        amount=200.0,
+        payment_method="cash",
+        payment_date=datetime(2026, 8, 19, 10, 0, 0, tzinfo=timezone.utc),
+        created_at=datetime(2026, 8, 25, 7, 0, 0, tzinfo=timezone.utc),
+    )
+    test_db.add(sp)
+
+    supp.current_balance = 300.0  # 1000 - 1000 + 500 - 200 = 300
+    test_db.add(supp)
+    await test_db.commit()
+
+    ledger = await supplier_service.get_supplier_ledger(test_db, supp.id)
+    txs = ledger["transactions"]
+
+    # Verify rows:
+    # Row 1: Opening Balance (date <= Aug 14)
+    # Row 2: Purchase PO-TEST-001 (Aug 14)
+    # Row 3: Immediate Payment PO-TEST-001 (Aug 14)
+    # Row 4: Purchase PO-TEST-002 (Aug 18)
+    # Row 5: Payment SP-TEST-001 (Aug 19)
+    assert len(txs) == 5
+    assert txs[0]["type"] == "Opening Balance"
+    assert txs[0]["date"] <= datetime(2026, 8, 14, 0, 0, 0, tzinfo=timezone.utc)
+
+    assert txs[1]["type"] == "Purchase"
+    assert txs[1]["voucher_no"] == "PO-TEST-001"
+    assert txs[1]["date"] == datetime(2026, 8, 14, 0, 0, 0, tzinfo=timezone.utc)
+
+    assert txs[2]["type"] == "Supplier Payment"
+    assert txs[2]["voucher_no"] == "PO-TEST-001"
+    assert txs[2]["date"] == datetime(2026, 8, 14, 0, 0, 0, tzinfo=timezone.utc)
+
+    assert txs[3]["type"] == "Purchase"
+    assert txs[3]["voucher_no"] == "PO-TEST-002"
+    assert txs[3]["date"] == datetime(2026, 8, 18, 0, 0, 0, tzinfo=timezone.utc)
+
+    assert txs[4]["type"] == "Supplier Payment"
+    assert txs[4]["voucher_no"] == "SP-TEST-001"
+    assert txs[4]["date"] == datetime(2026, 8, 19, 10, 0, 0, tzinfo=timezone.utc)
+
+    # Dates must never go backward
+    prev_d = None
+    for tx in txs:
+        d = tx["date"]
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        if prev_d:
+            assert d >= prev_d, f"Date went backward from {prev_d} to {d}"
+        prev_d = d
+
+    # Final running balance matches current_balance exactly
+    assert txs[-1]["running_balance"] == 300.0
+
+

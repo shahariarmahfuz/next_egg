@@ -210,29 +210,15 @@ class SupplierService:
         # Existing payment purchase_ids to prevent double counting
         existing_payment_purchase_ids = {p.purchase_id for p in payments if p.purchase_id}
 
-        # Master chronological list of raw operational events
-        raw_events = []
+        # Gather operational events first
+        operational_events = []
 
-        # 1. Opening Balance event (always stands as primary baseline)
-        op_debit = supplier.opening_balance if supplier.opening_balance > 0 else 0.0
-        op_credit = abs(supplier.opening_balance) if supplier.opening_balance < 0 else 0.0
-        raw_events.append({
-            "id": f"op-{supplier.id}",
-            "date": supplier.created_at,
-            "voucher_no": supplier.supplier_code,
-            "type": "Opening Balance",
-            "description": "Initial Supplier Opening Balance",
-            "debit": op_debit,
-            "credit": op_credit,
-            "reference_id": supplier.id,
-            "reference_type": None,
-        })
-
-        # 2. Purchases events (all historical and new purchases remain visible)
+        # 1. Purchases events (all historical and new purchases remain visible)
         for purchase in purchases:
-            raw_events.append({
+            operational_events.append({
                 "id": f"pur-{purchase.id}",
                 "date": purchase.purchase_date,
+                "created_at": purchase.created_at,
                 "voucher_no": purchase.purchase_no,
                 "type": "Purchase",
                 "description": f"Purchase Order ({len(purchase.items)} items)" + (f" - Inv #{purchase.invoice_no}" if purchase.invoice_no else ""),
@@ -242,9 +228,10 @@ class SupplierService:
                 "reference_type": "purchase",
             })
             if purchase.paid_amount > 0 and purchase.id not in existing_payment_purchase_ids:
-                raw_events.append({
+                operational_events.append({
                     "id": f"pur-pay-{purchase.id}",
                     "date": purchase.purchase_date,
+                    "created_at": purchase.created_at,
                     "voucher_no": purchase.purchase_no,
                     "type": "Supplier Payment",
                     "description": f"Immediate payment for purchase {purchase.purchase_no}",
@@ -254,12 +241,13 @@ class SupplierService:
                     "reference_type": "purchase",
                 })
 
-        # 3. Supplier Payment events (all historical and new payments remain visible)
+        # 2. Supplier Payment events (all historical and new payments remain visible)
         for sp in payments:
             pm = sp.payment_method.replace("_", " ").title()
-            raw_events.append({
+            operational_events.append({
                 "id": f"sp-{sp.id}",
                 "date": sp.payment_date,
+                "created_at": sp.created_at,
                 "voucher_no": sp.payment_no,
                 "type": "Supplier Payment",
                 "description": f"Supplier Payment ({pm}){f' - {sp.notes}' if sp.notes else ''}",
@@ -269,12 +257,13 @@ class SupplierService:
                 "reference_type": "supplier_payment",
             })
 
-        # 4. Return events (all historical and new returns remain visible)
+        # 3. Return events (all historical and new returns remain visible)
         for ret in returns:
             net_return = ret.grand_total - (ret.refund_received or 0.0)
-            raw_events.append({
+            operational_events.append({
                 "id": f"ret-{ret.id}",
                 "date": ret.return_date,
+                "created_at": ret.created_at,
                 "voucher_no": ret.return_no,
                 "type": "Purchase Return",
                 "description": f"Purchase Return{f' for purchase {ret.purchase.purchase_no}' if ret.purchase else ''}{f' (Refund: {ret.refund_received})' if ret.refund_received > 0 else ''}",
@@ -284,7 +273,7 @@ class SupplierService:
                 "reference_type": "product_return",
             })
 
-        # 5. Balance Adjustment events:
+        # 4. Balance Adjustment events:
         # Historical balance adjustments before baseline_start_utc are hidden from visible ledger.
         # Balance adjustments occurring on/after baseline_start_utc are visible and shown normally.
         for adj in adjustments:
@@ -294,9 +283,10 @@ class SupplierService:
 
             adj_debit = adj.difference if adj.difference > 0 else 0.0
             adj_credit = abs(adj.difference) if adj.difference < 0 else 0.0
-            raw_events.append({
+            operational_events.append({
                 "id": f"adj-{adj.id}",
                 "date": adj.effective_date,
+                "created_at": adj.created_at,
                 "voucher_no": f"ADJ-{adj.id[:8].upper()}",
                 "type": "Balance Adjustment",
                 "description": f"{adj.reason}{f' - {adj.notes}' if adj.notes else ''}",
@@ -306,18 +296,56 @@ class SupplierService:
                 "reference_type": "balance_adjustment",
             })
 
-        # Sort all events chronologically: Opening Balance is always sorted first
+        # 5. Opening Balance event:
+        # Opening Balance must appear at the true beginning of the ledger.
+        # Its date must be chronologically valid (at or before earliest transaction).
+        supp_created_utc = _to_utc(supplier.created_at)
+        if operational_events:
+            earliest_op_date = min(
+                (_to_utc(ev["date"]) for ev in operational_events if ev.get("date")),
+                default=supp_created_utc,
+            )
+        else:
+            earliest_op_date = supp_created_utc
+
+        op_date = min(supp_created_utc, earliest_op_date)
+        op_debit = supplier.opening_balance if supplier.opening_balance > 0 else 0.0
+        op_credit = abs(supplier.opening_balance) if supplier.opening_balance < 0 else 0.0
+
+        op_event = {
+            "id": f"op-{supplier.id}",
+            "date": op_date,
+            "created_at": supp_created_utc,
+            "voucher_no": supplier.supplier_code,
+            "type": "Opening Balance",
+            "description": "Initial Supplier Opening Balance",
+            "debit": op_debit,
+            "credit": op_credit,
+            "reference_id": supplier.id,
+            "reference_type": None,
+        }
+
+        raw_events = [op_event] + operational_events
+
+        # Deterministic multi-tier sort:
+        # 1. Transaction date/time ASC
+        # 2. Type order (Opening Balance: 0, Purchase: 1, Payment: 2, Return: 3, Adjustment: 4)
+        # 3. created_at ASC
+        # 4. voucher_no ASC
+        # 5. reference_id ASC
         def _event_sort_key(x):
-            if x["type"] == "Opening Balance":
-                return (datetime.min.replace(tzinfo=timezone.utc), 0)
             d = _to_utc(x["date"]) or datetime.min.replace(tzinfo=timezone.utc)
             type_order = {
+                "Opening Balance": 0,
                 "Purchase": 1,
                 "Supplier Payment": 2,
                 "Purchase Return": 3,
                 "Balance Adjustment": 4,
             }.get(x["type"], 5)
-            return (d, type_order)
+            c = _to_utc(x.get("created_at")) or d
+            v = x.get("voucher_no") or ""
+            ref = str(x.get("reference_id") or "")
+            return (d, type_order, c, v, ref)
 
         raw_events.sort(key=_event_sort_key)
 
