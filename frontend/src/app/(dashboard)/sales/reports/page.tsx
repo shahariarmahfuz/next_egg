@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Eye, Filter } from "lucide-react";
+import { Search, Eye, Filter, TrendingUp, CircleCheck, CircleAlert, Boxes } from "lucide-react";
 import { saleService } from "@/services/api";
 import { SaleItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
@@ -44,7 +44,7 @@ export default function SalesReportPage() {
   const totalPages = salesData?.data?.pages || 1;
   const pageSize = 15;
   const aggregate = salesData?.data?.aggregate || {};
-  const totalSales = aggregate.total_sales ?? aggregate.total_sale_amount ?? aggregate.total_amount ?? aggregate.total_revenue ?? 0;
+  const totalSales = aggregate.count ?? aggregate.total_count ?? aggregate.total_sales_count ?? aggregate.total_sales ?? aggregate.total_invoices ?? salesData?.data?.total ?? 0;
   const totalPaid = aggregate.total_paid ?? aggregate.paid_amount ?? 0;
   const totalDue = aggregate.total_due ?? aggregate.due_amount ?? 0;
   const totalUnits = aggregate.total_units ?? aggregate.total_items_sold ?? 0;
@@ -78,29 +78,52 @@ export default function SalesReportPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="glass-card border-blue-500/30 bg-blue-500/5">
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">Total Sales</div>
-            <div className="text-xl font-extrabold text-blue-500">{formatCurrency(totalSales)}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-6">
+        <Card className="bg-white border-blue-500/20 shadow-xs dark:bg-blue-950/25 dark:border-blue-900/35 dark:shadow-none sm:dark:bg-blue-950/20 sm:dark:border-blue-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-300 sm:dark:text-blue-300 uppercase tracking-wider truncate">Total Sales</span>
+              <div className="h-5 w-5 rounded-md bg-blue-500/10 dark:bg-blue-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-blue-600 dark:text-blue-200 sm:dark:text-blue-200 truncate" title={formatNumber(totalSales, 0)}>{formatNumber(totalSales, 0)}</div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Paid</div>
-            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(totalPaid)}</div>
+
+        <Card className="bg-white border-emerald-500/20 shadow-xs dark:bg-emerald-950/25 dark:border-emerald-900/35 dark:shadow-none sm:dark:bg-emerald-950/20 sm:dark:border-emerald-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-300 sm:dark:text-emerald-300 uppercase tracking-wider truncate">Total Paid</span>
+              <div className="h-5 w-5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <CircleCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-emerald-600 dark:text-emerald-200 sm:dark:text-emerald-200 truncate" title={formatCurrency(totalPaid)}>{formatCurrency(totalPaid)}</div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-orange-500/30 bg-orange-500/5">
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-orange-600 uppercase tracking-wider mb-1">Total Due</div>
-            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(totalDue)}</div>
+
+        <Card className="bg-white border-orange-500/20 shadow-xs dark:bg-orange-950/25 dark:border-orange-900/35 dark:shadow-none sm:dark:bg-orange-950/20 sm:dark:border-orange-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-orange-600 dark:text-orange-300 sm:dark:text-orange-300 uppercase tracking-wider truncate">Total Due</span>
+              <div className="h-5 w-5 rounded-md bg-orange-500/10 dark:bg-orange-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <CircleAlert className="h-3.5 w-3.5 text-orange-600 dark:text-orange-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-orange-600 dark:text-orange-200 sm:dark:text-orange-200 truncate" title={formatCurrency(totalDue)}>{formatCurrency(totalDue)}</div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-purple-500/30 bg-purple-500/5">
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-1">Total Units</div>
-            <div className="text-xl font-extrabold text-purple-500">{formatNumber(totalUnits)}</div>
+
+        <Card className="bg-white border-purple-500/20 shadow-xs dark:bg-purple-950/25 dark:border-purple-900/35 dark:shadow-none sm:dark:bg-purple-950/20 sm:dark:border-purple-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 sm:dark:text-purple-300 uppercase tracking-wider truncate">Total Units</span>
+              <div className="h-5 w-5 rounded-md bg-purple-500/10 dark:bg-purple-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <Boxes className="h-3.5 w-3.5 text-purple-600 dark:text-purple-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-purple-600 dark:text-purple-200 sm:dark:text-purple-200 truncate" title={formatNumber(totalUnits)}>{formatNumber(totalUnits)}</div>
           </CardContent>
         </Card>
       </div>

@@ -57,7 +57,7 @@ export default function PurchasesReportPage() {
   const totalPages = purchasesData?.data?.pages || 1;
   const pageSize = 15;
   const aggregate = purchasesData?.data?.aggregate || {};
-  const totalPurchases = aggregate.total_purchases ?? aggregate.total_amount ?? aggregate.total_purchase_amount ?? 0;
+  const totalPurchases = aggregate.count ?? aggregate.total_count ?? aggregate.total_purchases_count ?? aggregate.total_invoices ?? purchasesData?.data?.total ?? 0;
   const totalPaid = aggregate.total_paid ?? aggregate.paid_amount ?? 0;
   const totalDue = aggregate.total_due ?? aggregate.due_amount ?? 0;
   const totalQuantity = aggregate.total_quantity ?? aggregate.total_units ?? aggregate.total_items_purchased ?? 0;
@@ -152,7 +152,7 @@ export default function PurchasesReportPage() {
                 <ShoppingCart className="h-3.5 w-3.5 text-purple-600 dark:text-purple-300" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-purple-600 dark:text-purple-200 sm:dark:text-purple-200 truncate" title={formatCurrency(totalPurchases)}>{formatCurrency(totalPurchases)}</div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-purple-600 dark:text-purple-200 sm:dark:text-purple-200 truncate" title={formatNumber(totalPurchases, 0)}>{formatNumber(totalPurchases, 0)}</div>
           </CardContent>
         </Card>
         <Card className="bg-white border-emerald-500/20 shadow-xs dark:bg-emerald-950/25 dark:border-emerald-900/35 dark:shadow-none sm:dark:bg-emerald-950/20 sm:dark:border-emerald-900/30 min-w-0 rounded-xl">

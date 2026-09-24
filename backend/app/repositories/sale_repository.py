@@ -184,6 +184,9 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
         return {
             "total_sales": int(row.total_sales),
             "total_invoices": int(row.total_sales),
+            "total_sales_count": int(row.total_sales),
+            "total_count": int(row.total_sales),
+            "count": int(row.total_sales),
             "total_sale_amount": float(row.total_sale_amount),
             "total_amount": float(row.total_sale_amount),
             "total_revenue": float(row.total_sale_amount),

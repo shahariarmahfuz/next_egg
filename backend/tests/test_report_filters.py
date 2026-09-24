@@ -185,6 +185,10 @@ async def test_sales_report_filter_cases(memory_db: AsyncSession):
     # TEST: Report Summary Aggregate for Filter = DUE
     summary_due = await sale_repository.get_report_summary(db, payment_status="due")
     assert summary_due["total_sales"] == 2
+    assert summary_due["total_invoices"] == 2
+    assert summary_due["total_sales_count"] == 2
+    assert summary_due["total_count"] == 2
+    assert summary_due["count"] == 2
     assert summary_due["total_sale_amount"] == 2000.0
     assert summary_due["total_paid"] == 400.0
     assert summary_due["total_due"] == 1600.0
@@ -192,6 +196,10 @@ async def test_sales_report_filter_cases(memory_db: AsyncSession):
     # TEST: Report Summary Aggregate for Filter = PAID
     summary_paid = await sale_repository.get_report_summary(db, payment_status="paid")
     assert summary_paid["total_sales"] == 1
+    assert summary_paid["total_invoices"] == 1
+    assert summary_paid["total_sales_count"] == 1
+    assert summary_paid["total_count"] == 1
+    assert summary_paid["count"] == 1
     assert summary_paid["total_sale_amount"] == 1000.0
     assert summary_paid["total_paid"] == 1000.0
     assert summary_paid["total_due"] == 0.0
@@ -199,6 +207,10 @@ async def test_sales_report_filter_cases(memory_db: AsyncSession):
     # TEST: Report Summary Aggregate for Filter = ALL
     summary_all = await sale_repository.get_report_summary(db, payment_status=None)
     assert summary_all["total_sales"] == 3
+    assert summary_all["total_invoices"] == 3
+    assert summary_all["total_sales_count"] == 3
+    assert summary_all["total_count"] == 3
+    assert summary_all["count"] == 3
     assert summary_all["total_sale_amount"] == 3000.0
     assert summary_all["total_paid"] == 1400.0
     assert summary_all["total_due"] == 1600.0
@@ -570,6 +582,9 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_all["due_amount"] == 400.0
     assert summary_all["total_quantity"] == 60.0
     assert summary_all["count"] == 2
+    assert summary_all["total_count"] == 2
+    assert summary_all["total_purchases_count"] == 2
+    assert summary_all["total_invoices"] == 2
 
     # Empty string status should also mean All
     summary_empty = await purchase_service.get_purchase_summary(db, payment_status="")
@@ -577,6 +592,8 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_empty["total_paid"] == 2600.0
     assert summary_empty["total_due"] == 400.0
     assert summary_empty["total_quantity"] == 60.0
+    assert summary_empty["count"] == 2
+    assert summary_empty["total_purchases_count"] == 2
 
     # 2. Summary for Paid:
     # Total Purchases = 2000, Total Paid = 2000, Total Due = 0, Total Quantity = 40
@@ -586,6 +603,7 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_paid["total_due"] == 0.0
     assert summary_paid["total_quantity"] == 40.0
     assert summary_paid["count"] == 1
+    assert summary_paid["total_purchases_count"] == 1
 
     # 3. Summary for Due:
     # Total Purchases = 1000, Total Paid = 600, Total Due = 400, Total Quantity = 20
@@ -595,6 +613,7 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_due["total_due"] == 400.0
     assert summary_due["total_quantity"] == 20.0
     assert summary_due["count"] == 1
+    assert summary_due["total_purchases_count"] == 1
 
     # Case-insensitive Due status ("Due", "DUE")
     summary_due_cap = await purchase_service.get_purchase_summary(db, payment_status="Due")

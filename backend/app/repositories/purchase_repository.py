@@ -218,7 +218,8 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
             "total_discount": total_discount,
             "total_quantity": total_quantity,
             "total_units": total_quantity,
-            "total_items_purchased": total_quantity,
+            "total_purchases_count": count,
+            "total_invoices": count,
             "count": count,
             "total_count": count,
         }
