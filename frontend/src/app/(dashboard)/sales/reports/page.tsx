@@ -44,7 +44,7 @@ export default function SalesReportPage() {
   const totalPages = salesData?.data?.pages || 1;
   const pageSize = 15;
   const aggregate = salesData?.data?.aggregate || {};
-  const totalSales = aggregate.count ?? aggregate.total_count ?? aggregate.total_sales_count ?? aggregate.total_sales ?? aggregate.total_invoices ?? salesData?.data?.total ?? 0;
+  const totalSales = aggregate.total_sale_amount ?? aggregate.total_amount ?? aggregate.total_revenue ?? 0;
   const totalPaid = aggregate.total_paid ?? aggregate.paid_amount ?? 0;
   const totalDue = aggregate.total_due ?? aggregate.due_amount ?? 0;
   const totalUnits = aggregate.total_units ?? aggregate.total_items_sold ?? 0;
@@ -87,7 +87,7 @@ export default function SalesReportPage() {
                 <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-300" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-blue-600 dark:text-blue-200 sm:dark:text-blue-200 truncate" title={formatNumber(totalSales, 0)}>{formatNumber(totalSales, 0)}</div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-blue-600 dark:text-blue-200 sm:dark:text-blue-200 truncate" title={formatCurrency(totalSales)}>{formatCurrency(totalSales)}</div>
           </CardContent>
         </Card>
 
