@@ -466,7 +466,30 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     db.add_all([supplier1, supplier2])
     await db.flush()
 
-    # Example purchase A: Total = 1000, Paid = 600, Due = 400
+    prod1 = Product(
+        id=str(uuid.uuid4()),
+        product_code="PROD-SUM-001",
+        name="Layer Feed 50kg",
+        unit="bag",
+        opening_stock_unit_cost=50.0,
+        selling_price=60.0,
+        current_stock=100.0,
+        status="active",
+    )
+    prod2 = Product(
+        id=str(uuid.uuid4()),
+        product_code="PROD-SUM-002",
+        name="Broiler Feed 50kg",
+        unit="bag",
+        opening_stock_unit_cost=50.0,
+        selling_price=60.0,
+        current_stock=100.0,
+        status="active",
+    )
+    db.add_all([prod1, prod2])
+    await db.flush()
+
+    # Example purchase A: Total = 1000, Paid = 600, Due = 400 (Items quantity: 15 + 5 = 20)
     po_a = Purchase(
         id=str(uuid.uuid4()),
         purchase_no="PO-EX-A",
@@ -482,8 +505,30 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
         due_amount=400.0,
         payment_status="partial",
     )
+    db.add(po_a)
+    await db.flush()
 
-    # Example purchase B: Total = 2000, Paid = 2000, Due = 0
+    item_a1 = PurchaseItem(
+        id=str(uuid.uuid4()),
+        purchase_id=po_a.id,
+        product_id=prod1.id,
+        quantity=15.0,
+        unit_price=50.0,
+        discount=0.0,
+        total_price=750.0,
+    )
+    item_a2 = PurchaseItem(
+        id=str(uuid.uuid4()),
+        purchase_id=po_a.id,
+        product_id=prod2.id,
+        quantity=5.0,
+        unit_price=50.0,
+        discount=0.0,
+        total_price=250.0,
+    )
+    db.add_all([item_a1, item_a2])
+
+    # Example purchase B: Total = 2000, Paid = 2000, Due = 0 (Items quantity: 40)
     po_b = Purchase(
         id=str(uuid.uuid4()),
         purchase_no="PO-EX-B",
@@ -499,11 +544,23 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
         due_amount=0.0,
         payment_status="paid",
     )
-    db.add_all([po_a, po_b])
+    db.add(po_b)
+    await db.flush()
+
+    item_b1 = PurchaseItem(
+        id=str(uuid.uuid4()),
+        purchase_id=po_b.id,
+        product_id=prod1.id,
+        quantity=40.0,
+        unit_price=50.0,
+        discount=0.0,
+        total_price=2000.0,
+    )
+    db.add(item_b1)
     await db.commit()
 
     # 1. Summary for All:
-    # Total Purchases = 3000, Total Paid = 2600, Total Due = 400
+    # Total Purchases = 3000, Total Paid = 2600, Total Due = 400, Total Quantity = 60 (20 + 40)
     summary_all = await purchase_service.get_purchase_summary(db, payment_status=None)
     assert summary_all["total_purchases"] == 3000.0
     assert summary_all["total_amount"] == 3000.0
@@ -511,6 +568,7 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_all["paid_amount"] == 2600.0
     assert summary_all["total_due"] == 400.0
     assert summary_all["due_amount"] == 400.0
+    assert summary_all["total_quantity"] == 60.0
     assert summary_all["count"] == 2
 
     # Empty string status should also mean All
@@ -518,27 +576,31 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_empty["total_purchases"] == 3000.0
     assert summary_empty["total_paid"] == 2600.0
     assert summary_empty["total_due"] == 400.0
+    assert summary_empty["total_quantity"] == 60.0
 
     # 2. Summary for Paid:
-    # Total Purchases = 2000, Total Paid = 2000, Total Due = 0
+    # Total Purchases = 2000, Total Paid = 2000, Total Due = 0, Total Quantity = 40
     summary_paid = await purchase_service.get_purchase_summary(db, payment_status="paid")
     assert summary_paid["total_purchases"] == 2000.0
     assert summary_paid["total_paid"] == 2000.0
     assert summary_paid["total_due"] == 0.0
+    assert summary_paid["total_quantity"] == 40.0
     assert summary_paid["count"] == 1
 
     # 3. Summary for Due:
-    # Total Purchases = 1000, Total Paid = 600, Total Due = 400
+    # Total Purchases = 1000, Total Paid = 600, Total Due = 400, Total Quantity = 20
     summary_due = await purchase_service.get_purchase_summary(db, payment_status="due")
     assert summary_due["total_purchases"] == 1000.0
     assert summary_due["total_paid"] == 600.0
     assert summary_due["total_due"] == 400.0
+    assert summary_due["total_quantity"] == 20.0
     assert summary_due["count"] == 1
 
     # Case-insensitive Due status ("Due", "DUE")
     summary_due_cap = await purchase_service.get_purchase_summary(db, payment_status="Due")
     assert summary_due_cap["total_purchases"] == 1000.0
     assert summary_due_cap["total_due"] == 400.0
+    assert summary_due_cap["total_quantity"] == 20.0
 
     # 4. Pagination does NOT reduce summary totals
     # Even if paginated to 1 per page, the summary reflects all 2 purchases
@@ -549,6 +611,7 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert sum_paginated["total_purchases"] == 3000.0
     assert sum_paginated["total_paid"] == 2600.0
     assert sum_paginated["total_due"] == 400.0
+    assert sum_paginated["total_quantity"] == 60.0
 
     # 5. Date range filtering:
     # Filter to only past 36 hours (only includes Purchase A from 1 day ago)
@@ -560,6 +623,7 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_date["total_purchases"] == 1000.0
     assert summary_date["total_paid"] == 600.0
     assert summary_date["total_due"] == 400.0
+    assert summary_date["total_quantity"] == 20.0
     assert summary_date["count"] == 1
 
     # 6. Search filtering:
@@ -568,13 +632,15 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert summary_search["total_purchases"] == 1000.0
     assert summary_search["total_paid"] == 600.0
     assert summary_search["total_due"] == 400.0
+    assert summary_search["total_quantity"] == 20.0
 
     summary_search_b = await purchase_service.get_purchase_summary(db, search="PO-EX-B")
     assert summary_search_b["total_purchases"] == 2000.0
     assert summary_search_b["total_paid"] == 2000.0
     assert summary_search_b["total_due"] == 0.0
+    assert summary_search_b["total_quantity"] == 40.0
 
-    # 7. Decimal amounts:
+    # 7. Decimal amounts & quantities:
     po_c = Purchase(
         id=str(uuid.uuid4()),
         purchase_no="PO-EX-DECIMAL",
@@ -591,14 +657,27 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
         payment_status="partial",
     )
     db.add(po_c)
+    await db.flush()
+
+    item_c = PurchaseItem(
+        id=str(uuid.uuid4()),
+        purchase_id=po_c.id,
+        product_id=prod1.id,
+        quantity=2.5,
+        unit_price=49.38,
+        discount=0.0,
+        total_price=123.45,
+    )
+    db.add(item_c)
     await db.commit()
 
     summary_dec = await purchase_service.get_purchase_summary(db, search="PO-EX-DECIMAL")
     assert summary_dec["total_purchases"] == 123.45
     assert summary_dec["total_paid"] == 23.45
     assert summary_dec["total_due"] == 100.00
+    assert summary_dec["total_quantity"] == 2.5
 
-    # 8. Test list_purchases endpoint response envelope includes aggregate
+    # 8. Test list_purchases endpoint response envelope includes aggregate with total_quantity
     endpoint_res = await list_purchases(
         page=1,
         size=15,
@@ -611,4 +690,5 @@ async def test_purchase_report_summary_calculations(memory_db: AsyncSession):
     assert endpoint_res.data.aggregate["total_purchases"] == 123.45
     assert endpoint_res.data.aggregate["total_paid"] == 23.45
     assert endpoint_res.data.aggregate["total_due"] == 100.00
+    assert endpoint_res.data.aggregate["total_quantity"] == 2.5
 

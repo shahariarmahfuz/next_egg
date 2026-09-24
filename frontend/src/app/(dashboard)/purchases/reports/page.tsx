@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Eye } from "lucide-react";
+import { Search, Eye, ShoppingCart, CircleCheck, CircleAlert, Boxes, Calendar, ArrowRight } from "lucide-react";
 import { purchaseService } from "@/services/api";
 import { PurchaseItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
@@ -14,7 +14,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { PurchaseViewModal } from "@/components/purchases/purchase-view-modal";
 import { useDebounce } from "@/hooks/use-debounce";
-import { formatCurrency, formatDate } from "@/utils/formatters";
+import { formatCurrency, formatDate, formatNumber } from "@/utils/formatters";
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDisplayDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const year = parts[0];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(monthIdx) || isNaN(day) || monthIdx < 0 || monthIdx > 11) return dateStr;
+  return `${day} ${MONTH_NAMES[monthIdx]} ${year}`;
+}
 
 export default function PurchasesReportPage() {
   const today = new Date().toLocaleDateString('en-CA');
@@ -47,6 +60,7 @@ export default function PurchasesReportPage() {
   const totalPurchases = aggregate.total_purchases ?? aggregate.total_amount ?? aggregate.total_purchase_amount ?? 0;
   const totalPaid = aggregate.total_paid ?? aggregate.paid_amount ?? 0;
   const totalDue = aggregate.total_due ?? aggregate.due_amount ?? 0;
+  const totalQuantity = aggregate.total_quantity ?? aggregate.total_units ?? aggregate.total_items_purchased ?? 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -65,35 +79,113 @@ export default function PurchasesReportPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <PageHeader title="Purchase Report" description="Comprehensive report of all purchase transactions." />
-        <div className="flex items-center space-x-3 bg-card p-2 rounded-lg border shadow-sm">
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="start_date" className="text-xs">From</Label>
-            <Input type="date" id="start_date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-auto h-8 text-xs" />
+        <div className="flex items-center w-full md:w-auto justify-between md:justify-start gap-1.5 sm:gap-2 p-1 sm:p-1.5 bg-card dark:bg-card/90 rounded-xl border border-border/80 dark:border-border/60 shadow-xs dark:shadow-none">
+          {/* FROM Date Field */}
+          <div className="relative flex-1 md:flex-initial md:w-40 flex items-center min-w-0 bg-background dark:bg-muted/30 hover:bg-muted/40 dark:hover:bg-muted/50 transition-colors border border-border/70 dark:border-border/60 rounded-lg px-2.5 py-1.5 shadow-2xs dark:shadow-none cursor-pointer group focus-within:ring-2 focus-within:ring-primary/30">
+            <input
+              type="date"
+              id="start_date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              onClick={(e) => {
+                try {
+                  (e.target as HTMLInputElement).showPicker?.();
+                } catch {}
+              }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              aria-label="From date"
+            />
+            <div className="flex flex-col min-w-0 flex-1">
+              <Label htmlFor="start_date" className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-1 cursor-pointer">
+                FROM
+              </Label>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                <span className="text-xs sm:text-[13px] font-semibold text-foreground tracking-tight truncate">
+                  {formatDisplayDate(startDate) || "Select date"}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="end_date" className="text-xs">To</Label>
-            <Input type="date" id="end_date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-auto h-8 text-xs" />
+
+          {/* Separator Arrow */}
+          <div className="text-muted-foreground/50 shrink-0 px-0.5 sm:px-1" aria-hidden="true">
+            <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </div>
+
+          {/* TO Date Field */}
+          <div className="relative flex-1 md:flex-initial md:w-40 flex items-center min-w-0 bg-background dark:bg-muted/30 hover:bg-muted/40 dark:hover:bg-muted/50 transition-colors border border-border/70 dark:border-border/60 rounded-lg px-2.5 py-1.5 shadow-2xs dark:shadow-none cursor-pointer group focus-within:ring-2 focus-within:ring-primary/30">
+            <input
+              type="date"
+              id="end_date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              onClick={(e) => {
+                try {
+                  (e.target as HTMLInputElement).showPicker?.();
+                } catch {}
+              }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              aria-label="To date"
+            />
+            <div className="flex flex-col min-w-0 flex-1">
+              <Label htmlFor="end_date" className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-1 cursor-pointer">
+                TO
+              </Label>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                <span className="text-xs sm:text-[13px] font-semibold text-foreground tracking-tight truncate">
+                  {formatDisplayDate(endDate) || "Select date"}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="glass-card border-purple-500/30 bg-purple-500/5">
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-1">Total Purchases</div>
-            <div className="text-xl font-extrabold text-purple-500">{formatCurrency(totalPurchases)}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-6">
+        <Card className="bg-white border-purple-500/20 shadow-xs dark:bg-purple-950/25 dark:border-purple-900/35 dark:shadow-none sm:dark:bg-purple-950/20 sm:dark:border-purple-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 sm:dark:text-purple-300 uppercase tracking-wider truncate">Total Purchases</span>
+              <div className="h-5 w-5 rounded-md bg-purple-500/10 dark:bg-purple-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <ShoppingCart className="h-3.5 w-3.5 text-purple-600 dark:text-purple-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-purple-600 dark:text-purple-200 sm:dark:text-purple-200 truncate" title={formatCurrency(totalPurchases)}>{formatCurrency(totalPurchases)}</div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Paid</div>
-            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(totalPaid)}</div>
+        <Card className="bg-white border-emerald-500/20 shadow-xs dark:bg-emerald-950/25 dark:border-emerald-900/35 dark:shadow-none sm:dark:bg-emerald-950/20 sm:dark:border-emerald-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-300 sm:dark:text-emerald-300 uppercase tracking-wider truncate">Total Paid</span>
+              <div className="h-5 w-5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <CircleCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-emerald-600 dark:text-emerald-200 sm:dark:text-emerald-200 truncate" title={formatCurrency(totalPaid)}>{formatCurrency(totalPaid)}</div>
           </CardContent>
         </Card>
-        <Card className="glass-card border-orange-500/30 bg-orange-500/5">
-          <CardContent className="p-4">
-            <div className="text-xs font-semibold text-orange-600 uppercase tracking-wider mb-1">Total Due</div>
-            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(totalDue)}</div>
+        <Card className="bg-white border-orange-500/20 shadow-xs dark:bg-orange-950/25 dark:border-orange-900/35 dark:shadow-none sm:dark:bg-orange-950/20 sm:dark:border-orange-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-orange-600 dark:text-orange-300 sm:dark:text-orange-300 uppercase tracking-wider truncate">Total Due</span>
+              <div className="h-5 w-5 rounded-md bg-orange-500/10 dark:bg-orange-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <CircleAlert className="h-3.5 w-3.5 text-orange-600 dark:text-orange-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-orange-600 dark:text-orange-200 sm:dark:text-orange-200 truncate" title={formatCurrency(totalDue)}>{formatCurrency(totalDue)}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white border-blue-500/20 shadow-xs dark:bg-blue-950/25 dark:border-blue-900/35 dark:shadow-none sm:dark:bg-blue-950/20 sm:dark:border-blue-900/30 min-w-0 rounded-xl">
+          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-300 sm:dark:text-blue-300 uppercase tracking-wider truncate">Total Quantity</span>
+              <div className="h-5 w-5 rounded-md bg-blue-500/10 dark:bg-blue-950/50 flex items-center justify-center shrink-0 sm:hidden">
+                <Boxes className="h-3.5 w-3.5 text-blue-600 dark:text-blue-300" />
+              </div>
+            </div>
+            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-blue-600 dark:text-blue-200 sm:dark:text-blue-200 truncate" title={formatNumber(totalQuantity)}>{formatNumber(totalQuantity)}</div>
           </CardContent>
         </Card>
       </div>

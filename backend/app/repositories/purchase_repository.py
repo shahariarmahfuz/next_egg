@@ -166,6 +166,41 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
         result = await db.execute(query)
         row = result.one()
 
+        # Compute total purchase items quantity across filtered purchases
+        items_query = select(
+            func.coalesce(func.sum(PurchaseItem.quantity), 0.0)
+        ).join(Purchase, PurchaseItem.purchase_id == Purchase.id)
+
+        if search:
+            pattern = f"%{search}%"
+            items_query = items_query.join(Supplier, Purchase.supplier_id == Supplier.id, isouter=True).where(
+                or_(
+                    Purchase.purchase_no.ilike(pattern),
+                    Purchase.invoice_no.ilike(pattern),
+                    Supplier.name.ilike(pattern),
+                    Supplier.supplier_code.ilike(pattern),
+                )
+            )
+
+        if supplier_id:
+            items_query = items_query.where(Purchase.supplier_id == supplier_id)
+
+        if payment_status and payment_status.strip():
+            clean_status = payment_status.strip().lower()
+            if clean_status == "due":
+                items_query = items_query.where(Purchase.due_amount > 0)
+            else:
+                items_query = items_query.where(Purchase.payment_status == payment_status.strip())
+
+        if start_date:
+            items_query = items_query.where(Purchase.purchase_date >= start_date)
+
+        if end_date:
+            items_query = items_query.where(Purchase.purchase_date <= end_date)
+
+        items_res = await db.execute(items_query)
+        total_quantity = round(float(items_res.scalar() or 0.0), 2)
+
         total_amount = round(float(row.total_purchase_amount), 2)
         total_paid = round(float(row.total_paid), 2)
         total_due = round(float(row.total_due), 2)
@@ -181,6 +216,9 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
             "total_due": total_due,
             "due_amount": total_due,
             "total_discount": total_discount,
+            "total_quantity": total_quantity,
+            "total_units": total_quantity,
+            "total_items_purchased": total_quantity,
             "count": count,
             "total_count": count,
         }
