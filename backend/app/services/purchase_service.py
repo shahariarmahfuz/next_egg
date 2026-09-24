@@ -400,6 +400,28 @@ class PurchaseService:
             end_date=end_date,
         )
 
+    async def get_purchase_summary(
+        self,
+        db: AsyncSession,
+        *,
+        search: Optional[str] = None,
+        supplier_id: Optional[str] = None,
+        payment_status: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> dict:
+        return await purchase_repository.get_report_summary(
+            db,
+            search=search,
+            supplier_id=supplier_id,
+            payment_status=payment_status,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    # Alias for naming consistency with sale_service.get_sale_reports
+    get_purchase_reports = get_purchase_summary
+
     async def generate_purchase_report(
         self,
         db: AsyncSession,

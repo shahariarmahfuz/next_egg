@@ -118,5 +118,72 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
 
         return purchases, total
 
+    async def get_report_summary(
+        self,
+        db: AsyncSession,
+        *,
+        search: Optional[str] = None,
+        supplier_id: Optional[str] = None,
+        payment_status: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> dict:
+        query = select(
+            func.count(Purchase.id).label("total_purchases_count"),
+            func.coalesce(func.sum(Purchase.grand_total), 0.0).label("total_purchase_amount"),
+            func.coalesce(func.sum(Purchase.discount_amount), 0.0).label("total_discount"),
+            func.coalesce(func.sum(Purchase.paid_amount), 0.0).label("total_paid"),
+            func.coalesce(func.sum(Purchase.due_amount), 0.0).label("total_due"),
+        )
+
+        if search:
+            pattern = f"%{search}%"
+            query = query.join(Supplier, Purchase.supplier_id == Supplier.id, isouter=True).where(
+                or_(
+                    Purchase.purchase_no.ilike(pattern),
+                    Purchase.invoice_no.ilike(pattern),
+                    Supplier.name.ilike(pattern),
+                    Supplier.supplier_code.ilike(pattern),
+                )
+            )
+
+        if supplier_id:
+            query = query.where(Purchase.supplier_id == supplier_id)
+
+        if payment_status and payment_status.strip():
+            clean_status = payment_status.strip().lower()
+            if clean_status == "due":
+                query = query.where(Purchase.due_amount > 0)
+            else:
+                query = query.where(Purchase.payment_status == payment_status.strip())
+
+        if start_date:
+            query = query.where(Purchase.purchase_date >= start_date)
+
+        if end_date:
+            query = query.where(Purchase.purchase_date <= end_date)
+
+        result = await db.execute(query)
+        row = result.one()
+
+        total_amount = round(float(row.total_purchase_amount), 2)
+        total_paid = round(float(row.total_paid), 2)
+        total_due = round(float(row.total_due), 2)
+        total_discount = round(float(row.total_discount), 2)
+        count = int(row.total_purchases_count)
+
+        return {
+            "total_purchases": total_amount,
+            "total_purchase_amount": total_amount,
+            "total_amount": total_amount,
+            "total_paid": total_paid,
+            "paid_amount": total_paid,
+            "total_due": total_due,
+            "due_amount": total_due,
+            "total_discount": total_discount,
+            "count": count,
+            "total_count": count,
+        }
+
 
 purchase_repository = PurchaseRepository()

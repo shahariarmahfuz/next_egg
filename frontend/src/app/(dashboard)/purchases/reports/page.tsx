@@ -43,7 +43,10 @@ export default function PurchasesReportPage() {
   const purchases: PurchaseItem[] = purchasesData?.data?.items || [];
   const totalPages = purchasesData?.data?.pages || 1;
   const pageSize = 15;
-  const aggregate = purchasesData?.data?.aggregate || { total_amount: 0, paid_amount: 0, due_amount: 0 };
+  const aggregate = purchasesData?.data?.aggregate || {};
+  const totalPurchases = aggregate.total_purchases ?? aggregate.total_amount ?? aggregate.total_purchase_amount ?? 0;
+  const totalPaid = aggregate.total_paid ?? aggregate.paid_amount ?? 0;
+  const totalDue = aggregate.total_due ?? aggregate.due_amount ?? 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -78,19 +81,19 @@ export default function PurchasesReportPage() {
         <Card className="glass-card border-purple-500/30 bg-purple-500/5">
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-1">Total Purchases</div>
-            <div className="text-xl font-extrabold text-purple-500">{formatCurrency(aggregate.total_amount)}</div>
+            <div className="text-xl font-extrabold text-purple-500">{formatCurrency(totalPurchases)}</div>
           </CardContent>
         </Card>
         <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Paid</div>
-            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(aggregate.paid_amount)}</div>
+            <div className="text-xl font-extrabold text-emerald-500">{formatCurrency(totalPaid)}</div>
           </CardContent>
         </Card>
         <Card className="glass-card border-orange-500/30 bg-orange-500/5">
           <CardContent className="p-4">
             <div className="text-xs font-semibold text-orange-600 uppercase tracking-wider mb-1">Total Due</div>
-            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(aggregate.due_amount)}</div>
+            <div className="text-xl font-extrabold text-orange-500">{formatCurrency(totalDue)}</div>
           </CardContent>
         </Card>
       </div>

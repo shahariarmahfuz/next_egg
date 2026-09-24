@@ -7,6 +7,7 @@ from sqlalchemy import func, select, or_
 from app.models.purchase import Purchase
 from app.models.supplier import Supplier
 
+from app.core.datetime_utils import normalize_date_range
 from app.dependencies.auth import get_current_user
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
@@ -19,6 +20,7 @@ from app.schemas.purchase import (
     PurchaseUpdate,
 )
 from app.services.purchase_service import purchase_service
+from app.services.setting_service import setting_service
 
 router = APIRouter(prefix="/purchases", tags=["Purchases"])
 
@@ -32,15 +34,37 @@ async def list_purchases(
     payment_status: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    from_date: Optional[datetime] = Query(None),
+    to_date: Optional[datetime] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("purchase.view")),
 ):
     """Server-side paginated purchase order directory with search and status filtering."""
+    search = search if isinstance(search, str) else None
+    supplier_id = supplier_id if isinstance(supplier_id, str) else None
+    payment_status = payment_status if isinstance(payment_status, str) else None
+
+    settings = await setting_service.get_business_settings(db)
+    tz_str = (settings.timezone if settings else None) or "UTC"
+    effective_start = from_date if isinstance(from_date, datetime) else (start_date if isinstance(start_date, datetime) else None)
+    effective_end = to_date if isinstance(to_date, datetime) else (end_date if isinstance(end_date, datetime) else None)
+    start_date, end_date = normalize_date_range(effective_start, effective_end, tz_str=tz_str, default_to_today=False)
+
     skip = (page - 1) * size
     purchases, total = await purchase_service.get_purchases_paginated(
         db, skip=skip, limit=size, search=search, supplier_id=supplier_id, payment_status=payment_status, start_date=start_date, end_date=end_date
     )
     pages = math.ceil(total / size) if total > 0 else 0
+
+    # Fetch aggregate totals for the filtered dataset
+    aggregate = await purchase_service.get_purchase_summary(
+        db,
+        search=search,
+        supplier_id=supplier_id,
+        payment_status=payment_status,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     items = [PurchaseResponse.model_validate(p) for p in purchases]
     paginated_data = PaginatedResponse[PurchaseResponse](
@@ -49,7 +73,7 @@ async def list_purchases(
         page=page,
         size=size,
         pages=pages,
-        aggregate=None
+        aggregate=aggregate
     )
 
     return ResponseModel[PaginatedResponse[PurchaseResponse]](
