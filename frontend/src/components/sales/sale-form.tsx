@@ -598,7 +598,8 @@ export function SaleForm() {
                 )}
               </div>
             </CardHeader>
-            <div className="overflow-x-auto w-full">
+            {/* Desktop Table (hidden on mobile, visible on sm and up) */}
+            <div className="hidden sm:block overflow-x-auto w-full">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50 border-b font-semibold text-muted-foreground uppercase text-[11px] tracking-wider">
                   <tr>
@@ -675,6 +676,98 @@ export function SaleForm() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card Layout (visible on mobile <sm, hidden on sm and up) */}
+            <div className="sm:hidden w-full">
+              {lineItems.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  No items added to invoice yet. Search and select products above to populate order.
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {lineItems.map((item, idx) => (
+                    <div key={`mobile-${item.product.id}-${idx}`} className="p-3 space-y-2.5">
+                      {/* Product Name & Delete Action */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-foreground text-xs leading-snug break-words">
+                            {item.product.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5 break-words">
+                            Code: {item.product.product_code || "N/A"}
+                            {item.product.current_stock !== undefined && (
+                              <span> · Stock: {item.product.current_stock} {item.product.unit || "pcs"}</span>
+                            )}
+                          </div>
+                          {item.error && (
+                            <div className="text-[10px] font-bold text-destructive mt-1 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              <span className="break-words">{item.error}</span>
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                          onClick={() => handleRemoveItem(idx)}
+                          title="Remove item"
+                          aria-label={`Remove ${item.product.name}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+
+                      {/* Quantity & Unit Price side-by-side */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1 min-w-0">
+                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                            Quantity
+                          </label>
+                          <Input
+                            type="number"
+                            min="0.0001"
+                            step="any"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateItem(idx, "quantity", parseFloat(e.target.value) || 0)}
+                            className="h-8 text-xs font-bold w-full"
+                          />
+                        </div>
+                        <div className="space-y-1 min-w-0">
+                          <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                            Unit Price
+                          </label>
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={item.unit_price}
+                            onChange={(e) => handleUpdateItem(idx, "unit_price", parseFloat(e.target.value) || 0)}
+                            className="h-8 text-xs font-bold w-full"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Total Price */}
+                      <div className="space-y-1 min-w-0">
+                        <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                          Total Price
+                        </label>
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={item.total_price}
+                          onChange={(e) => handleUpdateItem(idx, "total_price", parseFloat(e.target.value) || 0)}
+                          className="h-8 text-xs font-bold w-full"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </Card>
         </div>
