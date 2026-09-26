@@ -31,15 +31,6 @@ DEFAULT_INITIAL_ACCOUNTS = [
         "env_var": "INITIAL_ADMIN_PASSWORD",
         "default_password": "Admin@Argon2Secure2026!",
     },
-    {
-        "role_code": "employee",
-        "username": "employee",
-        "email": "employee@enterprise.com",
-        "full_name": "System Employee",
-        "phone": "+18005550102",
-        "env_var": "INITIAL_EMPLOYEE_PASSWORD",
-        "default_password": "Employee@Argon2Secure2026!",
-    },
 ]
 
 DEFAULT_PERMISSIONS = [
@@ -297,7 +288,7 @@ async def seed_initial_data(db: AsyncSession) -> None:
         else:
             logger.info(f"[SEED] Preserving {len(employee_role.permissions)} configured permissions for existing Employee role.")
 
-    # 4. Seed Initial System Accounts (Owner, Admin, Employee) using Argon2id
+    # 4. Seed Initial System Accounts (Owner, Admin) using Argon2id
     reset_passwords = os.getenv("RESET_DEFAULT_PASSWORDS", "").lower() in ("true", "1", "yes")
 
     for acc in DEFAULT_INITIAL_ACCOUNTS:

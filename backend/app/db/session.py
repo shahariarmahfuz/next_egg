@@ -8,15 +8,25 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import settings
 from app.core.logging import logger
 
-# Create SQLAlchemy 2.0 Async Engine for PostgreSQL / Neon
+engine_kwargs = {
+    "echo": settings.DEBUG,
+    "future": True,
+}
+
+if "sqlite" in settings.DATABASE_URL:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs.update({
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    })
+
+# Create SQLAlchemy 2.0 Async Engine
 engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    future=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    pool_recycle=300,
+    **engine_kwargs,
 )
 
 # Async Session Factory

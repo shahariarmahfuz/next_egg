@@ -8,7 +8,6 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import logger
 from app.models import Base
-from app.db.seed import seed_initial_data
 from app.db.session import AsyncSessionLocal, engine
 from app.exceptions.handlers import register_exception_handlers
 from app.middlewares.logging_middleware import LoggingMiddleware
