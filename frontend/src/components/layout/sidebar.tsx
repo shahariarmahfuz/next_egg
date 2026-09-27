@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -46,6 +46,15 @@ import { useAuth } from "@/providers/auth-provider";
 import { useSettingsStore } from "@/store/settings";
 
 /* -------------------------------------------------------------------------
+   Adaptive Menu Density Context (Compact, Normal, Comfortable)
+   ------------------------------------------------------------------------- */
+
+type MenuDensity = "compact" | "normal" | "comfortable";
+
+const MenuDensityContext = createContext<MenuDensity>("compact");
+const useMenuDensity = () => useContext(MenuDensityContext);
+
+/* -------------------------------------------------------------------------
    Helper Components: Clean, Modern Sidebar Items Preserving Icon Colors
    ------------------------------------------------------------------------- */
 
@@ -72,14 +81,28 @@ function NavItem({
   onNavigate,
   badge,
 }: NavItemProps) {
+  const density = useMenuDensity();
+
+  const sizeClass = collapsed
+    ? density === "comfortable"
+      ? "h-11 w-11 mx-auto justify-center"
+      : density === "normal"
+      ? "h-[42px] w-[42px] mx-auto justify-center"
+      : "h-[40px] w-[40px] mx-auto justify-center"
+    : density === "comfortable"
+    ? "h-[44px] px-3.5 gap-3.5 text-sm"
+    : density === "normal"
+    ? "h-[42px] px-3 gap-3 text-sm"
+    : "h-[40px] px-3 gap-3 text-[13.5px]";
+
   return (
     <Link
       href={href}
       onClick={onNavigate}
       title={collapsed ? label : undefined}
       className={cn(
-        "group relative flex items-center rounded-lg text-[13px] font-medium transition-all duration-200 ease-out select-none",
-        collapsed ? "h-9 w-9 mx-auto justify-center" : "h-9 px-2.5 gap-2.5",
+        "group relative flex items-center rounded-lg font-medium transition-all duration-200 ease-out select-none",
+        sizeClass,
         isActive
           ? cn(activeColorClass, "font-semibold shadow-xs")
           : "text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60"
@@ -87,11 +110,11 @@ function NavItem({
     >
       {/* Active Left Accent Indicator */}
       {isActive && !collapsed && (
-        <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-current transition-all duration-200 ease-out" />
+        <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full bg-current transition-all duration-200 ease-out" />
       )}
       <Icon
         className={cn(
-          "h-[18px] w-[18px] shrink-0 transition-transform duration-200 ease-out group-hover:scale-[1.05] group-hover:translate-x-[0.5px] motion-reduce:transform-none",
+          "h-5 w-5 shrink-0 transition-transform duration-200 ease-out group-hover:scale-[1.05] group-hover:translate-x-[0.5px] motion-reduce:transform-none",
           iconColor
         )}
       />
@@ -122,6 +145,22 @@ function NavGroup({
   collapsed = false,
   children,
 }: NavGroupProps) {
+  const density = useMenuDensity();
+
+  const buttonSizeClass = collapsed
+    ? density === "comfortable"
+      ? "h-11 w-11 mx-auto justify-center"
+      : density === "normal"
+      ? "h-[42px] w-[42px] mx-auto justify-center"
+      : "h-[40px] w-[40px] mx-auto justify-center"
+    : density === "comfortable"
+    ? "h-[44px] px-3.5 gap-3.5 text-sm"
+    : density === "normal"
+    ? "h-[42px] px-3 gap-3 text-sm"
+    : "h-[40px] px-3 gap-3 text-[13.5px]";
+
+  const subContainerSpacing = "space-y-0.5 py-0.5";
+
   return (
     <div className="space-y-0.5">
       <button
@@ -129,17 +168,17 @@ function NavGroup({
         onClick={onToggle}
         title={collapsed ? title : undefined}
         className={cn(
-          "w-full group flex items-center justify-between rounded-lg text-[13px] font-medium transition-all duration-200 ease-out select-none",
-          collapsed ? "h-9 w-9 mx-auto justify-center" : "h-9 px-2.5 gap-2.5",
+          "w-full group flex items-center justify-between rounded-lg font-medium transition-all duration-200 ease-out select-none",
+          buttonSizeClass,
           isActive
             ? "text-slate-900 dark:text-white font-semibold bg-slate-100/70 dark:bg-slate-800/50"
             : "text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60"
         )}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className={cn("flex items-center min-w-0", density === "comfortable" ? "gap-3.5" : "gap-3")}>
           <Icon
             className={cn(
-              "h-[18px] w-[18px] shrink-0 transition-transform duration-200 ease-out group-hover:scale-[1.05] group-hover:translate-x-[0.5px] motion-reduce:transform-none",
+              "h-5 w-5 shrink-0 transition-transform duration-200 ease-out group-hover:scale-[1.05] group-hover:translate-x-[0.5px] motion-reduce:transform-none",
               iconColor
             )}
           />
@@ -148,7 +187,7 @@ function NavGroup({
         {!collapsed && (
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ease-out group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300 motion-reduce:transform-none",
+              "h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ease-out group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300 motion-reduce:transform-none",
               isOpen && "rotate-180 text-slate-700 dark:text-slate-200"
             )}
           />
@@ -166,7 +205,7 @@ function NavGroup({
           )}
         >
           <div className="overflow-hidden">
-            <div className="ml-4 pl-3 border-l border-slate-200 dark:border-slate-800 space-y-0.5 py-0.5">
+            <div className={cn("ml-4 pl-3.5 border-l border-slate-200 dark:border-slate-800", subContainerSpacing)}>
               {children}
             </div>
           </div>
@@ -195,12 +234,22 @@ function SubNavItem({
   isActive,
   onNavigate,
 }: SubNavItemProps) {
+  const density = useMenuDensity();
+
+  const subItemSize =
+    density === "comfortable"
+      ? "h-9 px-3 gap-2.5 text-[13px]"
+      : density === "normal"
+      ? "h-[35px] px-2.5 gap-2.5 text-[13px]"
+      : "h-[34px] px-2.5 gap-2.5 text-[13px]";
+
   return (
     <Link
       href={href}
       onClick={onNavigate}
       className={cn(
-        "group relative flex items-center gap-2 h-8 px-2 rounded-md text-[13px] transition-all duration-150 ease-out select-none",
+        "group relative flex items-center rounded-md transition-all duration-150 ease-out select-none",
+        subItemSize,
         isActive
           ? cn(activeColorClass, "font-semibold")
           : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800/40 font-normal"
@@ -212,7 +261,7 @@ function SubNavItem({
       )}
       <Icon
         className={cn(
-          "h-3.5 w-3.5 shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-[0.5px] motion-reduce:transform-none",
+          "h-4 w-4 shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-[0.5px] motion-reduce:transform-none",
           iconColor
             ? iconColor
             : isActive
@@ -323,6 +372,89 @@ export function SidebarContent({
   const cyanActive = "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400";
   const slateActive = "bg-slate-500/10 text-slate-700 dark:text-slate-300";
 
+  // Permissions & Visibility Checks for Adaptive Density
+  const showDashboard = hasPermission("dashboard.view");
+  const showSales = hasPermission("sales.view");
+  const showSaleReturn = hasPermission("sale_return.view") || hasPermission("sale_return.create");
+  const showCustomers = hasPermission("customer.view");
+  const showCollections = hasPermission("collection.view") || hasPermission("collection.create");
+  const showPurchases = hasPermission("purchase.view");
+  const showProductReturn = hasPermission("product_return.view") || hasPermission("product_return.create");
+  const showSuppliers = hasPermission("supplier.view");
+  const showSupplierPayments = hasPermission("supplier_payment.view") || hasPermission("supplier_payment.create");
+  const showExpenses = hasPermission("expense.view") || hasPermission("expense.category.view");
+  const showProducts = hasPermission("product.view");
+  const showFarm = hasPermission([
+    "farm.view",
+    "farm.create",
+    "farm.edit",
+    "farm.delete",
+    "farm.production.view",
+    "farm.production.create",
+    "farm.production.edit",
+    "farm.production.delete",
+    "farm.delivery.view",
+    "farm.delivery.create",
+    "farm.delivery.edit",
+    "farm.delivery.delete",
+    "farm.report",
+  ]);
+  const showCash = hasPermission([
+    "accounts.cash_book.view",
+    "cash_out.view",
+    "accounts.cash_out.view",
+    "reports.view",
+  ]);
+  const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view"]);
+  const showUsers = hasPermission("user.view");
+  const showRoles = hasPermission("role.view");
+  const showArchitecture = user?.role?.code === "owner";
+  const showApiStatus = user?.role?.code === "owner";
+  const showSecurity = hasPermission("security.view");
+  const showSettings = hasPermission("settings.view");
+
+  const visibleItemCount = [
+    showDashboard,
+    showSales,
+    showSaleReturn,
+    showCustomers,
+    showCollections,
+    showPurchases,
+    showProductReturn,
+    showSuppliers,
+    showSupplierPayments,
+    showExpenses,
+    showProducts,
+    showFarm,
+    showCash,
+    showAccounts,
+    showUsers,
+    showRoles,
+    showArchitecture,
+    showApiStatus,
+    showSecurity,
+    showSettings,
+  ].filter(Boolean).length;
+
+  // Adaptive Menu Density:
+  // 10+ visible items -> compact density
+  // 6-9 visible items -> normal density
+  // 1-5 visible items -> comfortable density
+  const density: MenuDensity =
+    visibleItemCount >= 10
+      ? "compact"
+      : visibleItemCount >= 6
+      ? "normal"
+      : "comfortable";
+
+  const containerSpacing = collapsed
+    ? density === "comfortable"
+      ? "py-3 px-2 space-y-1"
+      : "py-2.5 px-2 space-y-0.5"
+    : density === "comfortable"
+    ? "py-3.5 px-3 space-y-1"
+    : "py-2.5 px-3 space-y-0.5";
+
   return (
     <div className="flex flex-col h-full w-full bg-card text-card-foreground">
       {/* Brand Header */}
@@ -375,9 +507,10 @@ export function SidebarContent({
       </div>
 
       {/* Navigation Items */}
-      <div className="flex-1 overflow-y-auto overscroll-contain py-3 px-2.5 space-y-0.5">
+      <MenuDensityContext.Provider value={density}>
+        <div className={cn("flex-1 overflow-y-auto overscroll-contain", containerSpacing)}>
         {/* Dashboard Home (Blue) */}
-        {hasPermission("dashboard.view") && (
+        {showDashboard && (
           <NavItem
             href="/"
             icon={LayoutDashboard}
@@ -391,7 +524,7 @@ export function SidebarContent({
         )}
 
         {/* Sales Module (Blue) */}
-        {hasPermission("sales.view") && (
+        {showSales && (
           <NavGroup
             title="Sales"
             icon={ShoppingCart}
@@ -436,7 +569,7 @@ export function SidebarContent({
         )}
 
         {/* Sales Return Module (Orange / Amber) */}
-        {(hasPermission("sale_return.view") || hasPermission("sale_return.create")) && (
+        {showSaleReturn && (
           <NavGroup
             title="Sales Return"
             icon={RotateCcw}
@@ -483,7 +616,7 @@ export function SidebarContent({
         )}
 
         {/* Customers Module (Blue) */}
-        {hasPermission("customer.view") && (
+        {showCustomers && (
           <NavGroup
             title="Customers"
             icon={Users}
@@ -537,7 +670,7 @@ export function SidebarContent({
         )}
 
         {/* Customer Collection Module (Green / Emerald) */}
-        {(hasPermission("collection.view") || hasPermission("collection.create")) && (
+        {showCollections && (
           <NavGroup
             title="Customer Collection"
             icon={Wallet}
@@ -584,7 +717,7 @@ export function SidebarContent({
         )}
 
         {/* Purchase Module (Purple / Indigo) */}
-        {hasPermission("purchase.view") && (
+        {showPurchases && (
           <NavGroup
             title="Purchase"
             icon={ShoppingBag}
@@ -629,7 +762,7 @@ export function SidebarContent({
         )}
 
         {/* Product Return Module (Orange / Red) */}
-        {(hasPermission("product_return.view") || hasPermission("product_return.create")) && (
+        {showProductReturn && (
           <NavGroup
             title="Product Return"
             icon={RotateCcw}
@@ -676,7 +809,7 @@ export function SidebarContent({
         )}
 
         {/* Supplier Module (Blue) */}
-        {hasPermission("supplier.view") && (
+        {showSuppliers && (
           <NavGroup
             title="Suppliers"
             icon={Truck}
@@ -728,7 +861,7 @@ export function SidebarContent({
         )}
 
         {/* Supplier Payment Module (Green / Emerald) */}
-        {(hasPermission("supplier_payment.view") || hasPermission("supplier_payment.create")) && (
+        {showSupplierPayments && (
           <NavGroup
             title="Supplier Payment"
             icon={Receipt}
@@ -775,7 +908,7 @@ export function SidebarContent({
         )}
 
         {/* Expenses Module (Pink / Red / Rose) */}
-        {(hasPermission("expense.view") || hasPermission("expense.category.view")) && (
+        {showExpenses && (
           <NavGroup
             title="Expenses"
             icon={Receipt}
@@ -833,7 +966,7 @@ export function SidebarContent({
         )}
 
         {/* Product Module (Sky / Blue) */}
-        {hasPermission("product.view") && (
+        {showProducts && (
           <NavGroup
             title="Product"
             icon={Package}
@@ -867,21 +1000,7 @@ export function SidebarContent({
         )}
 
         {/* Farm Module (Green / Emerald) */}
-        {hasPermission([
-          "farm.view",
-          "farm.create",
-          "farm.edit",
-          "farm.delete",
-          "farm.production.view",
-          "farm.production.create",
-          "farm.production.edit",
-          "farm.production.delete",
-          "farm.delivery.view",
-          "farm.delivery.create",
-          "farm.delivery.edit",
-          "farm.delivery.delete",
-          "farm.report",
-        ]) && (
+        {showFarm && (
           <NavGroup
             title="Farm"
             icon={Sprout}
@@ -993,7 +1112,7 @@ export function SidebarContent({
         )}
 
         {/* Cash Module (Teal / Blue) */}
-        {hasPermission(["accounts.cash_book.view", "cash_out.view", "accounts.cash_out.view", "reports.view"]) && (
+        {showCash && (
           <NavGroup
             title="Cash"
             icon={Banknote}
@@ -1040,7 +1159,7 @@ export function SidebarContent({
         )}
 
         {/* Accounts & Reports Module (Purple / Indigo) */}
-        {hasPermission(["dashboard.filtered.view", "reports.view"]) && (
+        {showAccounts && (
           <NavGroup
             title="Accounts"
             icon={Landmark}
@@ -1076,7 +1195,7 @@ export function SidebarContent({
         )}
 
         {/* User Management (Violet / Indigo) */}
-        {hasPermission("user.view") && (
+        {showUsers && (
           <NavGroup
             title="User Management"
             icon={UserCheck}
@@ -1110,7 +1229,7 @@ export function SidebarContent({
         )}
 
         {/* Roles & Permissions / RBAC (Amber / Orange) */}
-        {hasPermission("role.view") && (
+        {showRoles && (
           <NavItem
             href="/roles"
             icon={ShieldCheck}
@@ -1124,7 +1243,7 @@ export function SidebarContent({
         )}
 
         {/* System Architecture (Owner only - Indigo) */}
-        {user?.role?.code === "owner" && (
+        {showArchitecture && (
           <NavItem
             href="/architecture"
             icon={Layers}
@@ -1143,7 +1262,7 @@ export function SidebarContent({
         )}
 
         {/* API Status (Owner only - Emerald) */}
-        {user?.role?.code === "owner" && (
+        {showApiStatus && (
           <NavItem
             href="/system-status"
             icon={Activity}
@@ -1157,7 +1276,7 @@ export function SidebarContent({
         )}
 
         {/* Security & Auth (Cyan / Blue) */}
-        {hasPermission("security.view") && (
+        {showSecurity && (
           <NavItem
             href="/security"
             icon={Shield}
@@ -1171,7 +1290,7 @@ export function SidebarContent({
         )}
 
         {/* System Settings (Slate) */}
-        {hasPermission("settings.view") && (
+        {showSettings && (
           <NavItem
             href="/settings"
             icon={Settings}
@@ -1183,7 +1302,8 @@ export function SidebarContent({
             onNavigate={onNavigate}
           />
         )}
-      </div>
+        </div>
+      </MenuDensityContext.Provider>
 
       {/* Footer User Area & Logout */}
       {user && (
