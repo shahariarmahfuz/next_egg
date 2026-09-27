@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,7 +19,9 @@ import {
   ChevronsUpDown,
   Tag,
   Check,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -60,7 +62,16 @@ export default function AddExpensePage() {
   const [referenceNo, setReferenceNo] = useState("");
   const [description, setDescription] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [successVoucher, setSuccessVoucher] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState("");
+  const successTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Fetch active categories
   const { data: categoriesData, isLoading: isCatLoading } = useQuery({
@@ -97,11 +108,29 @@ export default function AddExpensePage() {
       queryClient.invalidateQueries({ queryKey: ["expenses-list"] });
       queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
 
-      const voucher = res.data.voucher_no;
-      setSuccessVoucher(voucher);
+      const voucher = res.data?.voucher_no;
+      const message = voucher
+        ? `Expense added successfully — Voucher: ${voucher}`
+        : "Expense added successfully";
 
-      setTimeout(() => {
-      }, 1500);
+      toast.success(message);
+
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+      setSuccessMsg(message);
+      successTimeoutRef.current = setTimeout(() => {
+        setSuccessMsg("");
+      }, 5000);
+
+      // Reset form fields for immediate next entry (preserves user-selected expenseDate)
+      setCategoryId("");
+      setCategorySearch("");
+      setAmount("0");
+      setPaymentMethod("Cash");
+      setReferenceNo("");
+      setDescription("");
+      setErrorMsg("");
     },
     onError: (err: any) => {
       setErrorMsg(err.message || "Failed to record expense voucher.");
@@ -111,6 +140,10 @@ export default function AddExpensePage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
+    if (successTimeoutRef.current) {
+      clearTimeout(successTimeoutRef.current);
+    }
+    setSuccessMsg("");
 
     if (!categoryId) {
       setErrorMsg("Please select an expense category.");
@@ -153,40 +186,46 @@ export default function AddExpensePage() {
           }
         />
 
-        {successVoucher ? (
-          <Card className="glass-card border-emerald-500/30 bg-emerald-500/5 p-8 text-center space-y-4">
-            <div className="h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="h-10 w-10" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold text-foreground">Expense Voucher Created!</h3>
-              <p className="text-sm font-semibold text-primary">
-                Voucher No: <span className="underline">{successVoucher}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Dashboard total expenses and net profit have been updated automatically. Redirecting...
-              </p>
-            </div>
-          </Card>
-        ) : (
-          <Card className="glass-card">
-            <CardHeader className="p-5 border-b">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-rose-500" />
-                Expense Entry Details
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Fill in the required fields to record an operational expense voucher.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {errorMsg && (
-                  <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 text-xs flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span>{errorMsg}</span>
+        <Card className="glass-card">
+          <CardHeader className="p-5 border-b">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-rose-500" />
+              Expense Entry Details
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Fill in the required fields to record an operational expense voucher.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {successMsg && (
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs flex items-center justify-between gap-2 transition-all">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                    <span className="font-medium truncate">{successMsg}</span>
                   </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (successTimeoutRef.current) {
+                        clearTimeout(successTimeoutRef.current);
+                      }
+                      setSuccessMsg("");
+                    }}
+                    className="p-1 hover:bg-emerald-500/20 rounded text-emerald-600 dark:text-emerald-400 shrink-0"
+                    aria-label="Close message"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {errorMsg && (
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 text-xs flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Category Selection */}
@@ -391,7 +430,6 @@ export default function AddExpensePage() {
               </form>
             </CardContent>
           </Card>
-        )}
       </div>
     </HasPermission>
   );
