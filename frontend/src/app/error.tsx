@@ -26,10 +26,20 @@ export default function Error({
           <p className="text-sm text-muted-foreground">
             An unhandled runtime exception occurred. Our error boundary intercepted the error to prevent application crash.
           </p>
-          {error.digest && (
-            <p className="text-xs bg-muted p-2 rounded text-muted-foreground">
+          {error?.message && (
+            <div className="text-left w-full max-w-xl bg-destructive/10 p-3 rounded-lg border border-destructive/20 text-xs font-mono text-destructive break-words">
+              <strong>Error:</strong> {error.message}
+            </div>
+          )}
+          {error?.digest && (
+            <p className="text-xs bg-muted p-2 rounded text-muted-foreground font-mono">
               Error Digest: {error.digest}
             </p>
+          )}
+          {error?.stack && (
+            <pre className="text-left w-full max-w-xl text-[11px] font-mono bg-muted p-3 rounded overflow-auto max-h-48 text-muted-foreground whitespace-pre-wrap">
+              {error.stack}
+            </pre>
           )}
         </div>
         <div className="flex space-x-4 pt-4">

@@ -26,17 +26,32 @@ async def get_customer_ledger(
     customer_id: str,
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    page: Optional[int] = Query(None, ge=1),
+    page_size: Optional[int] = Query(None, ge=1, le=100),
+    size: Optional[int] = Query(None, ge=1, le=100),
+    all_transactions: Optional[bool] = Query(False, alias="all"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("customer.view")),
 ):
-    """Retrieve complete financial statement / ledger for a customer."""
+    """Retrieve financial statement / ledger for a customer with server-side pagination."""
+    eff_page = page
+    eff_size = page_size or size
+    if not all_transactions and eff_page is None and eff_size is None:
+        eff_page = 1
+        eff_size = 25
+
     ledger_data = await customer_service.get_customer_ledger(
-        db, customer_id, start_date=start_date, end_date=end_date
+        db,
+        customer_id,
+        start_date=start_date,
+        end_date=end_date,
+        page=eff_page,
+        page_size=eff_size,
     )
     return ResponseModel[CustomerLedgerResponse](
         success=True,
         message="Customer ledger retrieved successfully",
-        data=ledger_data,
+        data=CustomerLedgerResponse.model_validate(ledger_data),
     )
 
 

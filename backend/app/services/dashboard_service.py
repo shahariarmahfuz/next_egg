@@ -3,7 +3,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Customer, Expense, Product, Purchase, Sale, Supplier, User
+from app.models import Customer, Expense, Product, Purchase, Sale, Supplier, User, SupplierOtherTransaction
 from app.schemas.dashboard import (
     DashboardCardsSummary,
     LowStockProductItem,
@@ -168,6 +168,12 @@ class DashboardService:
             .group_by(BalanceAdjustment.entity_id)
             .subquery()
         )
+        q_supp_after_oths = (
+            select(SupplierOtherTransaction.supplier_id, func.coalesce(func.sum(SupplierOtherTransaction.amount), 0.0).label("total_other"))
+            .where(SupplierOtherTransaction.transaction_date > end_date, SupplierOtherTransaction.transaction_type == "other_payable")
+            .group_by(SupplierOtherTransaction.supplier_id)
+            .subquery()
+        )
 
         supp_bal_expr = (
             Supplier.current_balance
@@ -175,6 +181,7 @@ class DashboardService:
             + func.coalesce(q_supp_after_pays.c.total_paid, 0.0)
             + func.coalesce(q_supp_after_rets.c.net_returned, 0.0)
             - func.coalesce(q_supp_after_adjs.c.total_adj, 0.0)
+            - func.coalesce(q_supp_after_oths.c.total_other, 0.0)
         )
 
         q_supplier_due = (
@@ -183,6 +190,7 @@ class DashboardService:
             .outerjoin(q_supp_after_pays, Supplier.id == q_supp_after_pays.c.supplier_id)
             .outerjoin(q_supp_after_rets, Supplier.id == q_supp_after_rets.c.supplier_id)
             .outerjoin(q_supp_after_adjs, Supplier.id == q_supp_after_adjs.c.supplier_id)
+            .outerjoin(q_supp_after_oths, Supplier.id == q_supp_after_oths.c.supplier_id)
         )
         res_supplier_due = await db.execute(q_supplier_due)
         supplier_due = round(float(res_supplier_due.scalar() or 0.0), 2)

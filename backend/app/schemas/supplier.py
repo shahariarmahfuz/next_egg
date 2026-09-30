@@ -59,6 +59,7 @@ class SupplierLedgerTransaction(BaseModel):
 class SupplierLedgerSummary(BaseModel):
     opening_balance: float
     total_purchases: float
+    total_other_payables: float = 0.0
     total_payments: float
     total_returns: float
     manual_adjustments: float
@@ -69,4 +70,8 @@ class SupplierLedgerResponse(BaseModel):
     supplier: SupplierResponse
     summary: SupplierLedgerSummary
     transactions: list[SupplierLedgerTransaction]
+    total: int = Field(ge=0, default=0, description="Total transaction count in filtered ledger")
+    page: int = Field(ge=1, default=1, description="Current page number")
+    page_size: int = Field(ge=1, default=25, description="Page size limit")
+    pages: int = Field(ge=0, default=0, description="Total available pages")
 

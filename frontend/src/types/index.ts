@@ -17,6 +17,7 @@ export * from "./sale";
 export * from "./sale_return";
 export * from "./supplier";
 export * from "./supplier_payment";
+export * from "./supplier_other_transaction";
 export * from "./user";
 
 export interface CustomerFinancialSummary {

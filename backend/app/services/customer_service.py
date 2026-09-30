@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import math
 from typing import Optional, Sequence
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -143,6 +144,8 @@ class CustomerService:
         customer_id: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
     ) -> dict:
         customer = await customer_repository.get_by_id(db, id=customer_id)
         if not customer:
@@ -324,10 +327,31 @@ class CustomerService:
             "current_due": round(customer.current_balance, 2),
         }
 
+        total = len(calculated_events)
+        if page is not None or page_size is not None:
+            p = max(1, page or 1)
+            ps = max(1, min(100, page_size or 25))
+            pages = math.ceil(total / ps) if total > 0 else 0
+            start_idx = (p - 1) * ps
+            end_idx = start_idx + ps
+            paginated_events = calculated_events[start_idx:end_idx]
+            ret_page = p
+            ret_page_size = ps
+            ret_pages = pages
+        else:
+            paginated_events = calculated_events
+            ret_page = 1
+            ret_page_size = total if total > 0 else 25
+            ret_pages = 1 if total > 0 else 0
+
         return {
             "customer": customer,
             "summary": summary,
-            "transactions": calculated_events,
+            "transactions": paginated_events,
+            "total": total,
+            "page": ret_page,
+            "page_size": ret_page_size,
+            "pages": ret_pages,
         }
 
 

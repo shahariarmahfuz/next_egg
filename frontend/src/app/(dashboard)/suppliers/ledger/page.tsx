@@ -14,6 +14,8 @@ import {
   Phone,
   MapPin,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   supplierService,
@@ -60,6 +62,10 @@ export default function SupplierLedgerPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   // Modal States
   const [selectedViewPurchase, setSelectedViewPurchase] = useState<PurchaseItem | null>(null);
   const [selectedViewPayment, setSelectedViewPayment] = useState<SupplierPaymentItem | null>(null);
@@ -87,18 +93,22 @@ export default function SupplierLedgerPage() {
   };
 
   // Fetch Supplier Ledger Data from Backend Service
-  const { data: ledgerDataRes, isLoading: isLedgerLoading } = useQuery({
-    queryKey: ["supplier-ledger", selectedSupplier?.id, startDate, endDate],
+  const { data: ledgerDataRes, isLoading: isLedgerLoading, isFetching } = useQuery({
+    queryKey: ["supplier-ledger", selectedSupplier?.id, startDate, endDate, page, pageSize],
     queryFn: () =>
       supplierService.getSupplierLedger(selectedSupplier!.id, {
         start_date: getIsoDate(startDate),
         end_date: getIsoDate(endDate, true),
+        page,
+        page_size: pageSize,
       }),
     enabled: !!selectedSupplier?.id,
   });
 
   const ledgerData = ledgerDataRes?.data;
   const transactions: SupplierLedgerTransaction[] = ledgerData?.transactions || [];
+  const totalItems = typeof ledgerData?.total === "number" ? ledgerData.total : transactions.length;
+  const totalPages = Math.max(1, ledgerData?.pages || Math.ceil(totalItems / pageSize) || 1);
   const summary = ledgerData?.summary || {
     opening_balance: selectedSupplier?.opening_balance || 0,
     total_purchases: 0,
@@ -160,22 +170,41 @@ export default function SupplierLedgerPage() {
       setStartDate(firstDay.toISOString().split("T")[0]);
       setEndDate(today.toISOString().split("T")[0]);
     }
+    setPage(1);
   };
 
   const { printDocument, isPrinting, registerPrintHandler } = usePrint();
 
-  // Printable Statement using dedicated report layout
+  // Printable Statement using dedicated report layout (fetches complete unpaginated ledger)
   const handlePrintStatement = async () => {
     if (!selectedSupplier) return;
-    await printDocument(
-      <PrintableSupplierStatement
-        supplier={selectedSupplier}
-        summary={summary}
-        transactions={transactions}
-        startDate={startDate}
-        endDate={endDate}
-      />
-    );
+    try {
+      const fullRes = await supplierService.getSupplierLedger(selectedSupplier.id, {
+        start_date: getIsoDate(startDate),
+        end_date: getIsoDate(endDate, true),
+        all: true,
+      });
+      const printTxs = fullRes.data?.transactions || transactions;
+      await printDocument(
+        <PrintableSupplierStatement
+          supplier={selectedSupplier}
+          summary={summary}
+          transactions={printTxs}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      );
+    } catch {
+      await printDocument(
+        <PrintableSupplierStatement
+          supplier={selectedSupplier}
+          summary={summary}
+          transactions={transactions}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      );
+    }
   };
 
   useEffect(() => {
@@ -274,6 +303,7 @@ export default function SupplierLedgerPage() {
                                 setSelectedSupplier(supp);
                                 setOpenSupplierPopover(false);
                                 setSupplierSearch("");
+                                setPage(1);
                               }}
                               className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs"
                             >
@@ -346,7 +376,10 @@ export default function SupplierLedgerPage() {
                     <Input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setPage(1);
+                      }}
                       className="h-8 text-xs w-36 bg-background/50"
                     />
                   </div>
@@ -356,7 +389,10 @@ export default function SupplierLedgerPage() {
                     <Input
                       type="date"
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setPage(1);
+                      }}
                       className="h-8 text-xs w-36 bg-background/50"
                     />
                   </div>
@@ -481,12 +517,31 @@ export default function SupplierLedgerPage() {
 
             {/* 4. Complete Transaction History Table */}
             <Card className="glass-card overflow-hidden">
-              <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" /> Chronological Transaction History ({transactions.length} entries)
-                  </span>
+              <CardHeader className="pb-3 border-b flex flex-row items-center justify-between gap-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" /> Chronological Transaction History ({totalItems} entries)
+                  {isFetching && !isLedgerLoading && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-1" />
+                  )}
                 </CardTitle>
+
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground hidden sm:inline">Rows per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto w-full">
                 <table className="w-full text-left text-xs">
@@ -523,65 +578,105 @@ export default function SupplierLedgerPage() {
                         </td>
                       </tr>
                     ) : (
-                      transactions.map((tx, idx) => (
-                        <tr key={tx.id || idx} className="hover:bg-accent/40 transition-colors h-10">
-                          <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">
-                            {idx + 1}
-                          </td>
-                          <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">
-                            {formatDate(tx.date)}
-                          </td>
-                          <td className="px-3 py-2 align-middle font-medium whitespace-nowrap">
-                            {tx.reference_id ? (
-                              <button
-                                type="button"
-                                onClick={() => handleVoucherClick(tx)}
-                                className="text-primary hover:underline font-bold text-left cursor-pointer flex items-center gap-1 group"
-                                title={`Click to view ${tx.type} details`}
+                      transactions.map((tx, idx) => {
+                        const serialNumber = (page - 1) * pageSize + idx + 1;
+                        return (
+                          <tr key={tx.id || idx} className="hover:bg-accent/40 transition-colors h-10">
+                            <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">
+                              {serialNumber}
+                            </td>
+                            <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">
+                              {formatDate(tx.date)}
+                            </td>
+                            <td className="px-3 py-2 align-middle font-medium whitespace-nowrap">
+                              {tx.reference_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleVoucherClick(tx)}
+                                  className="text-primary hover:underline font-bold text-left cursor-pointer flex items-center gap-1 group"
+                                  title={`Click to view ${tx.type} details`}
+                                >
+                                  <span>{tx.voucher_no}</span>
+                                  <ExternalLink className="h-3 w-3 opacity-70 group-hover:opacity-100" />
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground">{tx.voucher_no}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 align-middle whitespace-nowrap">
+                              <Badge
+                                variant={
+                                  tx.type === "Purchase"
+                                    ? "default"
+                                    : tx.type === "Supplier Payment"
+                                    ? "success"
+                                    : tx.type === "Purchase Return"
+                                    ? "secondary"
+                                    : tx.type === "Opening Balance"
+                                    ? "outline"
+                                    : "warning"
+                                }
+                                className="text-[10px] py-0 px-2 h-5 font-semibold"
                               >
-                                <span>{tx.voucher_no}</span>
-                                <ExternalLink className="h-3 w-3 opacity-70 group-hover:opacity-100" />
-                              </button>
-                            ) : (
-                              <span className="text-muted-foreground">{tx.voucher_no}</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 align-middle whitespace-nowrap">
-                            <Badge
-                              variant={
-                                tx.type === "Purchase"
-                                  ? "default"
-                                  : tx.type === "Supplier Payment"
-                                  ? "success"
-                                  : tx.type === "Purchase Return"
-                                  ? "secondary"
-                                  : tx.type === "Opening Balance"
-                                  ? "outline"
-                                  : "warning"
-                              }
-                              className="text-[10px] py-0 px-2 h-5 font-semibold"
-                            >
-                              {tx.type}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2 align-middle text-foreground max-w-[280px] truncate" title={tx.description}>
-                            {tx.description}
-                          </td>
-                          <td className="px-3 py-2 align-middle text-right font-medium text-emerald-600 whitespace-nowrap">
-                            {tx.debit > 0 ? formatCurrency(tx.debit) : "-"}
-                          </td>
-                          <td className="px-3 py-2 align-middle text-right font-medium text-purple-600 whitespace-nowrap">
-                            {tx.credit > 0 ? formatCurrency(tx.credit) : "-"}
-                          </td>
-                          <td className="px-3 py-2 align-middle text-right font-bold text-foreground whitespace-nowrap">
-                            {formatCurrency(tx.running_balance)}
-                          </td>
-                        </tr>
-                      ))
+                                {tx.type}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2 align-middle text-foreground max-w-[280px] truncate" title={tx.description}>
+                              {tx.description}
+                            </td>
+                            <td className="px-3 py-2 align-middle text-right font-medium text-emerald-600 whitespace-nowrap">
+                              {tx.debit > 0 ? formatCurrency(tx.debit) : "-"}
+                            </td>
+                            <td className="px-3 py-2 align-middle text-right font-medium text-purple-600 whitespace-nowrap">
+                              {tx.credit > 0 ? formatCurrency(tx.credit) : "-"}
+                            </td>
+                            <td className="px-3 py-2 align-middle text-right font-bold text-foreground whitespace-nowrap">
+                              {formatCurrency(tx.running_balance)}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </CardContent>
+
+              {/* Pagination Controls */}
+              {totalItems > 0 && (
+                <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-muted/10">
+                  <div className="text-muted-foreground text-center sm:text-left">
+                    Showing <span className="font-semibold text-foreground">{(page - 1) * pageSize + 1}</span>–
+                    <span className="font-semibold text-foreground">{Math.min(page * pageSize, totalItems)}</span> of{" "}
+                    <span className="font-semibold text-foreground">{totalItems}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className="h-8 px-2.5 text-xs"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Previous
+                    </Button>
+
+                    <span className="text-xs font-medium px-2.5 py-1 bg-background border rounded-md">
+                      Page {page} of {totalPages || 1}
+                    </span>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className="h-8 px-2.5 text-xs"
+                    >
+                      Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Modals */}

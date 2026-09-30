@@ -60,5 +60,9 @@ export interface SupplierLedgerResponse {
   supplier: SupplierItem;
   summary: SupplierLedgerSummary;
   transactions: SupplierLedgerTransaction[];
+  total?: number;
+  page?: number;
+  page_size?: number;
+  pages?: number;
 }
 

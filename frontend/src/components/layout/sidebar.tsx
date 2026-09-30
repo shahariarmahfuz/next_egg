@@ -35,6 +35,7 @@ import {
   Sprout,
   Landmark,
   ArrowUpRight,
+  ArrowDownLeft,
   Banknote,
   FileText,
   ClipboardList,
@@ -855,6 +856,26 @@ export function SidebarContent({
               activeColorClass={amberActive}
               label="Supplier Due List"
               isActive={pathname === "/suppliers/dues"}
+              onNavigate={onNavigate}
+            />
+            {hasPermission("supplier.create") && (
+              <SubNavItem
+                href="/suppliers/other-transaction"
+                icon={ArrowDownLeft}
+                iconColor="text-blue-500 dark:text-blue-400"
+                activeColorClass={blueActive}
+                label="Other Transaction"
+                isActive={pathname === "/suppliers/other-transaction"}
+                onNavigate={onNavigate}
+              />
+            )}
+            <SubNavItem
+              href="/suppliers/other-transaction/manage"
+              icon={ClipboardList}
+              iconColor="text-blue-500 dark:text-blue-400"
+              activeColorClass={blueActive}
+              label="Other Transaction Manage"
+              isActive={pathname === "/suppliers/other-transaction/manage"}
               onNavigate={onNavigate}
             />
           </NavGroup>

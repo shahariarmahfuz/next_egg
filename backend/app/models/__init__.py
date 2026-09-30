@@ -15,6 +15,7 @@ from app.models.sale_return import SaleReturn, SaleReturnItem
 from app.models.setting import Setting
 from app.models.supplier import Supplier
 from app.models.supplier_payment import SupplierPayment
+from app.models.supplier_other_transaction import SupplierOtherTransaction
 from app.models.user import User
 from app.models.inventory_batch import InventoryBatch
 from app.models.currency import Currency
@@ -41,6 +42,7 @@ __all__ = [
     "Purchase",
     "PurchaseItem",
     "SupplierPayment",
+    "SupplierOtherTransaction",
     "ProductReturn",
     "ProductReturnItem",
     "Sale",

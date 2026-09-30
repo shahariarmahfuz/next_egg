@@ -15,6 +15,8 @@ import {
   Phone,
   MapPin,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { collectionService, customerService } from "@/services/api";
 import { CustomerCollectionItem, CustomerItem, CustomerLedgerTransaction } from "@/types";
@@ -48,6 +50,10 @@ export default function CustomerLedgerPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   // Collection View Modal State
   const [selectedViewCollection, setSelectedViewCollection] = useState<CustomerCollectionItem | null>(null);
 
@@ -73,18 +79,22 @@ export default function CustomerLedgerPage() {
   };
 
   // Fetch Customer Ledger Data from Backend Service
-  const { data: ledgerDataRes, isLoading: isLedgerLoading } = useQuery({
-    queryKey: ["customer-ledger", selectedCustomer?.id, startDate, endDate],
+  const { data: ledgerDataRes, isLoading: isLedgerLoading, isFetching } = useQuery({
+    queryKey: ["customer-ledger", selectedCustomer?.id, startDate, endDate, page, pageSize],
     queryFn: () =>
       customerService.getCustomerLedger(selectedCustomer!.id, {
         start_date: getIsoDate(startDate),
         end_date: getIsoDate(endDate, true),
+        page,
+        page_size: pageSize,
       }),
     enabled: !!selectedCustomer?.id,
   });
 
   const ledgerData = ledgerDataRes?.data;
   const transactions: CustomerLedgerTransaction[] = ledgerData?.transactions || [];
+  const totalItems = typeof ledgerData?.total === "number" ? ledgerData.total : transactions.length;
+  const totalPages = Math.max(1, ledgerData?.pages || Math.ceil(totalItems / pageSize) || 1);
   const summary = ledgerData?.summary || {
     opening_balance: selectedCustomer?.opening_balance || 0,
     total_sales: 0,
@@ -130,22 +140,41 @@ export default function CustomerLedgerPage() {
       setStartDate(firstDay.toISOString().split("T")[0]);
       setEndDate(today.toISOString().split("T")[0]);
     }
+    setPage(1);
   };
 
   const { printDocument, isPrinting, registerPrintHandler } = usePrint();
 
-  // Printable Statement using dedicated report layout
+  // Printable Statement using dedicated report layout (fetches complete unpaginated ledger)
   const handlePrintStatement = async () => {
     if (!selectedCustomer) return;
-    await printDocument(
-      <PrintableCustomerStatement
-        customer={selectedCustomer}
-        summary={summary}
-        transactions={transactions}
-        startDate={startDate}
-        endDate={endDate}
-      />
-    );
+    try {
+      const fullRes = await customerService.getCustomerLedger(selectedCustomer.id, {
+        start_date: getIsoDate(startDate),
+        end_date: getIsoDate(endDate, true),
+        all: true,
+      });
+      const printTxs = fullRes.data?.transactions || transactions;
+      await printDocument(
+        <PrintableCustomerStatement
+          customer={selectedCustomer}
+          summary={summary}
+          transactions={printTxs}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      );
+    } catch {
+      await printDocument(
+        <PrintableCustomerStatement
+          customer={selectedCustomer}
+          summary={summary}
+          transactions={transactions}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      );
+    }
   };
 
   useEffect(() => {
@@ -244,6 +273,7 @@ export default function CustomerLedgerPage() {
                                 setSelectedCustomer(cust);
                                 setOpenCustomerPopover(false);
                                 setCustomerSearch("");
+                                setPage(1);
                               }}
                               className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs"
                             >
@@ -316,7 +346,10 @@ export default function CustomerLedgerPage() {
                     <Input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setPage(1);
+                      }}
                       className="h-8 text-xs w-36 bg-background/50"
                     />
                   </div>
@@ -326,7 +359,10 @@ export default function CustomerLedgerPage() {
                     <Input
                       type="date"
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setPage(1);
+                      }}
                       className="h-8 text-xs w-36 bg-background/50"
                     />
                   </div>
@@ -451,12 +487,31 @@ export default function CustomerLedgerPage() {
 
             {/* 4. Complete Transaction History Table */}
             <Card className="glass-card overflow-hidden">
-              <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" /> Chronological Transaction History ({transactions.length} entries)
-                  </span>
+              <CardHeader className="pb-3 border-b flex flex-row items-center justify-between gap-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" /> Chronological Transaction History ({totalItems} entries)
+                  {isFetching && !isLedgerLoading && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-1" />
+                  )}
                 </CardTitle>
+
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground hidden sm:inline">Rows per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto w-full">
                 <table className="w-full text-left text-xs">
@@ -493,11 +548,13 @@ export default function CustomerLedgerPage() {
                         </td>
                       </tr>
                     ) : (
-                      transactions.map((tx, idx) => (
-                        <tr key={tx.id || idx} className="hover:bg-accent/40 transition-colors h-10">
-                          <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">
-                            {idx + 1}
-                          </td>
+                      transactions.map((tx, idx) => {
+                        const serialNumber = (page - 1) * pageSize + idx + 1;
+                        return (
+                          <tr key={tx.id || idx} className="hover:bg-accent/40 transition-colors h-10">
+                            <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">
+                              {serialNumber}
+                            </td>
                           <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap ">
                             {formatDate(tx.date)}
                           </td>
@@ -547,11 +604,49 @@ export default function CustomerLedgerPage() {
                             {formatCurrency(tx.running_balance)}
                           </td>
                         </tr>
-                      ))
-                    )}
+                      );
+                    })
+                  )}
                   </tbody>
                 </table>
               </CardContent>
+
+              {/* Pagination Controls */}
+              {totalItems > 0 && (
+                <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-muted/10">
+                  <div className="text-muted-foreground text-center sm:text-left">
+                    Showing <span className="font-semibold text-foreground">{(page - 1) * pageSize + 1}</span>–
+                    <span className="font-semibold text-foreground">{Math.min(page * pageSize, totalItems)}</span> of{" "}
+                    <span className="font-semibold text-foreground">{totalItems}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className="h-8 px-2.5 text-xs"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Previous
+                    </Button>
+
+                    <span className="text-xs font-medium px-2.5 py-1 bg-background border rounded-md">
+                      Page {page} of {totalPages || 1}
+                    </span>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className="h-8 px-2.5 text-xs"
+                    >
+                      Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Collection View Modal */}

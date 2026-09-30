@@ -75,6 +75,9 @@ import {
   SupplierPaymentItem,
   SupplierPaymentReportSummaryData,
   SupplierPaymentUpdatePayload,
+  SupplierOtherTransactionItem,
+  SupplierOtherTransactionCreatePayload,
+  SupplierOtherTransactionUpdatePayload,
   SupplierUpdatePayload,
   TokenResponseData,
   LoginResponseData,
@@ -277,7 +280,10 @@ export const supplierService = {
     return http.delete<{ id: string; supplier_id?: string }>(`/supplier-balance-adjustments/${adjustmentId}`);
   },
 
-  getSupplierLedger: async (id: string, params?: { start_date?: string; end_date?: string }) => {
+  getSupplierLedger: async (
+    id: string,
+    params?: { start_date?: string; end_date?: string; page?: number; page_size?: number; size?: number; all?: boolean }
+  ) => {
     return http.get<SupplierLedgerResponse>(`/suppliers/${id}/ledger`, params);
   },
 };
@@ -340,7 +346,10 @@ export const customerService = {
     return http.delete<{ id: string; customer_id?: string }>(`/customer-balance-adjustments/${adjustmentId}`);
   },
 
-  getCustomerLedger: async (id: string, params?: { start_date?: string; end_date?: string }) => {
+  getCustomerLedger: async (
+    id: string,
+    params?: { start_date?: string; end_date?: string; page?: number; page_size?: number; size?: number; all?: boolean }
+  ) => {
     return http.get<CustomerLedgerResponse>(`/customers/${id}/ledger`, params);
   },
 };
@@ -634,6 +643,36 @@ export const supplierPaymentService = {
 
   hardDeleteSupplierPayment: async (id: string) => {
     return http.delete<{ id: string }>(`/supplier-payments/${id}/hard-delete`);
+  },
+};
+
+export const supplierOtherTransactionService = {
+  getTransactions: async (params?: {
+    page?: number;
+    size?: number;
+    search?: string;
+    supplier_id?: string;
+    transaction_type?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    return http.get<PaginatedResult<SupplierOtherTransactionItem>>("/supplier-other-transactions", params);
+  },
+
+  getTransactionById: async (id: string) => {
+    return http.get<SupplierOtherTransactionItem>(`/supplier-other-transactions/${id}`);
+  },
+
+  createTransaction: async (payload: SupplierOtherTransactionCreatePayload) => {
+    return http.post<SupplierOtherTransactionItem>("/supplier-other-transactions", payload);
+  },
+
+  updateTransaction: async (id: string, payload: SupplierOtherTransactionUpdatePayload) => {
+    return http.put<SupplierOtherTransactionItem>(`/supplier-other-transactions/${id}`, payload);
+  },
+
+  deleteTransaction: async (id: string) => {
+    return http.delete<{ id: string }>(`/supplier-other-transactions/${id}`);
   },
 };
 

@@ -58,6 +58,10 @@ export interface CustomerLedgerResponse {
   customer: CustomerItem;
   summary: CustomerLedgerSummary;
   transactions: CustomerLedgerTransaction[];
+  total?: number;
+  page?: number;
+  page_size?: number;
+  pages?: number;
 }
 
 export interface CustomerDuesSummary {

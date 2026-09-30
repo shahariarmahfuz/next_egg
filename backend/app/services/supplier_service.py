@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+import math
 import zoneinfo
 from typing import Optional, Sequence
 from sqlalchemy import delete, select
@@ -14,6 +15,7 @@ from app.models.purchase import Purchase, PurchaseItem
 from app.models.supplier_payment import SupplierPayment
 from app.models.product_return import ProductReturn, ProductReturnItem
 from app.models.balance_adjustment import BalanceAdjustment
+from app.models.supplier_other_transaction import SupplierOtherTransaction
 from app.repositories.supplier_repository import supplier_repository
 from app.schemas.supplier import SupplierCreate, SupplierUpdate
 from app.services.setting_service import setting_service
@@ -140,6 +142,9 @@ class SupplierService:
             )
         )
 
+        # 5. Delete SupplierOtherTransactions
+        await db.execute(delete(SupplierOtherTransaction).where(SupplierOtherTransaction.supplier_id == supplier_id))
+
         await db.delete(supplier)
         await db.commit()
         return True
@@ -150,6 +155,8 @@ class SupplierService:
         supplier_id: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
     ) -> dict:
         supplier = await supplier_repository.get_by_id(db, id=supplier_id)
         if not supplier:
@@ -185,6 +192,18 @@ class SupplierService:
             adjustments = adjs_res.scalars().all()
         except Exception:
             adjustments = []
+
+        # 5. Fetch Supplier Other Transactions
+        other_txs = []
+        try:
+            other_txs_res = await db.execute(
+                select(SupplierOtherTransaction).where(
+                    SupplierOtherTransaction.supplier_id == supplier_id
+                ).order_by(SupplierOtherTransaction.transaction_date.asc())
+            )
+            other_txs = other_txs_res.scalars().all()
+        except Exception:
+            other_txs = []
 
         # Determine business timezone and centralized reconciliation baseline
         try:
@@ -296,7 +315,24 @@ class SupplierService:
                 "reference_type": "balance_adjustment",
             })
 
-        # 5. Opening Balance event:
+        # 5. Other Transaction events (Other Payable increases supplier debt)
+        for ot in other_txs:
+            debit_amt = ot.amount if ot.transaction_type == "other_payable" else 0.0
+            credit_amt = ot.amount if ot.transaction_type != "other_payable" else 0.0
+            operational_events.append({
+                "id": f"sot-{ot.id}",
+                "date": ot.transaction_date,
+                "created_at": ot.created_at,
+                "voucher_no": ot.voucher_no,
+                "type": "Other Payable",
+                "description": f"Other Payable{f' (Ref: {ot.reference_no})' if ot.reference_no else ''}{f' - {ot.notes}' if ot.notes else ''}",
+                "debit": debit_amt,
+                "credit": credit_amt,
+                "reference_id": ot.id,
+                "reference_type": "supplier_other_transaction",
+            })
+
+        # 6. Opening Balance event:
         # Opening Balance must appear at the true beginning of the ledger.
         # Its date must be chronologically valid (at or before earliest transaction).
         supp_created_utc = _to_utc(supplier.created_at)
@@ -329,7 +365,7 @@ class SupplierService:
 
         # Deterministic multi-tier sort:
         # 1. Transaction date/time ASC
-        # 2. Type order (Opening Balance: 0, Purchase: 1, Payment: 2, Return: 3, Adjustment: 4)
+        # 2. Type order (Opening Balance: 0, Purchase: 1, Other Payable: 2, Payment: 3, Return: 4, Adjustment: 5)
         # 3. created_at ASC
         # 4. voucher_no ASC
         # 5. reference_id ASC
@@ -338,10 +374,11 @@ class SupplierService:
             type_order = {
                 "Opening Balance": 0,
                 "Purchase": 1,
-                "Supplier Payment": 2,
-                "Purchase Return": 3,
-                "Balance Adjustment": 4,
-            }.get(x["type"], 5)
+                "Other Payable": 2,
+                "Supplier Payment": 3,
+                "Purchase Return": 4,
+                "Balance Adjustment": 5,
+            }.get(x["type"], 6)
             c = _to_utc(x.get("created_at")) or d
             v = x.get("voucher_no") or ""
             ref = str(x.get("reference_id") or "")
@@ -364,6 +401,7 @@ class SupplierService:
         calculated_events = []
 
         total_purchases = 0.0
+        total_other_payables = 0.0
         total_payments = 0.0
         total_returns = 0.0
         manual_adjustments = 0.0
@@ -378,6 +416,8 @@ class SupplierService:
 
             if ev["type"] == "Purchase":
                 total_purchases += ev["debit"]
+            elif ev["type"] == "Other Payable":
+                total_other_payables += ev["debit"]
             elif ev["type"] == "Supplier Payment":
                 total_payments += ev["credit"]
             elif ev["type"] == "Purchase Return":
@@ -398,16 +438,38 @@ class SupplierService:
         summary = {
             "opening_balance": effective_op_balance,
             "total_purchases": round(total_purchases, 2),
+            "total_other_payables": round(total_other_payables, 2),
             "total_payments": round(total_payments, 2),
             "total_returns": round(total_returns, 2),
             "manual_adjustments": round(manual_adjustments, 2),
             "current_due": round(supplier.current_balance, 2),
         }
 
+        total = len(calculated_events)
+        if page is not None or page_size is not None:
+            p = max(1, page or 1)
+            ps = max(1, min(100, page_size or 25))
+            pages = math.ceil(total / ps) if total > 0 else 0
+            start_idx = (p - 1) * ps
+            end_idx = start_idx + ps
+            paginated_events = calculated_events[start_idx:end_idx]
+            ret_page = p
+            ret_page_size = ps
+            ret_pages = pages
+        else:
+            paginated_events = calculated_events
+            ret_page = 1
+            ret_page_size = total if total > 0 else 25
+            ret_pages = 1 if total > 0 else 0
+
         return {
             "supplier": supplier,
             "summary": summary,
-            "transactions": calculated_events,
+            "transactions": paginated_events,
+            "total": total,
+            "page": ret_page,
+            "page_size": ret_page_size,
+            "pages": ret_pages,
         }
 
 

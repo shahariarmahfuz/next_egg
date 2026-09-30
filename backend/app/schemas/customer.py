@@ -75,6 +75,10 @@ class CustomerLedgerResponse(BaseModel):
     customer: CustomerResponse
     summary: CustomerLedgerSummary
     transactions: list[CustomerLedgerTransaction]
+    total: int = Field(ge=0, default=0, description="Total transaction count in filtered ledger")
+    page: int = Field(ge=1, default=1, description="Current page number")
+    page_size: int = Field(ge=1, default=25, description="Page size limit")
+    pages: int = Field(ge=0, default=0, description="Total available pages")
 
 
 class CustomerDuesSummary(BaseModel):

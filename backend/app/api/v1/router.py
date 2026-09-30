@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     sales,
     settings,
     supplier_payments,
+    supplier_other_transactions,
     suppliers,
     users,
     profile,
@@ -53,6 +54,7 @@ api_router.include_router(customer_collections.router)
 api_router.include_router(sale_returns.router)
 api_router.include_router(product_returns.router)
 api_router.include_router(supplier_payments.router)
+api_router.include_router(supplier_other_transactions.router)
 api_router.include_router(balance_adjustments.router)
 api_router.include_router(expense.router)
 api_router.include_router(currencies.router)

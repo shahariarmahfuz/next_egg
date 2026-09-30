@@ -29,6 +29,8 @@ cd "$DIR/frontend"
 fuser -k 3000/tcp 2>/dev/null || true
 cp -r "$DIR/frontend/public" "$DIR/frontend/.next/standalone/" 2>/dev/null || true
 cp -r "$DIR/frontend/.next/static" "$DIR/frontend/.next/standalone/.next/" 2>/dev/null || true
+export SERVER_API_URL="http://127.0.0.1:8000/api/v1"
+export NEXT_PUBLIC_API_URL="/api/v1"
 PORT=3000 HOSTNAME=0.0.0.0 node "$DIR/frontend/.next/standalone/server.js" > "$DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 echo "Frontend PID: $FRONTEND_PID"
@@ -43,4 +45,4 @@ for i in {1..30}; do
 done
 
 echo "=== 3. Starting Cloudflare Quick Tunnel for Frontend (http://127.0.0.1:3000) ==="
-cloudflared tunnel --url http://127.0.0.1:3000
+cloudflared tunnel --url http://127.0.0.1:3000 2>&1 | tee "$DIR/tunnel.log"
