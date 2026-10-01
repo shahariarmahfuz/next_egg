@@ -26,6 +26,9 @@ export const PrintableCashBookStatement = React.forwardRef<
   const businessName =
     (settings.business_name || summary.company_name || "AKOTA POULTRY").toUpperCase();
 
+  const websiteName =
+    settings.website || settings.business_name || summary.company_name || "";
+
   const currencySymbol =
     settings.currency?.symbol || summary.currency_symbol || "৳";
 
@@ -302,6 +305,11 @@ export const PrintableCashBookStatement = React.forwardRef<
                 page-break-inside: avoid;
                 break-inside: avoid;
               }
+              .watermark-text {
+                color: rgba(0, 0, 0, 0.03) !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
             }
 
             * { box-sizing: border-box; }
@@ -339,14 +347,16 @@ export const PrintableCashBookStatement = React.forwardRef<
             .watermark-text {
               transform: rotate(-30deg);
               font-size: 16px;
-              font-weight: 800;
-              color: rgba(0, 0, 0, 0.025);
+              font-weight: 700;
+              color: rgba(0, 0, 0, 0.03) !important;
               text-transform: uppercase;
               letter-spacing: 2px;
               white-space: nowrap;
               margin: 0 !important;
               padding: 0 !important;
               line-height: 1;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
           `,
         }}
@@ -399,9 +409,8 @@ export const PrintableCashBookStatement = React.forwardRef<
                 <div>
                   <span className="text-gray-500">Date:</span> <strong>{sheetDate}</strong>
                 </div>
-                <div className="text-center">
-                  <span className="text-gray-500">Opening B/F:</span>{" "}
-                  <strong className="tabular">{currencySymbol} {formatNumber(summary.previous_balance || 0)}</strong>
+                <div className="text-center truncate">
+                  <strong>{websiteName}</strong>
                 </div>
                 <div className="text-right">
                   <span className="text-gray-500">Sheet:</span> <strong>{sheetNum}</strong>
@@ -415,7 +424,7 @@ export const PrintableCashBookStatement = React.forwardRef<
                 <div className="font-bold uppercase text-[7.8px] text-gray-800 mb-0.5">
                   1. CASH SALES & COLLECTION
                 </div>
-                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-transparent">
+                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-white">
                   <thead>
                     <tr className="bg-gray-100 border-b hairline text-[7.2px] text-gray-700 font-bold">
                       <th className="px-1 py-[2.5px] text-center w-3">#</th>
@@ -429,11 +438,11 @@ export const PrintableCashBookStatement = React.forwardRef<
                   <tbody className="divide-y hairline-light">
                     {cashInflowRows.map((row, idx) => (
                       <tr key={row.id}>
-                        <td className="px-1 py-[2px] text-center text-gray-400">{idx + 1}</td>
+                        <td className="px-1 py-[2px] text-center text-gray-500 font-medium">{idx + 1}</td>
                         <td className="px-1.5 py-[2px] font-medium text-gray-900">{row.customerName}</td>
                         <td className="px-1.5 py-[2px] text-gray-700">{row.productName}</td>
-                        <td className="px-1 py-[2px] text-center tabular font-medium">{row.unitQty}</td>
-                        <td className="px-1 py-[2px] text-right tabular text-gray-500">{row.rate}</td>
+                        <td className="px-1 py-[2px] text-center tabular font-medium text-gray-900">{row.unitQty}</td>
+                        <td className="px-1 py-[2px] text-right tabular text-gray-700">{row.rate}</td>
                         <td className="px-1.5 py-[2px] text-right tabular font-bold text-gray-900">
                           {formatNumber(row.amount)}
                         </td>
@@ -449,8 +458,8 @@ export const PrintableCashBookStatement = React.forwardRef<
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
-                      <td colSpan={5} className="px-1.5 py-[2.5px] text-right">Total Cash Collection:</td>
-                      <td className="px-1.5 py-[2.5px] text-right tabular text-emerald-700">
+                      <td colSpan={5} className="px-1.5 py-[2.5px] text-right text-gray-800">Total Cash Collection:</td>
+                      <td className="px-1.5 py-[2.5px] text-right tabular font-bold text-gray-900">
                         {currencySymbol} {formatNumber(totalCashCollection)}
                       </td>
                     </tr>
@@ -465,7 +474,7 @@ export const PrintableCashBookStatement = React.forwardRef<
                 <div className="font-bold uppercase text-[7.8px] text-gray-800 mb-0.5">
                   2. DUE SALES (CREDIT)
                 </div>
-                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-transparent">
+                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-white">
                   <thead>
                     <tr className="bg-gray-100 border-b hairline text-[7.2px] text-gray-700 font-bold">
                       <th className="px-1 py-[2.5px] text-center w-3">#</th>
@@ -479,12 +488,12 @@ export const PrintableCashBookStatement = React.forwardRef<
                   <tbody className="divide-y hairline-light">
                     {dueSaleRows.map((row, idx) => (
                       <tr key={row.id}>
-                        <td className="px-1 py-[2px] text-center text-gray-400">{idx + 1}</td>
-                        <td className="px-1.5 py-[2px] font-medium">{row.customerName}</td>
-                        <td className="px-1.5 py-[2px] text-gray-600">{row.productName}</td>
-                        <td className="px-1 py-[2px] text-center tabular">{row.unitQty}</td>
-                        <td className="px-1 py-[2px] text-right tabular text-gray-500">{row.rate}</td>
-                        <td className="px-1.5 py-[2px] text-right tabular font-semibold">
+                        <td className="px-1 py-[2px] text-center text-gray-500 font-medium">{idx + 1}</td>
+                        <td className="px-1.5 py-[2px] font-medium text-gray-900">{row.customerName}</td>
+                        <td className="px-1.5 py-[2px] text-gray-700">{row.productName}</td>
+                        <td className="px-1 py-[2px] text-center tabular text-gray-900">{row.unitQty}</td>
+                        <td className="px-1 py-[2px] text-right tabular text-gray-700">{row.rate}</td>
+                        <td className="px-1.5 py-[2px] text-right tabular font-semibold text-gray-900">
                           {formatNumber(row.dueAmount)}
                         </td>
                       </tr>
@@ -499,8 +508,8 @@ export const PrintableCashBookStatement = React.forwardRef<
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
-                      <td colSpan={5} className="px-1.5 py-[2.5px] text-right">Total Due Sales:</td>
-                      <td className="px-1.5 py-[2.5px] text-right tabular text-rose-700">
+                      <td colSpan={5} className="px-1.5 py-[2.5px] text-right text-gray-800">Total Due Sales:</td>
+                      <td className="px-1.5 py-[2.5px] text-right tabular font-bold text-gray-900">
                         {currencySymbol} {formatNumber(totalDueSales)}
                       </td>
                     </tr>
@@ -515,7 +524,7 @@ export const PrintableCashBookStatement = React.forwardRef<
                 <div className="font-bold uppercase text-[7.8px] text-gray-800 mb-0.5">
                   3. DAILY EXPENSES
                 </div>
-                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-transparent">
+                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-white">
                   <thead>
                     <tr className="bg-gray-100 border-b hairline text-[7.2px] text-gray-700 font-bold">
                       <th className="px-1 py-[2.5px] text-center w-3">#</th>
@@ -527,10 +536,10 @@ export const PrintableCashBookStatement = React.forwardRef<
                   <tbody className="divide-y hairline-light">
                     {expenseRows.map((row, idx) => (
                       <tr key={row.id}>
-                        <td className="px-1 py-[2px] text-center text-gray-400">{idx + 1}</td>
-                        <td className="px-1.5 py-[2px] font-medium">{row.description}</td>
-                        <td className="px-1.5 py-[2px] text-gray-500">{row.type}</td>
-                        <td className="px-1.5 py-[2px] text-right tabular font-semibold text-rose-700">
+                        <td className="px-1 py-[2px] text-center text-gray-500 font-medium">{idx + 1}</td>
+                        <td className="px-1.5 py-[2px] font-medium text-gray-900">{row.description}</td>
+                        <td className="px-1.5 py-[2px] text-gray-700 font-medium">{row.type}</td>
+                        <td className="px-1.5 py-[2px] text-right tabular font-semibold text-gray-900">
                           {formatNumber(row.amount)}
                         </td>
                       </tr>
@@ -545,8 +554,8 @@ export const PrintableCashBookStatement = React.forwardRef<
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
-                      <td colSpan={3} className="px-1.5 py-[2.5px] text-right">Total Expense:</td>
-                      <td className="px-1.5 py-[2.5px] text-right tabular text-rose-700">
+                      <td colSpan={3} className="px-1.5 py-[2.5px] text-right text-gray-800">Total Expense:</td>
+                      <td className="px-1.5 py-[2.5px] text-right tabular font-bold text-gray-900">
                         {currencySymbol} {formatNumber(totalExpense)}
                       </td>
                     </tr>
@@ -557,9 +566,9 @@ export const PrintableCashBookStatement = React.forwardRef<
               {/* =======================================================
                    4 & 5: SIDE BY SIDE SUMMARY (SUPPLIER & CASH OUT)
                    ======================================================= */}
-              <div className="grid grid-cols-2 gap-1.5 items-stretch mb-1.5 no-break">
+              <div className="flex gap-1.5 items-stretch mb-1.5 no-break">
                 {/* 4. SUPPLIER SUMMARY */}
-                <section className="border hairline bg-white/90 flex flex-col justify-between">
+                <section className="w-[38%] shrink-0 border hairline bg-white flex flex-col justify-between">
                   <div>
                     <div className="border-b hairline bg-gray-100 px-1.5 py-[2px] flex justify-between items-center">
                       <span className="text-[7.2px] font-bold uppercase text-gray-700 truncate">
@@ -568,14 +577,14 @@ export const PrintableCashBookStatement = React.forwardRef<
                     </div>
                     <div className="p-1.5 space-y-0.5 text-[7.8px]">
                       <div className="flex justify-between items-center py-[1px] border-b hairline-light">
-                        <span className="text-gray-500">Prev. Due</span>
-                        <strong className="tabular">
+                        <span className="text-gray-700 font-medium">Prev. Due</span>
+                        <strong className="tabular text-gray-900">
                           {currencySymbol} {formatNumber(dayAccount.previous_due)}
                         </strong>
                       </div>
                       <div className="flex justify-between items-center py-[1px] border-b hairline-light">
-                        <span className="text-gray-500">(+) Purchase</span>
-                        <strong className="tabular">
+                        <span className="text-gray-700 font-medium">(+) Purchase</span>
+                        <strong className="tabular text-gray-900">
                           {dayAccount.purchase_amount > 0 ? (
                             `${currencySymbol} ${formatNumber(dayAccount.purchase_amount)}`
                           ) : (
@@ -584,54 +593,54 @@ export const PrintableCashBookStatement = React.forwardRef<
                         </strong>
                       </div>
                       <div className="flex justify-between items-center py-[1px] border-b hairline-light">
-                        <span className="text-gray-500">(-) Return</span>
-                        <strong className={`tabular ${dayAccount.return_amount > 0 ? "text-rose-700" : "text-gray-400 font-normal"}`}>
+                        <span className="text-gray-700 font-medium">(-) Return</span>
+                        <strong className={`tabular ${dayAccount.return_amount > 0 ? "text-gray-900 font-semibold" : "text-gray-400 font-normal"}`}>
                           {dayAccount.return_amount > 0 ? `- ${currencySymbol} ${formatNumber(dayAccount.return_amount)}` : "-"}
                         </strong>
                       </div>
                       <div className="flex justify-between items-center py-[1px]">
-                        <span className="text-gray-500">(-) Payment</span>
-                        <strong className={`tabular ${dayAccount.payment_amount > 0 ? "text-emerald-700" : "text-gray-400 font-normal"}`}>
+                        <span className="text-gray-700 font-medium">(-) Payment</span>
+                        <strong className={`tabular ${dayAccount.payment_amount > 0 ? "text-gray-900 font-semibold" : "text-gray-400 font-normal"}`}>
                           {dayAccount.payment_amount > 0 ? `- ${currencySymbol} ${formatNumber(dayAccount.payment_amount)}` : "-"}
                         </strong>
                       </div>
                     </div>
                   </div>
                   <div className="px-1.5 py-[2.5px] bg-gray-50 border-t hairline flex justify-between items-center font-bold text-[7.8px]">
-                    <span>Closing Due</span>
-                    <strong className="tabular text-black">
+                    <span className="text-gray-800">Closing Due</span>
+                    <strong className="tabular text-gray-950 font-bold">
                       {currencySymbol} {formatNumber(dayAccount.closing_due)}
                     </strong>
                   </div>
                 </section>
 
                 {/* 5. CASH OUT TABLE */}
-                <section className="border hairline bg-white/90 flex flex-col justify-between">
+                <section className="flex-1 min-w-0 border hairline bg-white flex flex-col justify-between">
                   <div>
                     <div className="bg-gray-100 border-b hairline px-1.5 py-[2px] font-bold uppercase text-[7.2px] text-gray-700">
                       5. CASH OUT / WITHDRAWALS
                     </div>
-                    <table className="w-full text-left text-[7.8px] border-collapse bg-transparent">
+                    <table className="w-full text-left text-[7.8px] border-collapse bg-white">
                       <thead>
                         <tr className="bg-gray-50 border-b hairline text-[7px] text-gray-600 font-bold">
                           <th className="px-1.5 py-[2px]">REASON</th>
-                          <th className="px-1 py-[2px] text-center">VOUCHER</th>
-                          <th className="px-1.5 py-[2px] text-right">AMOUNT ({currencySymbol})</th>
+                          <th className="px-1 py-[2px] text-center w-14 shrink-0">VOUCHER</th>
+                          <th className="px-1.5 py-[2px] text-right w-20 shrink-0">AMOUNT ({currencySymbol})</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y hairline-light">
                         {cashOutRows.map((row) => (
                           <tr key={row.id}>
-                            <td className="px-1.5 py-[2px] font-medium truncate max-w-[75px]">{row.reason}</td>
-                            <td className="px-1 py-[2px] text-center tabular text-gray-400 text-[7px]">{row.voucherNo}</td>
-                            <td className="px-1.5 py-[2px] text-right tabular font-semibold text-rose-700">
+                            <td className="px-1.5 py-[2px] font-medium text-gray-900 break-words">{row.reason}</td>
+                            <td className="px-1 py-[2px] text-center tabular text-gray-700 font-medium text-[7.2px] whitespace-nowrap">{row.voucherNo}</td>
+                            <td className="px-1.5 py-[2px] text-right tabular font-semibold text-gray-900 whitespace-nowrap">
                               {formatNumber(row.amount)}
                             </td>
                           </tr>
                         ))}
                         {cashOutRows.length === 0 && (
                           <tr>
-                            <td colSpan={3} className="px-1.5 py-[3px] text-center text-gray-400 italic text-[7px]">
+                            <td colSpan={3} className="px-1.5 py-[3px] text-center text-gray-500 italic text-[7px]">
                               No cash out withdrawals
                             </td>
                           </tr>
@@ -640,8 +649,8 @@ export const PrintableCashBookStatement = React.forwardRef<
                     </table>
                   </div>
                   <div className="px-1.5 py-[2.5px] bg-gray-50 border-t hairline flex justify-between items-center font-bold text-[7.8px]">
-                    <span>Total Cash Out</span>
-                    <strong className="tabular text-rose-700">
+                    <span className="text-gray-800">Total Cash Out</span>
+                    <strong className="tabular text-gray-900 font-bold">
                       {currencySymbol} {formatNumber(totalCashOut)}
                     </strong>
                   </div>
@@ -655,9 +664,9 @@ export const PrintableCashBookStatement = React.forwardRef<
                 <div className="font-bold uppercase text-[7.5px] text-gray-700 mb-0.5">
                   6. DAILY CASH STATEMENT SUMMARY
                 </div>
-                <table className="w-full text-center text-[7.5px] border border-collapse hairline leading-tight bg-transparent">
+                <table className="w-full text-center text-[7.5px] border border-collapse hairline leading-tight bg-white">
                   <thead>
-                    <tr className="bg-gray-100 border-b hairline text-[6.8px] text-gray-600 font-semibold">
+                    <tr className="bg-gray-100 border-b hairline text-[6.8px] text-gray-700 font-semibold">
                       <th className="px-1 py-[2.5px]">OPENING (B/F)</th>
                       <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
                       <th className="px-1 py-[2.5px]">CASH COLLECTION</th>
@@ -667,31 +676,31 @@ export const PrintableCashBookStatement = React.forwardRef<
                       <th className="px-1 py-[2.5px]">CASH OUT</th>
                       <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
                       <th className="px-1 py-[2.5px] bg-gray-150 font-bold text-gray-900">NET CASH IN HAND</th>
-                      <th className="px-1 py-[2.5px] text-rose-600">TOTAL DUE SALE</th>
+                      <th className="px-1 py-[2.5px] text-gray-700 font-semibold">TOTAL DUE SALE</th>
                     </tr>
                   </thead>
                   <tbody className="font-medium tabular text-[7.8px]">
                     <tr>
-                      <td className="px-1 py-[3px] text-gray-700">
+                      <td className="px-1 py-[3px] text-gray-900">
                         {currencySymbol} {formatNumber(summary.previous_balance || 0)}
                       </td>
-                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">+</td>
-                      <td className="px-1 py-[3px] text-emerald-700 font-semibold">
+                      <td className="px-0 py-[3px] text-gray-700 font-bold text-[7.5px]">+</td>
+                      <td className="px-1 py-[3px] text-gray-900 font-semibold">
                         {currencySymbol} {formatNumber(totalCashCollection)}
                       </td>
-                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">-</td>
-                      <td className="px-1 py-[3px] text-rose-600 font-semibold">
+                      <td className="px-0 py-[3px] text-gray-700 font-bold text-[7.5px]">-</td>
+                      <td className="px-1 py-[3px] text-gray-900 font-semibold">
                         {currencySymbol} {formatNumber(totalExpense)}
                       </td>
-                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">-</td>
-                      <td className="px-1 py-[3px] text-rose-600 font-semibold">
+                      <td className="px-0 py-[3px] text-gray-700 font-bold text-[7.5px]">-</td>
+                      <td className="px-1 py-[3px] text-gray-900 font-semibold">
                         {currencySymbol} {formatNumber(totalCashOut)}
                       </td>
-                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">=</td>
-                      <td className="px-1 py-[3px] bg-gray-50/80 font-bold text-black text-[8.5px]">
+                      <td className="px-0 py-[3px] text-gray-700 font-bold text-[7.5px]">=</td>
+                      <td className="px-1 py-[3px] bg-gray-100 font-bold text-gray-950 text-[8.5px]">
                         {currencySymbol} {formatNumber(summary.closing_cash_balance)}
                       </td>
-                      <td className="px-1 py-[3px] text-rose-600 font-semibold">
+                      <td className="px-1 py-[3px] text-gray-900 font-semibold">
                         {currencySymbol} {formatNumber(totalDueSales)}
                       </td>
                     </tr>
