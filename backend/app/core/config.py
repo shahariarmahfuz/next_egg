@@ -39,10 +39,28 @@ class Settings(BaseSettings):
             elif v.startswith("postgres://"):
                 v = v.replace("postgres://", "postgresql+asyncpg://", 1)
             # Standardize sslmode / channel_binding query params for asyncpg
-            if "sslmode=require" in v:
-                v = v.replace("sslmode=require", "ssl=require")
-            if "&channel_binding=require" in v:
-                v = v.replace("&channel_binding=require", "")
+            from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+            parsed = urlsplit(v)
+            if parsed.query:
+                params = parse_qsl(parsed.query, keep_blank_values=True)
+                new_params = []
+                has_ssl = any(k == "ssl" for k, _ in params)
+                seen_keys = set()
+                for k, val in params:
+                    if k == "channel_binding":
+                        continue
+                    elif k == "sslmode":
+                        if not has_ssl and "ssl" not in seen_keys:
+                            new_params.append(("ssl", val))
+                            seen_keys.add("ssl")
+                    elif k == "ssl":
+                        if "ssl" not in seen_keys:
+                            new_params.append((k, val))
+                            seen_keys.add("ssl")
+                    else:
+                        new_params.append((k, val))
+                new_query = urlencode(new_params)
+                v = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
         return v
 
     # CORS Configuration

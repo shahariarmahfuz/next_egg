@@ -21,13 +21,24 @@ import {
   Sparkles,
   Smartphone,
   CheckCircle2,
+  Printer,
+  Search,
+  ChevronsUpDown,
+  X,
+  Truck,
 } from "lucide-react";
 import { useSettingsStore } from "@/store/settings";
 import { apiClient } from "@/lib/api-client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/use-debounce";
+import { formatCurrency } from "@/utils/formatters";
 import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
 import { useAuth } from "@/providers/auth-provider";
+import { supplierService, settingsService } from "@/services/api";
 
 const urlValidator = z
   .string()
@@ -128,7 +139,7 @@ function AssetPreview({
   );
 }
 
-export default function SettingsPage() {
+export default function SettingsPage({ defaultTab = "business" }: { defaultTab?: string }) {
   const { settings, setSettings } = useSettingsStore();
   const { user, hasPermission } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -136,6 +147,55 @@ export default function SettingsPage() {
   const isOwner = user?.role?.code === "owner";
   const canEdit = isOwner || hasPermission("settings.edit");
   const canView = isOwner || hasPermission("settings.view");
+
+  // Owner-only Supplier Print configuration query and state
+  const { data: supplierPrintConfigData, refetch: refetchSupplierPrint } = useQuery({
+    queryKey: ["supplier-print-config"],
+    queryFn: () => settingsService.getSupplierPrintConfig(),
+    enabled: isOwner,
+  });
+
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [openSupplierPopover, setOpenSupplierPopover] = useState(false);
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
+
+  useEffect(() => {
+    if (supplierPrintConfigData?.data) {
+      setSelectedSupplierId(supplierPrintConfigData.data.supplier_id || "");
+      setSelectedSupplier(supplierPrintConfigData.data.supplier || null);
+    }
+  }, [supplierPrintConfigData]);
+
+  const debouncedSupplierSearch = useDebounce(supplierSearch, 300);
+
+  const { data: searchSuppliersData, isLoading: isSearchingSuppliers } = useQuery({
+    queryKey: ["suppliers-search-settings", debouncedSupplierSearch],
+    queryFn: () => supplierService.getSuppliers({ search: debouncedSupplierSearch || undefined, size: 20 }),
+    enabled: isOwner && openSupplierPopover,
+  });
+
+  const searchedSuppliers = searchSuppliersData?.data?.items || [];
+
+  const handleSaveSupplierPrint = async () => {
+    if (!isOwner) return;
+    try {
+      setIsSavingSupplier(true);
+      await settingsService.updateSupplierPrintConfig({ supplier_id: selectedSupplierId || null });
+      await refetchSupplierPrint();
+      toast.success("Supplier Print configuration saved successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save Supplier Print setting");
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
+
+  const handleClearSupplierPrint = () => {
+    setSelectedSupplierId("");
+    setSelectedSupplier(null);
+  };
 
   const form = useForm<BusinessSettingsFormValues>({
     resolver: zodResolver(businessSettingsSchema),
@@ -245,7 +305,7 @@ export default function SettingsPage() {
       />
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Tabs defaultValue="business" className="space-y-6">
+        <Tabs defaultValue={defaultTab} className="space-y-6">
           <TabsList className="bg-accent/50 p-1 rounded-xl">
             <TabsTrigger
               value="business"
@@ -259,6 +319,14 @@ export default function SettingsPage() {
                 className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
                 <Palette className="w-4 h-4 mr-2" /> Business Branding (Owner)
+              </TabsTrigger>
+            )}
+            {isOwner && (
+              <TabsTrigger
+                value="supplier-print"
+                className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                <Printer className="w-4 h-4 mr-2" /> Supplier Print (Owner)
               </TabsTrigger>
             )}
           </TabsList>
@@ -629,6 +697,180 @@ export default function SettingsPage() {
                       <span className="text-[11px] font-medium text-muted-foreground mb-2">Mobile Icon Preview</span>
                       <AssetPreview url={watchedAppIcon} label="App Icon" className="h-14 w-14" />
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {/* TAB 3: Supplier Print (Owner Only) */}
+          {isOwner && (
+            <TabsContent value="supplier-print" className="space-y-6">
+              <Card className="glass-card border-none shadow-xl shadow-black/5 bg-gradient-to-br from-card/80 to-accent/20">
+                <CardHeader className="border-b border-border/50 bg-accent/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center">
+                        <Printer className="w-5 h-5 mr-2 text-primary" /> Supplier Print
+                      </CardTitle>
+                      <CardDescription>
+                        Select a dedicated supplier whose daily account statement will be included in the Cash Book Print.
+                      </CardDescription>
+                    </div>
+                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Owner Authorized
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="space-y-2 max-w-xl">
+                    <label className="text-sm font-semibold flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-primary" /> Select Supplier
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Owner can select exactly one supplier. Their daily account (Previous Due, Purchases, Returns, Payments, and Closing Due) will be displayed in section 4 of the Cash Book Print.
+                    </p>
+
+                    <Popover open={openSupplierPopover} onOpenChange={setOpenSupplierPopover}>
+                      <PopoverTrigger asChild>
+                        {selectedSupplier ? (
+                          <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 cursor-pointer transition-colors flex items-center justify-between gap-3 text-xs w-full">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Truck className="h-4 w-4 text-primary shrink-0" />
+                              <div className="truncate">
+                                <span className="font-semibold text-foreground text-sm block">
+                                  {selectedSupplier.name}
+                                </span>
+                                <span className="text-muted-foreground text-xs block">
+                                  Code: {selectedSupplier.supplier_code || "—"} | Phone: {selectedSupplier.phone || "—"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-background/80 border text-foreground">
+                                Due: {formatCurrency(selectedSupplier.current_balance || 0)}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleClearSupplierPrint();
+                                }}
+                                className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                title="Clear selected supplier"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openSupplierPopover}
+                            className="w-full justify-between h-10 text-xs sm:text-sm font-normal bg-background/50 border-input hover:bg-accent/50"
+                          >
+                            <span className="flex items-center gap-2 text-muted-foreground truncate">
+                              <Search className="h-4 w-4 shrink-0 opacity-70" />
+                              Select or search supplier (Name, Phone, Code)...
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        )}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[320px] max-w-[calc(100vw-2rem)] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search supplier name, code, phone..."
+                            value={supplierSearch}
+                            onValueChange={setSupplierSearch}
+                          />
+                          <CommandList className="max-h-60 overflow-y-auto">
+                            {isSearchingSuppliers ? (
+                              <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                                Searching suppliers...
+                              </div>
+                            ) : searchedSuppliers.length === 0 ? (
+                              <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
+                                No suppliers found.
+                              </CommandEmpty>
+                            ) : (
+                              <CommandGroup>
+                                {searchedSuppliers.map((supp: any) => (
+                                  <CommandItem
+                                    key={supp.id}
+                                    value={`${supp.name} ${supp.supplier_code || ""} ${supp.phone || ""}`}
+                                    onSelect={() => {
+                                      setSelectedSupplierId(supp.id);
+                                      setSelectedSupplier(supp);
+                                      setOpenSupplierPopover(false);
+                                      setSupplierSearch("");
+                                    }}
+                                    className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs flex items-center justify-between gap-2"
+                                  >
+                                    <div className="truncate">
+                                      <span className="font-medium text-foreground block">{supp.name}</span>
+                                      <span className="text-[11px] text-muted-foreground font-mono">
+                                        {supp.supplier_code || "—"} {supp.phone ? `| ${supp.phone}` : ""}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-muted-foreground shrink-0">
+                                      ৳ {supp.current_balance?.toLocaleString() || 0}
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-4 border-t border-border/40">
+                    <Button
+                      type="button"
+                      onClick={handleSaveSupplierPrint}
+                      disabled={isSavingSupplier}
+                      className="min-w-[140px] shadow-lg shadow-primary/20"
+                    >
+                      {isSavingSupplier ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" /> Save Supplier Print
+                        </>
+                      )}
+                    </Button>
+                    {selectedSupplierId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={async () => {
+                          handleClearSupplierPrint();
+                          try {
+                            setIsSavingSupplier(true);
+                            await settingsService.updateSupplierPrintConfig({ supplier_id: null });
+                            await refetchSupplierPrint();
+                            toast.success("Supplier Print setting cleared");
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to clear");
+                          } finally {
+                            setIsSavingSupplier(false);
+                          }
+                        }}
+                        disabled={isSavingSupplier}
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        Remove Selected Supplier
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

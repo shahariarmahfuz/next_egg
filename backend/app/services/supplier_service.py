@@ -149,18 +149,10 @@ class SupplierService:
         await db.commit()
         return True
 
-    async def get_supplier_ledger(
-        self,
-        db: AsyncSession,
-        supplier_id: str,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-    ) -> dict:
-        supplier = await supplier_repository.get_by_id(db, id=supplier_id)
-        if not supplier:
-            raise NotFoundException(f"Supplier with ID '{supplier_id}' not found.")
+    async def _get_reconciled_supplier_events(
+        self, db: AsyncSession, supplier: Supplier, tz: zoneinfo.ZoneInfo
+    ) -> tuple[list[dict], float, dict]:
+        supplier_id = supplier.id
 
         # 1. Fetch Purchases
         purchases_res = await db.execute(
@@ -205,18 +197,6 @@ class SupplierService:
         except Exception:
             other_txs = []
 
-        # Determine business timezone and centralized reconciliation baseline
-        try:
-            bs = await setting_service.get_business_settings(db)
-            tz_str = bs.timezone or "Asia/Dhaka"
-        except Exception:
-            tz_str = "Asia/Dhaka"
-
-        try:
-            tz = zoneinfo.ZoneInfo(tz_str)
-        except Exception:
-            tz = timezone.utc
-
         baseline_start_tz = datetime(
             RECONCILIATION_BASELINE_DATE.year,
             RECONCILIATION_BASELINE_DATE.month,
@@ -232,7 +212,7 @@ class SupplierService:
         # Gather operational events first
         operational_events = []
 
-        # 1. Purchases events (all historical and new purchases remain visible)
+        # 1. Purchases events
         for purchase in purchases:
             operational_events.append({
                 "id": f"pur-{purchase.id}",
@@ -260,7 +240,7 @@ class SupplierService:
                     "reference_type": "purchase",
                 })
 
-        # 2. Supplier Payment events (all historical and new payments remain visible)
+        # 2. Supplier Payment events
         for sp in payments:
             pm = sp.payment_method.replace("_", " ").title()
             operational_events.append({
@@ -276,7 +256,7 @@ class SupplierService:
                 "reference_type": "supplier_payment",
             })
 
-        # 3. Return events (all historical and new returns remain visible)
+        # 3. Return events
         for ret in returns:
             net_return = ret.grand_total - (ret.refund_received or 0.0)
             operational_events.append({
@@ -292,9 +272,7 @@ class SupplierService:
                 "reference_type": "product_return",
             })
 
-        # 4. Balance Adjustment events:
-        # Historical balance adjustments before baseline_start_utc are hidden from visible ledger.
-        # Balance adjustments occurring on/after baseline_start_utc are visible and shown normally.
+        # 4. Balance Adjustment events
         for adj in adjustments:
             adj_date_utc = _to_utc(adj.effective_date)
             if not adj_date_utc or adj_date_utc < baseline_start_utc:
@@ -315,7 +293,7 @@ class SupplierService:
                 "reference_type": "balance_adjustment",
             })
 
-        # 5. Other Transaction events (Other Payable increases supplier debt)
+        # 5. Other Transaction events
         for ot in other_txs:
             debit_amt = ot.amount if ot.transaction_type == "other_payable" else 0.0
             credit_amt = ot.amount if ot.transaction_type != "other_payable" else 0.0
@@ -332,9 +310,7 @@ class SupplierService:
                 "reference_type": "supplier_other_transaction",
             })
 
-        # 6. Opening Balance event:
-        # Opening Balance must appear at the true beginning of the ledger.
-        # Its date must be chronologically valid (at or before earliest transaction).
+        # 6. Opening Balance event
         supp_created_utc = _to_utc(supplier.created_at)
         if operational_events:
             earliest_op_date = min(
@@ -363,12 +339,6 @@ class SupplierService:
 
         raw_events = [op_event] + operational_events
 
-        # Deterministic multi-tier sort:
-        # 1. Transaction date/time ASC
-        # 2. Type order (Opening Balance: 0, Purchase: 1, Other Payable: 2, Payment: 3, Return: 4, Adjustment: 5)
-        # 3. created_at ASC
-        # 4. voucher_no ASC
-        # 5. reference_id ASC
         def _event_sort_key(x):
             d = _to_utc(x["date"]) or datetime.min.replace(tzinfo=timezone.utc)
             type_order = {
@@ -386,19 +356,51 @@ class SupplierService:
 
         raw_events.sort(key=_event_sort_key)
 
-        # Calculate reconstructed balance without hidden adjustments
         reconstructed_balance_without_hidden_adjustments = round(
             sum(ev["debit"] - ev["credit"] for ev in raw_events), 2
         )
 
-        # Invisible reconciliation offset reconciling reconstructed balance to authoritative supplier.current_balance
         reconciliation_offset = round(
             supplier.current_balance - reconstructed_balance_without_hidden_adjustments, 2
         )
 
-        # Compute sequential running balance incorporating reconciliation offset
         running_bal = 0.0
-        calculated_events = []
+        all_calculated_events = []
+        for ev in raw_events:
+            running_bal = round(running_bal + ev["debit"] - ev["credit"], 2)
+            ev_copy = dict(ev)
+            ev_copy["running_balance"] = round(running_bal + reconciliation_offset, 2)
+            all_calculated_events.append(ev_copy)
+
+        return all_calculated_events, reconciliation_offset, op_event
+
+    async def get_supplier_ledger(
+        self,
+        db: AsyncSession,
+        supplier_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ) -> dict:
+        supplier = await supplier_repository.get_by_id(db, id=supplier_id)
+        if not supplier:
+            raise NotFoundException(f"Supplier with ID '{supplier_id}' not found.")
+
+        try:
+            bs = await setting_service.get_business_settings(db)
+            tz_str = bs.timezone or "Asia/Dhaka"
+        except Exception:
+            tz_str = "Asia/Dhaka"
+
+        try:
+            tz = zoneinfo.ZoneInfo(tz_str)
+        except Exception:
+            tz = timezone.utc
+
+        all_events, reconciliation_offset, op_event = await self._get_reconciled_supplier_events(
+            db, supplier, tz
+        )
 
         total_purchases = 0.0
         total_other_payables = 0.0
@@ -408,12 +410,9 @@ class SupplierService:
 
         start_utc = _to_utc(start_date)
         end_utc = _to_utc(end_date)
+        calculated_events = []
 
-        for ev in raw_events:
-            running_bal = round(running_bal + ev["debit"] - ev["credit"], 2)
-            ev_copy = dict(ev)
-            ev_copy["running_balance"] = round(running_bal + reconciliation_offset, 2)
-
+        for ev in all_events:
             if ev["type"] == "Purchase":
                 total_purchases += ev["debit"]
             elif ev["type"] == "Other Payable":
@@ -426,13 +425,12 @@ class SupplierService:
                 manual_adjustments += (ev["debit"] - ev["credit"])
 
             ev_date_utc = _to_utc(ev["date"])
-            # Filter by date range if specified
             if start_utc and ev_date_utc and ev_date_utc < start_utc:
                 continue
             if end_utc and ev_date_utc and ev_date_utc > end_utc:
                 continue
 
-            calculated_events.append(ev_copy)
+            calculated_events.append(ev)
 
         effective_op_balance = round(supplier.opening_balance + reconciliation_offset, 2)
         summary = {
@@ -470,6 +468,127 @@ class SupplierService:
             "page": ret_page,
             "page_size": ret_page_size,
             "pages": ret_pages,
+        }
+
+    async def get_supplier_daily_accounts(
+        self,
+        db: AsyncSession,
+        supplier_id: str,
+        start_date_local: date,
+        end_date_local: date,
+        tz: zoneinfo.ZoneInfo,
+    ) -> dict:
+        from datetime import timedelta
+        supplier = await supplier_repository.get_by_id(db, id=supplier_id)
+        if not supplier:
+            raise NotFoundException(f"Supplier with ID '{supplier_id}' not found.")
+
+        all_events, reconciliation_offset, op_event = await self._get_reconciled_supplier_events(
+            db, supplier, tz
+        )
+
+        if start_date_local > end_date_local:
+            start_date_local, end_date_local = end_date_local, start_date_local
+
+        day_list = []
+        cur_d = start_date_local
+        while cur_d <= end_date_local:
+            day_list.append(cur_d)
+            cur_d += timedelta(days=1)
+
+        first_day_start_local = datetime(
+            day_list[0].year, day_list[0].month, day_list[0].day, 0, 0, 0, 0, tzinfo=tz
+        )
+        first_day_start_utc = first_day_start_local.astimezone(timezone.utc)
+
+        initial_due = round(supplier.opening_balance + reconciliation_offset, 2)
+        op_events_only = [ev for ev in all_events if ev.get("type") != "Opening Balance"]
+
+        events_before = [
+            ev for ev in op_events_only
+            if (_to_utc(ev.get("date")) or datetime.min.replace(tzinfo=timezone.utc)) < first_day_start_utc
+        ]
+        if events_before:
+            current_running_due = round(events_before[-1]["running_balance"], 2)
+        else:
+            current_running_due = initial_due
+
+        daily_accounts = []
+        for d in day_list:
+            day_start_local = datetime(d.year, d.month, d.day, 0, 0, 0, 0, tzinfo=tz)
+            day_end_local = datetime(d.year, d.month, d.day, 23, 59, 59, 999999, tzinfo=tz)
+            day_start_utc = day_start_local.astimezone(timezone.utc)
+            day_end_utc = day_end_local.astimezone(timezone.utc)
+
+            day_events = [
+                ev for ev in all_events
+                if day_start_utc <= (_to_utc(ev.get("date")) or datetime.min.replace(tzinfo=timezone.utc)) <= day_end_utc
+            ]
+
+            day_purchases = 0.0
+            day_returns = 0.0
+            day_payments = 0.0
+            day_other = 0.0
+            day_adjustments = 0.0
+
+            for ev in day_events:
+                t = ev.get("type")
+                if t == "Opening Balance":
+                    # Initial debt is already captured in previous_due
+                    continue
+                elif t == "Purchase":
+                    day_purchases += ev.get("debit", 0.0)
+                elif t == "Other Payable":
+                    day_other += ev.get("debit", 0.0)
+                    day_payments += ev.get("credit", 0.0)
+                elif t == "Supplier Payment":
+                    day_payments += ev.get("credit", 0.0)
+                elif t == "Purchase Return":
+                    day_returns += ev.get("credit", 0.0)
+                elif t == "Balance Adjustment":
+                    day_adjustments += (ev.get("debit", 0.0) - ev.get("credit", 0.0))
+
+            total_purchases_day = round(day_purchases + day_other, 2)
+            total_returns_day = round(day_returns, 2)
+            total_payments_day = round(day_payments, 2)
+
+            if day_adjustments > 0:
+                total_purchases_day = round(total_purchases_day + day_adjustments, 2)
+            elif day_adjustments < 0:
+                total_returns_day = round(total_returns_day + abs(day_adjustments), 2)
+
+            prev_due = current_running_due
+            closing_due = round(prev_due + total_purchases_day - total_returns_day - total_payments_day, 2)
+
+            daily_accounts.append({
+                "date": d.strftime("%Y-%m-%d"),
+                "previous_due": prev_due,
+                "purchase_amount": total_purchases_day,
+                "return_amount": total_returns_day,
+                "payment_amount": total_payments_day,
+                "closing_due": closing_due,
+            })
+
+            current_running_due = closing_due
+
+        overall_previous_due = daily_accounts[0]["previous_due"] if daily_accounts else 0.0
+        overall_closing_due = daily_accounts[-1]["closing_due"] if daily_accounts else 0.0
+        overall_purchases = round(sum(da["purchase_amount"] for da in daily_accounts), 2)
+        overall_returns = round(sum(da["return_amount"] for da in daily_accounts), 2)
+        overall_payments = round(sum(da["payment_amount"] for da in daily_accounts), 2)
+
+        return {
+            "supplier_id": supplier.id,
+            "supplier_name": supplier.name,
+            "supplier_code": supplier.supplier_code,
+            "company_name": supplier.company_name,
+            "phone": supplier.phone,
+            "previous_due": overall_previous_due,
+            "purchase_amount": overall_purchases,
+            "return_amount": overall_returns,
+            "payment_amount": overall_payments,
+            "closing_due": overall_closing_due,
+            "daily_accounts": daily_accounts,
         }
 
 

@@ -13,7 +13,8 @@ from app.models.customer_collection import CustomerCollection
 from app.models.cash_out import CashOut
 from app.models.expense import Expense
 from app.models.sale import Sale
-from app.schemas.cash_book import CashBookItem, CashBookSummary
+from app.repositories.setting_repository import setting_repository
+from app.schemas.cash_book import CashBookItem, CashBookSummary, SupplierDailyAccount, SupplierPrintSummary
 from app.services.setting_service import setting_service
 
 
@@ -61,6 +62,8 @@ class CashBookService:
             start_utc = start_dt_local.astimezone(timezone.utc)
             end_utc = end_dt_local.astimezone(timezone.utc)
             display_date = target_d.strftime("%Y-%m-%d")
+            local_start_date = target_d
+            local_end_date = target_d
         elif start_date is not None or end_date is not None:
             norm_start, norm_end = normalize_date_range(start_date, end_date, tz_str=tz_str, default_to_today=True)
             start_utc = norm_start or datetime.now(timezone.utc)
@@ -71,6 +74,8 @@ class CashBookService:
                 display_date = s_loc.strftime("%Y-%m-%d")
             else:
                 display_date = f"{s_loc.strftime('%Y-%m-%d')} to {e_loc.strftime('%Y-%m-%d')}"
+            local_start_date = s_loc.date()
+            local_end_date = e_loc.date()
         else:
             # Default to today in business timezone
             now_tz = datetime.now(tz)
@@ -80,6 +85,8 @@ class CashBookService:
             start_utc = start_dt_local.astimezone(timezone.utc)
             end_utc = end_dt_local.astimezone(timezone.utc)
             display_date = today_d.strftime("%Y-%m-%d")
+            local_start_date = today_d
+            local_end_date = today_d
 
         # 3. Daily Cash Book Starts From ZERO:
         # Every day starts independently from ZERO (0.00). No prior-day balance is carried forward.
@@ -259,6 +266,38 @@ class CashBookService:
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
+        # 7. Fetch Owner-configured Supplier Print daily statement if configured
+        supplier_summary = None
+        try:
+            supplier_print_setting = await setting_repository.get_by_key(db, "supplier_print_supplier_id")
+            if supplier_print_setting and supplier_print_setting.value and supplier_print_setting.value.strip():
+                supplier_id = supplier_print_setting.value.strip()
+                from app.services.supplier_service import supplier_service
+                daily_data = await supplier_service.get_supplier_daily_accounts(
+                    db=db,
+                    supplier_id=supplier_id,
+                    start_date_local=local_start_date,
+                    end_date_local=local_end_date,
+                    tz=tz,
+                )
+                supplier_summary = SupplierPrintSummary(
+                    supplier_id=daily_data["supplier_id"],
+                    supplier_name=daily_data["supplier_name"],
+                    supplier_code=daily_data.get("supplier_code"),
+                    company_name=daily_data.get("company_name"),
+                    phone=daily_data.get("phone"),
+                    previous_due=daily_data["previous_due"],
+                    purchase_amount=daily_data["purchase_amount"],
+                    return_amount=daily_data["return_amount"],
+                    payment_amount=daily_data["payment_amount"],
+                    closing_due=daily_data["closing_due"],
+                    daily_accounts=[
+                        SupplierDailyAccount(**da) for da in daily_data["daily_accounts"]
+                    ],
+                )
+        except Exception:
+            supplier_summary = None
+
         return CashBookSummary(
             date=display_date,
             start_date=start_utc,
@@ -283,6 +322,7 @@ class CashBookService:
             company_phone=settings.business_phone,
             company_logo=settings.business_logo,
             items=items,
+            supplier_summary=supplier_summary,
         )
 
 

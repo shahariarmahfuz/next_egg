@@ -920,6 +920,21 @@ export const cashOutService = {
   deleteCashOut: accountsService.deleteCashOut,
 };
 
+export const settingsService = {
+  getBusinessSettings: async () => {
+    return http.get<any>("/settings/business");
+  },
+  updateBusinessSettings: async (payload: any) => {
+    return http.put<any>("/settings/business", payload);
+  },
+  getSupplierPrintConfig: async () => {
+    return http.get<{ supplier_id?: string | null; supplier?: any }>("/settings/supplier-print");
+  },
+  updateSupplierPrintConfig: async (payload: { supplier_id?: string | null }) => {
+    return http.put<{ supplier_id?: string | null; supplier?: any }>("/settings/supplier-print", payload);
+  },
+};
+
 
 
 

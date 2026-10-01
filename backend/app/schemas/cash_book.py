@@ -26,6 +26,33 @@ class CashBookItem(BaseModel):
     balance: float = Field(..., description="Running Cash in Hand after transaction")
 
 
+class SupplierDailyAccount(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    date: str
+    previous_due: float
+    purchase_amount: float
+    return_amount: float
+    payment_amount: float
+    closing_due: float
+
+
+class SupplierPrintSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    supplier_id: str
+    supplier_name: str
+    supplier_code: Optional[str] = None
+    company_name: Optional[str] = None
+    phone: Optional[str] = None
+    previous_due: float = 0.0
+    purchase_amount: float = 0.0
+    return_amount: float = 0.0
+    payment_amount: float = 0.0
+    closing_due: float = 0.0
+    daily_accounts: List[SupplierDailyAccount] = Field(default_factory=list)
+
+
 class CashBookSummary(BaseModel):
     """
     Complete Cash Book Response Payload for a selected business date or range.
@@ -61,3 +88,7 @@ class CashBookSummary(BaseModel):
     company_logo: Optional[str] = None
 
     items: List[CashBookItem] = Field(default_factory=list)
+    supplier_summary: Optional[SupplierPrintSummary] = None
+
+
+CashBookSummary.model_rebuild()

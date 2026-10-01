@@ -7,11 +7,7 @@ import {
   CustomerCollectionItem,
   SaleReportSummaryData,
 } from "@/types";
-import {
-  formatCurrency,
-  formatDate,
-  formatNumber,
-} from "@/utils/formatters";
+import { formatNumber } from "@/utils/formatters";
 import { useSettingsStore } from "@/store/settings";
 
 export interface PrintableCashBookStatementProps {
@@ -27,39 +23,28 @@ export const PrintableCashBookStatement = React.forwardRef<
 >(({ summary, sales = [], collections = [] }, ref) => {
   const { settings } = useSettingsStore();
 
-  // Dynamic Header & Business Metadata
   const businessName =
-    settings.business_name || summary.company_name || "BUSINESS ENTERPRISE";
-  const contactParts = [
-    settings.business_address || summary.company_address,
-    (settings.business_phone || summary.company_phone)
-      ? `Mobile: ${settings.business_phone || summary.company_phone}`
-      : null,
-  ].filter(Boolean);
-  const businessContact = contactParts.join(" | ");
+    (settings.business_name || summary.company_name || "AKOTA POULTRY").toUpperCase();
 
   const currencySymbol =
     settings.currency?.symbol || summary.currency_symbol || "৳";
 
-  // Dynamic Date Formatting: DD/MM/YYYY
-  const formattedDate = summary.date
-    ? (() => {
-        try {
-          const parts = summary.date.split("-");
-          if (parts.length === 3) {
-            return `${parts[2]}/${parts[1]}/${parts[0]}`;
-          }
-          return formatDate(summary.date);
-        } catch {
-          return summary.date;
-        }
-      })()
-    : "";
+  // Format date helper (DD/MM/YYYY)
+  const formatDisplayDate = (dStr?: string) => {
+    if (!dStr) return "";
+    try {
+      const clean = dStr.split("T")[0];
+      const parts = clean.split("-");
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return dStr;
+    } catch {
+      return dStr;
+    }
+  };
 
-  // -------------------------------------------------------------
   // 1. CASH SALES & COLLECTION ROWS
-  // -------------------------------------------------------------
-  // Gather cash inflows: cash sales and collections
   interface CashInflowRow {
     id: string;
     customerName: string;
@@ -71,44 +56,38 @@ export const PrintableCashBookStatement = React.forwardRef<
 
   const cashInflowRows: CashInflowRow[] = [];
 
-  // A. Sales with paid cash amount
   const cashSales = (sales || []).filter((s) => (s.paid_amount || 0) > 0);
   for (const sale of cashSales) {
-    const custName = sale.customer?.name || "Cash Customer";
+    const custName = sale.customer?.name || "নগদ বিক্রি";
     if (sale.items && sale.items.length > 0) {
       if (sale.items.length === 1) {
         const item = sale.items[0];
-        const unit = item.product?.unit || "";
+        const unit = item.product?.unit || "pcs";
         cashInflowRows.push({
           id: `sale-${sale.id}-${item.id}`,
           customerName: custName,
-          productName: item.product?.name || "Product",
+          productName: item.product?.name || "ডিম",
           unitQty: `${formatNumber(item.quantity)} ${unit}`.trim(),
           rate: formatNumber(item.unit_price),
           amount: sale.paid_amount,
         });
       } else {
-        // Multiple items: list each product line
-        for (let idx = 0; idx < sale.items.length; idx++) {
-          const item = sale.items[idx];
-          const unit = item.product?.unit || "";
-          const itemLineTotal =
-            item.total_price || item.quantity * item.unit_price;
-          cashInflowRows.push({
-            id: `sale-${sale.id}-${item.id}`,
-            customerName: idx === 0 ? custName : `${custName} (Cont.)`,
-            productName: item.product?.name || "Product",
-            unitQty: `${formatNumber(item.quantity)} ${unit}`.trim(),
-            rate: formatNumber(item.unit_price),
-            amount: itemLineTotal,
-          });
-        }
+        const productNames = sale.items.map((it) => it.product?.name).filter(Boolean).join(", ");
+        const totalQty = sale.items.reduce((sum, it) => sum + (it.quantity || 0), 0);
+        cashInflowRows.push({
+          id: `sale-${sale.id}`,
+          customerName: custName,
+          productName: productNames || "ডিম",
+          unitQty: `${formatNumber(totalQty)} pcs`,
+          rate: "-",
+          amount: sale.paid_amount,
+        });
       }
     } else {
       cashInflowRows.push({
         id: `sale-${sale.id}`,
         customerName: custName,
-        productName: "Cash Sale",
+        productName: "নগদ বিক্রি",
         unitQty: "-",
         rate: "-",
         amount: sale.paid_amount,
@@ -116,22 +95,19 @@ export const PrintableCashBookStatement = React.forwardRef<
     }
   }
 
-  // B. Customer Collections
   for (const col of collections || []) {
     cashInflowRows.push({
       id: `col-${col.id}`,
       customerName: col.customer?.name || "Customer",
-      productName:
-        col.notes || col.reference_no
-          ? `Due Collection (${col.notes || col.reference_no})`
-          : "Previous Due Collection",
+      productName: col.notes || col.reference_no
+        ? `Previous Due Collection (${col.notes || col.reference_no})`
+        : "Previous Due Collection",
       unitQty: "-",
       rate: "-",
       amount: col.amount,
     });
   }
 
-  // Fallback: If sales and collections were empty but summary.items has cash inflows
   if (cashInflowRows.length === 0) {
     const cashItems = (summary.items || []).filter(
       (it) => it.credit > 0 && it.transaction_type !== "opening_balance"
@@ -139,7 +115,7 @@ export const PrintableCashBookStatement = React.forwardRef<
     for (const it of cashItems) {
       cashInflowRows.push({
         id: it.id,
-        customerName: it.name && it.name !== "—" ? it.name : "Customer",
+        customerName: it.name && it.name !== "—" ? it.name : "নগদ বিক্রি",
         productName:
           it.transaction_type === "collection"
             ? "Previous Due Collection"
@@ -153,9 +129,7 @@ export const PrintableCashBookStatement = React.forwardRef<
 
   const totalCashCollection = summary.today_cash_received;
 
-  // -------------------------------------------------------------
   // 2. DUE SALES (CREDIT) ROWS
-  // -------------------------------------------------------------
   interface DueSaleRow {
     id: string;
     customerName: string;
@@ -173,7 +147,7 @@ export const PrintableCashBookStatement = React.forwardRef<
     if (sale.items && sale.items.length > 0) {
       if (sale.items.length === 1) {
         const item = sale.items[0];
-        const unit = item.product?.unit || "";
+        const unit = item.product?.unit || "pcs";
         dueSaleRows.push({
           id: `due-${sale.id}-${item.id}`,
           customerName: custName,
@@ -187,15 +161,12 @@ export const PrintableCashBookStatement = React.forwardRef<
           .map((it) => it.product?.name)
           .filter(Boolean)
           .join(", ");
-        const totalQty = sale.items.reduce(
-          (sum, it) => sum + (it.quantity || 0),
-          0
-        );
+        const totalQty = sale.items.reduce((sum, it) => sum + (it.quantity || 0), 0);
         dueSaleRows.push({
           id: `due-${sale.id}`,
           customerName: custName,
           productName: productNames || "Multiple Products",
-          unitQty: `${formatNumber(totalQty)} Pcs`,
+          unitQty: `${formatNumber(totalQty)} pcs`,
           rate: "-",
           dueAmount: sale.due_amount,
         });
@@ -217,13 +188,7 @@ export const PrintableCashBookStatement = React.forwardRef<
     0
   );
 
-  // -------------------------------------------------------------
   // 3. DAILY EXPENSES ROWS
-  // -------------------------------------------------------------
-  // STRICT RULE: The "Daily Expenses" section must contain ONLY actual
-  // Expense records created from the Expense module.
-  // Purchases, Purchase Payments, Supplier Payments, and Refunds
-  // must NEVER appear in the Expense section.
   interface ExpenseRow {
     id: string;
     description: string;
@@ -251,9 +216,7 @@ export const PrintableCashBookStatement = React.forwardRef<
       ? summary.total_expense
       : expenseRows.reduce((sum, r) => sum + (r.amount || 0), 0);
 
-  // -------------------------------------------------------------
-  // 4. CASH OUT (NON-EXPENSE WITHDRAWALS) ROWS
-  // -------------------------------------------------------------
+  // 4 & 5. CASH OUT ROWS
   interface CashOutRow {
     id: string;
     reason: string;
@@ -269,8 +232,8 @@ export const PrintableCashBookStatement = React.forwardRef<
   for (const it of actualCashOutItems) {
     cashOutRows.push({
       id: it.id,
-      reason: it.name && it.name !== "—" ? it.name : (it.description || "Cash Out"),
-      voucherNo: it.invoice && it.invoice !== "—" ? it.invoice : (it.code || "—"),
+      reason: it.name && it.name !== "—" ? it.name : it.description || "Cash Out",
+      voucherNo: it.invoice && it.invoice !== "—" ? it.invoice : it.code || "—",
       amount: it.debit,
     });
   }
@@ -278,889 +241,472 @@ export const PrintableCashBookStatement = React.forwardRef<
   const totalCashOut =
     typeof summary.total_cash_out === "number"
       ? summary.total_cash_out
-      : (typeof summary.today_cash_out === "number"
-          ? summary.today_cash_out
-          : cashOutRows.reduce((sum, r) => sum + (r.amount || 0), 0));
+      : typeof summary.today_cash_out === "number"
+      ? summary.today_cash_out
+      : cashOutRows.reduce((sum, r) => sum + (r.amount || 0), 0);
+
+  // Supplier daily accounts (multi-day or single-day)
+  const supplierSummary = summary.supplier_summary;
+  const dailyAccounts = supplierSummary?.daily_accounts && supplierSummary.daily_accounts.length > 0
+    ? supplierSummary.daily_accounts
+    : [
+        {
+          date: summary.date,
+          previous_due: supplierSummary?.previous_due || 0,
+          purchase_amount: supplierSummary?.purchase_amount || 0,
+          return_amount: supplierSummary?.return_amount || 0,
+          payment_amount: supplierSummary?.payment_amount || 0,
+          closing_due: supplierSummary?.closing_due || 0,
+        },
+      ];
 
   return (
-    <div ref={ref} className="cash-book-master-print w-full">
-      {/* Complete CSS styles preserved exactly from Master Template */}
+    <div ref={ref} className="w-full text-gray-900 antialiased font-sans text-[8.5px] leading-tight">
       <style
         dangerouslySetInnerHTML={{
           __html: `
-            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-
-            /* =========================================================
-               RESET & MASTER STYLES
-            ========================================================= */
-            .cash-book-master-print * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
+            @page {
+              size: A5 portrait;
+              margin: 4mm 5mm;
             }
 
-            .cash-book-master-print {
-                width: 100%;
-                font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                background: #f7f9fa;
-                color: #111;
-                padding: 10px;
-                font-size: 8.8px;
-                font-weight: 400;
-                line-height: 1.25;
-                -webkit-font-smoothing: antialiased;
-            }
-
-            /* =========================================================
-               PRINT BUTTON
-            ========================================================= */
-            .cash-book-master-print .no-print {
-                text-align: center;
-                margin-bottom: 12px;
-            }
-
-            .cash-book-master-print .print-btn {
-                background: #1a73e8;
-                color: #fff;
-                border: none;
-                padding: 7px 18px;
-                font-size: 11px;
-                font-weight: 500;
-                border-radius: 4px;
-                cursor: pointer;
-            }
-
-            /* =========================================================
-               A5 PAGE
-            ========================================================= */
-            .cash-book-master-print .page {
-                width: 148mm;
-                max-width: 100%;
-                margin: 0 auto;
-                background: #fff;
-                padding: 7mm;
-                box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
-            }
-
-            /* =========================================================
-               HEADER
-            ========================================================= */
-            .cash-book-master-print .header {
-                text-align: center;
-                position: relative;
-                padding-bottom: 4px;
-                margin-bottom: 4px;
-            }
-
-            .cash-book-master-print .header::after {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                height: 0.5px;
-                background: rgba(0, 0, 0, 0.12);
-                transform: scaleY(0.5);
-                transform-origin: bottom center;
-            }
-
-            .cash-book-master-print .header h1 {
-                font-size: 15px;
-                font-weight: 700;
-                color: #000;
-                letter-spacing: 0.5px;
-                margin-bottom: 1px;
-                text-transform: uppercase;
-            }
-
-            .cash-book-master-print .header p {
-                font-size: 8px;
-                color: #444;
-                font-weight: 400;
-            }
-
-            .cash-book-master-print .header .doc-title {
-                display: inline-block;
-                position: relative;
-                margin-top: 2px;
-                padding: 1px 8px;
-                font-weight: 600;
-                font-size: 8.5px;
-                color: #000;
-                text-transform: uppercase;
-            }
-
-            .cash-book-master-print .header .doc-title::before {
-                content: "";
-                position: absolute;
-                inset: 0;
-                border: 0.5px solid rgba(0, 0, 0, 0.12);
-                border-radius: 8px;
-                transform: scale(0.99);
-                pointer-events: none;
-            }
-
-            /* =========================================================
-               META INFORMATION
-            ========================================================= */
-            .cash-book-master-print .meta-info {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 4px;
-                font-size: 8.5px;
-                font-weight: 400;
-                background: #fafafa;
-                padding: 3px 5px;
-                position: relative;
-            }
-
-            .cash-book-master-print .meta-info::before {
-                content: "";
-                position: absolute;
-                inset: 0;
-                border: 0.5px solid rgba(0, 0, 0, 0.11);
-                transform: scale(0.995);
-                pointer-events: none;
-            }
-
-            /* =========================================================
-               SECTION TITLE
-            ========================================================= */
-            .cash-book-master-print .section-title {
-                font-size: 8.5px;
-                font-weight: 700;
-                text-transform: uppercase;
-                margin-top: 4px;
-                margin-bottom: 2px;
-                color: #111;
-            }
-
-            /* =========================================================
-               CSS GRID TABLE
-            ========================================================= */
-            .cash-book-master-print .css-table {
-                width: 100%;
-                margin-bottom: 4px;
-            }
-
-            .cash-book-master-print .css-row {
-                display: grid;
-                min-height: 16.5px;
-                position: relative;
-                background: transparent;
-                break-inside: avoid;
-                page-break-inside: avoid;
-            }
-
-            /* ULTRA THIN ROW SEPARATOR */
-            .cash-book-master-print .css-row::after {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                height: 0.5px;
-                background: rgba(0, 0, 0, 0.11);
-                transform: scaleY(0.5);
-                transform-origin: bottom center;
-                pointer-events: none;
-            }
-
-            .cash-book-master-print .css-cell {
-                min-width: 0;
-                padding: 2.5px 3.5px;
-                font-size: 8.5px;
-                font-weight: 400;
-                overflow: hidden;
-                word-wrap: break-word;
-                overflow-wrap: break-word;
-            }
-
-            /* CASH TABLE COLUMNS */
-            .cash-book-master-print .cash-table .css-row {
-                grid-template-columns: 5% 29% 27% 13% 11% 15%;
-            }
-
-            /* DUE TABLE COLUMNS */
-            .cash-book-master-print .due-table .css-row {
-                grid-template-columns: 5% 29% 27% 13% 11% 15%;
-            }
-
-            /* EXPENSE TABLE COLUMNS */
-            .cash-book-master-print .expense-table .css-row {
-                grid-template-columns: 5% 66% 14% 15%;
-            }
-
-            /* HEADER ROW */
-            .cash-book-master-print .css-header {
-                min-height: 16px;
-                font-weight: 700;
-                text-align: center;
-                background: #f6f7f9;
-                position: relative;
-            }
-
-            .cash-book-master-print .css-header::before {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                top: 0;
-                height: 0.5px;
-                background: rgba(0, 0, 0, 0.11);
-                transform: scaleY(0.5);
-                transform-origin: top center;
-                pointer-events: none;
-            }
-
-            .cash-book-master-print .css-header::after {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                height: 0.5px;
-                background: rgba(0, 0, 0, 0.13);
-                transform: scaleY(0.5);
-                transform-origin: bottom center;
-                pointer-events: none;
-            }
-
-            .cash-book-master-print .css-header .css-cell {
-                font-size: 8.5px;
-                font-weight: 700;
-                text-transform: uppercase;
-            }
-
-            /* ALIGNMENT */
-            .cash-book-master-print .text-center { text-align: center; }
-            .cash-book-master-print .text-left { text-align: left; }
-            .cash-book-master-print .text-right { text-align: right; }
-
-            /* TOTAL ROW */
-            .cash-book-master-print .total-row {
-                min-height: 17px;
-                background: #fafafa;
-                font-weight: 700;
-                position: relative;
-            }
-
-            .cash-book-master-print .total-row::before {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                top: 0;
-                height: 0.5px;
-                background: rgba(0, 0, 0, 0.13);
-                transform: scaleY(0.5);
-                transform-origin: top center;
-                pointer-events: none;
-            }
-
-            .cash-book-master-print .total-row::after {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                height: 0.5px;
-                background: rgba(0, 0, 0, 0.13);
-                transform: scaleY(0.5);
-                transform-origin: bottom center;
-                pointer-events: none;
-            }
-
-            .cash-book-master-print .total-label {
-                text-align: right;
-                padding-right: 5px;
-                font-weight: 700;
-            }
-
-            .cash-book-master-print .total-value {
-                text-align: right;
-                font-weight: 700;
-            }
-
-            /* =========================================================
-               SUMMARY BOX
-            ========================================================= */
-            .cash-book-master-print .summary-box {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-top: 5px;
-                padding: 4px 6px;
-                background: #fafbfc;
-                position: relative;
-                break-inside: avoid;
-                page-break-inside: avoid;
-            }
-
-            .cash-book-master-print .summary-box::before {
-                content: "";
-                position: absolute;
-                inset: 0;
-                border: 0.5px solid rgba(0, 0, 0, 0.11);
-                transform: scale(0.995);
-                pointer-events: none;
-            }
-
-            .cash-book-master-print .summary-item {
-                text-align: center;
-                min-width: 0;
-            }
-
-            .cash-book-master-print .summary-item .title {
-                display: block;
-                color: #555;
-                font-size: 7.5px;
-                font-weight: 600;
-                text-transform: uppercase;
-                margin-bottom: 1px;
-            }
-
-            .cash-book-master-print .summary-item .val {
-                font-weight: 700;
-                color: #000;
-                font-size: 10px;
-            }
-
-            .cash-book-master-print .summary-symbol {
-                font-weight: 700;
-                font-size: 10px;
-                padding: 0 2px;
-            }
-
-            .cash-book-master-print .summary-divider {
-                width: 0.5px;
-                height: 18px;
-                background: rgba(0, 0, 0, 0.11);
-                transform: scaleX(0.5);
-                transform-origin: center;
-            }
-
-            /* =========================================================
-               SIGNATURES
-            ========================================================= */
-            .cash-book-master-print .signature-area {
-                display: flex;
-                justify-content: space-between;
-                margin-top: 15px;
-                padding: 0 6px;
-                break-inside: avoid;
-                page-break-inside: avoid;
-            }
-
-            .cash-book-master-print .sig-block {
-                text-align: center;
-                width: 75px;
-            }
-
-            .cash-book-master-print .sig-line {
-                height: 0.5px;
-                margin-bottom: 2px;
-                background: repeating-linear-gradient(
-                    to right,
-                    rgba(0, 0, 0, 0.18) 0,
-                    rgba(0, 0, 0, 0.18) 2px,
-                    transparent 2px,
-                    transparent 4px
-                );
-                transform: scaleY(0.5);
-                transform-origin: bottom;
-            }
-
-            .cash-book-master-print .sig-text {
-                font-size: 7.5px;
-                color: #333;
-                font-weight: 400;
-            }
-
-            /* =========================================================
-               PRINT MEDIA STYLES
-            ========================================================= */
             @media print {
-                @page {
-                    size: A5 portrait;
-                    margin: 5mm;
-                }
+              html, body {
+                background: #fff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+              .sheet {
+                width: 100% !important;
+                max-width: none !important;
+                height: 100% !important;
+                min-height: 200mm !important;
+                margin: 0 !important;
+                padding: 4mm !important;
+                border: none !important;
+                box-shadow: none !important;
+                page-break-after: always;
+                break-after: page;
+              }
+              .sheet:last-child {
+                page-break-after: auto;
+                break-after: auto;
+              }
+              thead {
+                display: table-header-group;
+              }
+              tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+            }
 
-                html, body {
-                    width: 100% !important;
-                    height: auto !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #fff !important;
-                }
+            * { box-sizing: border-box; }
+            body {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              font-feature-settings: "tnum" 1;
+            }
 
-                #print-root {
-                    display: block !important;
-                    position: static !important;
-                    width: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #fff !important;
-                }
+            .hairline { border-color: rgba(0, 0, 0, 0.15); }
+            .hairline-light { border-color: rgba(0, 0, 0, 0.08); }
+            .tabular { font-variant-numeric: tabular-nums; }
+            .no-break { break-inside: avoid; page-break-inside: avoid; }
+            .bg-gray-150 { background-color: #ededed; }
 
-                .cash-book-master-print {
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #fff !important;
-                    font-size: 8.8px;
-                }
-
-                .cash-book-master-print .no-print {
-                    display: none !important;
-                }
-
-                .cash-book-master-print .page {
-                    width: 100% !important;
-                    max-width: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #fff !important;
-                    box-shadow: none !important;
-                }
-
-                .cash-book-master-print .css-row {
-                    background: transparent !important;
-                    border: none !important;
-                    outline: none !important;
-                }
-
-                .cash-book-master-print .css-row::after {
-                    content: "" !important;
-                    display: block !important;
-                    position: absolute !important;
-                    left: 0 !important;
-                    right: 0 !important;
-                    bottom: 0 !important;
-                    height: 0.5px !important;
-                    background: rgba(0, 0, 0, 0.11) !important;
-                    transform: scaleY(0.5) !important;
-                    transform-origin: bottom center !important;
-                }
-
-                .cash-book-master-print .css-header {
-                    background: #f6f7f9 !important;
-                }
-
-                .cash-book-master-print .css-header::before {
-                    height: 0.5px !important;
-                    background: rgba(0, 0, 0, 0.11) !important;
-                    transform: scaleY(0.5) !important;
-                }
-
-                .cash-book-master-print .css-header::after {
-                    height: 0.5px !important;
-                    background: rgba(0, 0, 0, 0.13) !important;
-                    transform: scaleY(0.5) !important;
-                }
-
-                .cash-book-master-print .total-row {
-                    background: #fafafa !important;
-                }
-
-                .cash-book-master-print .total-row::before {
-                    height: 0.5px !important;
-                    background: rgba(0, 0, 0, 0.13) !important;
-                    transform: scaleY(0.5) !important;
-                }
-
-                .cash-book-master-print .total-row::after {
-                    height: 0.5px !important;
-                    background: rgba(0, 0, 0, 0.13) !important;
-                    transform: scaleY(0.5) !important;
-                }
-
-                .cash-book-master-print .header::after {
-                    height: 0.5px !important;
-                    background: rgba(0, 0, 0, 0.11) !important;
-                    transform: scaleY(0.5) !important;
-                }
-
-                .cash-book-master-print .meta-info {
-                    background: #fafafa !important;
-                }
-
-                .cash-book-master-print .meta-info::before {
-                    border: 0.5px solid rgba(0, 0, 0, 0.11) !important;
-                }
-
-                .cash-book-master-print .header .doc-title::before {
-                    border: 0.5px solid rgba(0, 0, 0, 0.12) !important;
-                }
-
-                .cash-book-master-print .summary-box {
-                    background: #fafbfc !important;
-                }
-
-                .cash-book-master-print .summary-box::before {
-                    border: 0.5px solid rgba(0, 0, 0, 0.11) !important;
-                }
-
-                .cash-book-master-print .summary-divider {
-                    width: 0.5px !important;
-                    background: rgba(0, 0, 0, 0.11) !important;
-                    transform: scaleX(0.5) !important;
-                }
-
-                .cash-book-master-print .sig-line {
-                    height: 0.5px !important;
-                    background: repeating-linear-gradient(
-                        to right,
-                        rgba(0, 0, 0, 0.18) 0,
-                        rgba(0, 0, 0, 0.18) 2px,
-                        transparent 2px,
-                        transparent 4px
-                    ) !important;
-                    transform: scaleY(0.5) !important;
-                }
-
-                * {
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }
+            .watermark-container {
+              position: relative;
+            }
+            .watermark-overlay {
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              margin: 0 !important;
+              padding: 0 !important;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              pointer-events: none;
+              user-select: none;
+              z-index: 0;
+              overflow: hidden;
+            }
+            .watermark-text {
+              transform: rotate(-30deg);
+              font-size: 16px;
+              font-weight: 800;
+              color: rgba(0, 0, 0, 0.025);
+              text-transform: uppercase;
+              letter-spacing: 2px;
+              white-space: nowrap;
+              margin: 0 !important;
+              padding: 0 !important;
+              line-height: 1;
             }
           `,
         }}
       />
 
-      {/* A5 PAGE CONTAINER */}
-      <div className="page">
-        {/* =====================================================
-             HEADER
-        ===================================================== */}
-        <div className="header">
-          <h1>{businessName}</h1>
-          {businessContact && <p>{businessContact}</p>}
-          <div className="doc-title">Daily Sales & Cash Statement</div>
+      {/* SCREEN CONTROLS */}
+      <div className="no-print max-w-[148mm] mx-auto mb-2 bg-white border hairline rounded px-3 py-1.5 flex items-center justify-between shadow-sm">
+        <div>
+          <span className="text-xs font-bold text-gray-800 block">Print Preview Layout</span>
+          <span className="text-[10px] text-gray-500">Balanced Readable Text Size - A5 Format</span>
         </div>
-
-        {/* =====================================================
-             META INFORMATION
-        ===================================================== */}
-        <div className="meta-info">
-          <div>
-            <strong>Date:</strong> {formattedDate}
-          </div>
-          <div>
-            <strong>B/F (Opening Cash):</strong>{" "}
-            {formatCurrency(summary.previous_balance)}
-          </div>
-          <div>
-            <strong>Sheet No:</strong> 01
-          </div>
-        </div>
-
-        {/* =====================================================
-             1. CASH SALES & COLLECTION
-        ===================================================== */}
-        <div className="section-title">1. Cash Sales & Collection</div>
-
-        <div className="css-table cash-table">
-          {/* HEADER */}
-          <div className="css-row css-header">
-            <div className="css-cell">#</div>
-            <div className="css-cell">Customer Name</div>
-            <div className="css-cell">Product Name</div>
-            <div className="css-cell">Unit/Qty</div>
-            <div className="css-cell">Rate ({currencySymbol})</div>
-            <div className="css-cell">Amount ({currencySymbol})</div>
-          </div>
-
-          {/* ROWS */}
-          {cashInflowRows.map((row, idx) => (
-            <div key={row.id} className="css-row">
-              <div className="css-cell text-center">{idx + 1}</div>
-              <div className="css-cell text-left">{row.customerName}</div>
-              <div className="css-cell text-left">{row.productName}</div>
-              <div className="css-cell text-center">{row.unitQty}</div>
-              <div className="css-cell text-right">{row.rate}</div>
-              <div className="css-cell text-right">
-                {formatNumber(row.amount)}
-              </div>
-            </div>
-          ))}
-
-          {cashInflowRows.length === 0 && (
-            <div className="css-row">
-              <div
-                className="css-cell text-center"
-                style={{
-                  gridColumn: "1 / 7",
-                  fontStyle: "italic",
-                  color: "#666",
-                  padding: "6px",
-                }}
-              >
-                No cash sales or collections for this date.
-              </div>
-            </div>
-          )}
-
-          {/* TOTAL */}
-          <div className="css-row total-row">
-            <div className="css-cell total-label" style={{ gridColumn: "1 / 6" }}>
-              Total Cash Collection:
-            </div>
-            <div className="css-cell total-value">
-              {formatCurrency(totalCashCollection)}
-            </div>
-          </div>
-        </div>
-
-        {/* =====================================================
-             2. DUE SALES (CREDIT)
-        ===================================================== */}
-        <div className="section-title">2. Due Sales (Credit)</div>
-
-        <div className="css-table due-table">
-          {/* HEADER */}
-          <div className="css-row css-header">
-            <div className="css-cell">#</div>
-            <div className="css-cell">Customer Name</div>
-            <div className="css-cell">Product Name</div>
-            <div className="css-cell">Unit/Qty</div>
-            <div className="css-cell">Rate ({currencySymbol})</div>
-            <div className="css-cell">Due ({currencySymbol})</div>
-          </div>
-
-          {/* ROWS */}
-          {dueSaleRows.map((row, idx) => (
-            <div key={row.id} className="css-row">
-              <div className="css-cell text-center">{idx + 1}</div>
-              <div className="css-cell text-left">{row.customerName}</div>
-              <div className="css-cell text-left">{row.productName}</div>
-              <div className="css-cell text-center">{row.unitQty}</div>
-              <div className="css-cell text-right">{row.rate}</div>
-              <div className="css-cell text-right">
-                {formatNumber(row.dueAmount)}
-              </div>
-            </div>
-          ))}
-
-          {dueSaleRows.length === 0 && (
-            <div className="css-row">
-              <div
-                className="css-cell text-center"
-                style={{
-                  gridColumn: "1 / 7",
-                  fontStyle: "italic",
-                  color: "#666",
-                  padding: "6px",
-                }}
-              >
-                No due sales for this date.
-              </div>
-            </div>
-          )}
-
-          {/* TOTAL */}
-          <div className="css-row total-row">
-            <div
-              className="css-cell total-label"
-              style={{
-                gridColumn: "1 / 6",
-                color: "#b02a37",
-              }}
-            >
-              Total Due Sales:
-            </div>
-            <div className="css-cell total-value" style={{ color: "#b02a37" }}>
-              {formatCurrency(totalDueSales)}
-            </div>
-          </div>
-        </div>
-
-        {/* =====================================================
-             3. DAILY EXPENSES
-        ===================================================== */}
-        <div className="section-title">3. Daily Expenses</div>
-
-        <div className="css-table expense-table">
-          {/* HEADER */}
-          <div className="css-row css-header">
-            <div className="css-cell">#</div>
-            <div className="css-cell">Expense Description</div>
-            <div className="css-cell">Type</div>
-            <div className="css-cell">Amount ({currencySymbol})</div>
-          </div>
-
-          {/* ROWS */}
-          {expenseRows.map((row, idx) => (
-            <div key={row.id} className="css-row">
-              <div className="css-cell text-center">{idx + 1}</div>
-              <div className="css-cell text-left">{row.description}</div>
-              <div className="css-cell text-center">{row.type}</div>
-              <div className="css-cell text-right">
-                {formatNumber(row.amount)}
-              </div>
-            </div>
-          ))}
-
-          {expenseRows.length === 0 && (
-            <div className="css-row">
-              <div
-                className="css-cell text-center"
-                style={{
-                  gridColumn: "1 / 5",
-                  fontStyle: "italic",
-                  color: "#666",
-                  padding: "6px",
-                }}
-              >
-                No expenses recorded for this date.
-              </div>
-            </div>
-          )}
-
-          {/* TOTAL */}
-          <div className="css-row total-row">
-            <div className="css-cell total-label" style={{ gridColumn: "1 / 4" }}>
-              Total Expense:
-            </div>
-            <div className="css-cell total-value">
-              {formatCurrency(totalExpense)}
-            </div>
-          </div>
-        </div>
-
-        {/* =====================================================
-             4. CASH OUT / WITHDRAWALS
-        ===================================================== */}
-        {cashOutRows.length > 0 && (
-          <>
-            <div className="section-title">4. Cash Out / Withdrawals</div>
-
-            <div className="css-table expense-table">
-              {/* HEADER */}
-              <div className="css-row css-header">
-                <div className="css-cell">#</div>
-                <div className="css-cell">Reason / Description</div>
-                <div className="css-cell">Voucher #</div>
-                <div className="css-cell">Amount ({currencySymbol})</div>
-              </div>
-
-              {/* ROWS */}
-              {cashOutRows.map((row, idx) => (
-                <div key={row.id} className="css-row">
-                  <div className="css-cell text-center">{idx + 1}</div>
-                  <div className="css-cell text-left">{row.reason}</div>
-                  <div className="css-cell text-center">{row.voucherNo}</div>
-                  <div className="css-cell text-right">
-                    {formatNumber(row.amount)}
-                  </div>
-                </div>
-              ))}
-
-              {/* TOTAL */}
-              <div className="css-row total-row">
-                <div className="css-cell total-label" style={{ gridColumn: "1 / 4" }}>
-                  Total Cash Out:
-                </div>
-                <div className="css-cell total-value">
-                  {formatCurrency(totalCashOut)}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* =====================================================
-             FINAL BALANCE SUMMARY
-        ===================================================== */}
-        <div className="summary-box">
-              {/* Opening */}
-              <div className="summary-item">
-                <span className="title">Opening (B/F)</span>
-                <span className="val">{formatCurrency(summary.previous_balance || 0)}</span>
-              </div>
-
-              <div className="summary-symbol">+</div>
-
-              {/* Cash Collection */}
-              <div className="summary-item">
-                <span className="title">Cash Collection</span>
-                <span className="val">
-                  {formatCurrency(summary.today_cash_received || 0)}
-                </span>
-              </div>
-
-              <div className="summary-symbol">-</div>
-
-              {/* Expense */}
-              <div className="summary-item">
-                <span className="title">Total Expense</span>
-                <span className="val">
-                  {formatCurrency(totalExpense)}
-                </span>
-              </div>
-
-              {totalCashOut > 0 && (
-                <>
-                  <div className="summary-symbol">-</div>
-                  <div className="summary-item">
-                    <span className="title" style={{ color: "#6f42c1" }}>
-                      Cash Out
-                    </span>
-                    <span className="val" style={{ color: "#6f42c1" }}>
-                      {formatCurrency(totalCashOut)}
-                    </span>
-                  </div>
-                </>
-              )}
-
-              <div className="summary-symbol">=</div>
-
-              {/* Net Cash */}
-              <div className="summary-item">
-                <span className="title" style={{ color: "#0b5ed7" }}>
-                  Net Cash in Hand
-                </span>
-                <span className="val" style={{ color: "#0b5ed7" }}>
-                  {formatCurrency(summary.closing_cash_balance)}
-                </span>
-              </div>
-
-              {/* Divider */}
-              <div className="summary-divider"></div>
-
-              {/* Due */}
-              <div className="summary-item">
-                <span className="title" style={{ color: "#b02a37" }}>
-                  Total Due Sale
-                </span>
-                <span className="val" style={{ color: "#b02a37" }}>
-                  {formatCurrency(totalDueSales)}
-                </span>
-              </div>
-            </div>
-
-        {/* =====================================================
-             SIGNATURES
-        ===================================================== */}
-        <div className="signature-area">
-          <div className="sig-block">
-            <div className="sig-line"></div>
-            <div className="sig-text">Prepared By</div>
-          </div>
-
-          <div className="sig-block">
-            <div className="sig-line"></div>
-            <div className="sig-text">Verified By</div>
-          </div>
-
-          <div className="sig-block">
-            <div className="sig-line"></div>
-            <div className="sig-text">Proprietor / Manager</div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold px-3 py-1 rounded transition cursor-pointer"
+        >
+          Print / PDF
+        </button>
       </div>
+
+      {dailyAccounts.map((dayAccount, dayIndex) => {
+        const sheetNum = String(dayIndex + 1).padStart(2, "0");
+        const sheetDate = formatDisplayDate(dayAccount.date || summary.date);
+        const supplierName = supplierSummary?.supplier_name || "ABC Poultry";
+
+        return (
+          <main
+            key={`sheet-${dayIndex}-${dayAccount.date}`}
+            className="sheet watermark-container max-w-[148mm] min-h-[200mm] mx-auto bg-white p-[4mm] shadow border hairline flex flex-col justify-between mb-4 last:mb-0"
+          >
+            {/* ZERO MARGIN WATERMARK LAYER */}
+            <div className="watermark-overlay">
+              <span className="watermark-text">Developed and managed by Mahfuz Ahmed</span>
+            </div>
+
+            {/* MAIN CONTENT AREA */}
+            <div className="relative z-10 w-full">
+              {/* HEADER */}
+              <header className="text-center pb-1 mb-1 border-b hairline">
+                <h1 className="text-[13px] font-extrabold uppercase tracking-widest text-gray-900">
+                  {businessName}
+                </h1>
+                <p className="text-[7.5px] uppercase tracking-wider text-gray-500 font-semibold mt-0.5">
+                  DAILY SALES & CASH STATEMENT
+                </p>
+              </header>
+
+              {/* METADATA BAR */}
+              <div className="grid grid-cols-3 bg-gray-50 border hairline px-2 py-1 mb-1.5 text-[8px]">
+                <div>
+                  <span className="text-gray-500">Date:</span> <strong>{sheetDate}</strong>
+                </div>
+                <div className="text-center">
+                  <span className="text-gray-500">Opening B/F:</span>{" "}
+                  <strong className="tabular">{currencySymbol} {formatNumber(summary.previous_balance || 0)}</strong>
+                </div>
+                <div className="text-right">
+                  <span className="text-gray-500">Sheet:</span> <strong>{sheetNum}</strong>
+                </div>
+              </div>
+
+              {/* =======================================================
+                   1. CASH SALES & COLLECTION
+                   ======================================================= */}
+              <section className="mb-1.5">
+                <div className="font-bold uppercase text-[7.8px] text-gray-800 mb-0.5">
+                  1. CASH SALES & COLLECTION
+                </div>
+                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-transparent">
+                  <thead>
+                    <tr className="bg-gray-100 border-b hairline text-[7.2px] text-gray-700 font-bold">
+                      <th className="px-1 py-[2.5px] text-center w-3">#</th>
+                      <th className="px-1.5 py-[2.5px]">CUSTOMER NAME</th>
+                      <th className="px-1.5 py-[2.5px]">PRODUCT NAME</th>
+                      <th className="px-1 py-[2.5px] text-center">UNIT/QTY</th>
+                      <th className="px-1 py-[2.5px] text-right">RATE</th>
+                      <th className="px-1.5 py-[2.5px] text-right">AMOUNT ({currencySymbol})</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y hairline-light">
+                    {cashInflowRows.map((row, idx) => (
+                      <tr key={row.id}>
+                        <td className="px-1 py-[2px] text-center text-gray-400">{idx + 1}</td>
+                        <td className="px-1.5 py-[2px] font-medium text-gray-900">{row.customerName}</td>
+                        <td className="px-1.5 py-[2px] text-gray-700">{row.productName}</td>
+                        <td className="px-1 py-[2px] text-center tabular font-medium">{row.unitQty}</td>
+                        <td className="px-1 py-[2px] text-right tabular text-gray-500">{row.rate}</td>
+                        <td className="px-1.5 py-[2px] text-right tabular font-bold text-gray-900">
+                          {formatNumber(row.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    {cashInflowRows.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-2 py-2 text-center text-gray-500 italic">
+                          No cash sales or collections for this date.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
+                      <td colSpan={5} className="px-1.5 py-[2.5px] text-right">Total Cash Collection:</td>
+                      <td className="px-1.5 py-[2.5px] text-right tabular text-emerald-700">
+                        {currencySymbol} {formatNumber(totalCashCollection)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </section>
+
+              {/* =======================================================
+                   2. DUE SALES (CREDIT)
+                   ======================================================= */}
+              <section className="mb-1.5">
+                <div className="font-bold uppercase text-[7.8px] text-gray-800 mb-0.5">
+                  2. DUE SALES (CREDIT)
+                </div>
+                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-transparent">
+                  <thead>
+                    <tr className="bg-gray-100 border-b hairline text-[7.2px] text-gray-700 font-bold">
+                      <th className="px-1 py-[2.5px] text-center w-3">#</th>
+                      <th className="px-1.5 py-[2.5px]">CUSTOMER NAME</th>
+                      <th className="px-1.5 py-[2.5px]">PRODUCT</th>
+                      <th className="px-1 py-[2.5px] text-center">QTY</th>
+                      <th className="px-1 py-[2.5px] text-right">RATE</th>
+                      <th className="px-1.5 py-[2.5px] text-right">DUE ({currencySymbol})</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y hairline-light">
+                    {dueSaleRows.map((row, idx) => (
+                      <tr key={row.id}>
+                        <td className="px-1 py-[2px] text-center text-gray-400">{idx + 1}</td>
+                        <td className="px-1.5 py-[2px] font-medium">{row.customerName}</td>
+                        <td className="px-1.5 py-[2px] text-gray-600">{row.productName}</td>
+                        <td className="px-1 py-[2px] text-center tabular">{row.unitQty}</td>
+                        <td className="px-1 py-[2px] text-right tabular text-gray-500">{row.rate}</td>
+                        <td className="px-1.5 py-[2px] text-right tabular font-semibold">
+                          {formatNumber(row.dueAmount)}
+                        </td>
+                      </tr>
+                    ))}
+                    {dueSaleRows.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-2 py-2 text-center text-gray-500 italic">
+                          No due sales for this date.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
+                      <td colSpan={5} className="px-1.5 py-[2.5px] text-right">Total Due Sales:</td>
+                      <td className="px-1.5 py-[2.5px] text-right tabular text-rose-700">
+                        {currencySymbol} {formatNumber(totalDueSales)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </section>
+
+              {/* =======================================================
+                   3. DAILY EXPENSES
+                   ======================================================= */}
+              <section className="mb-1.5">
+                <div className="font-bold uppercase text-[7.8px] text-gray-800 mb-0.5">
+                  3. DAILY EXPENSES
+                </div>
+                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-transparent">
+                  <thead>
+                    <tr className="bg-gray-100 border-b hairline text-[7.2px] text-gray-700 font-bold">
+                      <th className="px-1 py-[2.5px] text-center w-3">#</th>
+                      <th className="px-1.5 py-[2.5px]">EXPENSE DESCRIPTION</th>
+                      <th className="px-1.5 py-[2.5px]">TYPE</th>
+                      <th className="px-1.5 py-[2.5px] text-right">AMOUNT ({currencySymbol})</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y hairline-light">
+                    {expenseRows.map((row, idx) => (
+                      <tr key={row.id}>
+                        <td className="px-1 py-[2px] text-center text-gray-400">{idx + 1}</td>
+                        <td className="px-1.5 py-[2px] font-medium">{row.description}</td>
+                        <td className="px-1.5 py-[2px] text-gray-500">{row.type}</td>
+                        <td className="px-1.5 py-[2px] text-right tabular font-semibold text-rose-700">
+                          {formatNumber(row.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    {expenseRows.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-2 py-2 text-center text-gray-500 italic">
+                          No expenses recorded for this date.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
+                      <td colSpan={3} className="px-1.5 py-[2.5px] text-right">Total Expense:</td>
+                      <td className="px-1.5 py-[2.5px] text-right tabular text-rose-700">
+                        {currencySymbol} {formatNumber(totalExpense)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </section>
+
+              {/* =======================================================
+                   4 & 5: SIDE BY SIDE SUMMARY (SUPPLIER & CASH OUT)
+                   ======================================================= */}
+              <div className="grid grid-cols-2 gap-1.5 items-stretch mb-1.5 no-break">
+                {/* 4. SUPPLIER SUMMARY */}
+                <section className="border hairline bg-white/90 flex flex-col justify-between">
+                  <div>
+                    <div className="border-b hairline bg-gray-100 px-1.5 py-[2px] flex justify-between items-center">
+                      <span className="text-[7.2px] font-bold uppercase text-gray-700 truncate">
+                        4. SUPPLIER: {supplierSummary ? supplierName : "—"}
+                      </span>
+                    </div>
+                    <div className="p-1.5 space-y-0.5 text-[7.8px]">
+                      <div className="flex justify-between items-center py-[1px] border-b hairline-light">
+                        <span className="text-gray-500">Prev. Due</span>
+                        <strong className="tabular">
+                          {currencySymbol} {formatNumber(dayAccount.previous_due)}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center py-[1px] border-b hairline-light">
+                        <span className="text-gray-500">(+) Purchase</span>
+                        <strong className="tabular">
+                          {dayAccount.purchase_amount > 0 ? (
+                            `${currencySymbol} ${formatNumber(dayAccount.purchase_amount)}`
+                          ) : (
+                            <span className="text-gray-400 font-normal">-</span>
+                          )}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center py-[1px] border-b hairline-light">
+                        <span className="text-gray-500">(-) Return</span>
+                        <strong className={`tabular ${dayAccount.return_amount > 0 ? "text-rose-700" : "text-gray-400 font-normal"}`}>
+                          {dayAccount.return_amount > 0 ? `- ${currencySymbol} ${formatNumber(dayAccount.return_amount)}` : "-"}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center py-[1px]">
+                        <span className="text-gray-500">(-) Payment</span>
+                        <strong className={`tabular ${dayAccount.payment_amount > 0 ? "text-emerald-700" : "text-gray-400 font-normal"}`}>
+                          {dayAccount.payment_amount > 0 ? `- ${currencySymbol} ${formatNumber(dayAccount.payment_amount)}` : "-"}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-1.5 py-[2.5px] bg-gray-50 border-t hairline flex justify-between items-center font-bold text-[7.8px]">
+                    <span>Closing Due</span>
+                    <strong className="tabular text-black">
+                      {currencySymbol} {formatNumber(dayAccount.closing_due)}
+                    </strong>
+                  </div>
+                </section>
+
+                {/* 5. CASH OUT TABLE */}
+                <section className="border hairline bg-white/90 flex flex-col justify-between">
+                  <div>
+                    <div className="bg-gray-100 border-b hairline px-1.5 py-[2px] font-bold uppercase text-[7.2px] text-gray-700">
+                      5. CASH OUT / WITHDRAWALS
+                    </div>
+                    <table className="w-full text-left text-[7.8px] border-collapse bg-transparent">
+                      <thead>
+                        <tr className="bg-gray-50 border-b hairline text-[7px] text-gray-600 font-bold">
+                          <th className="px-1.5 py-[2px]">REASON</th>
+                          <th className="px-1 py-[2px] text-center">VOUCHER</th>
+                          <th className="px-1.5 py-[2px] text-right">AMOUNT ({currencySymbol})</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y hairline-light">
+                        {cashOutRows.map((row) => (
+                          <tr key={row.id}>
+                            <td className="px-1.5 py-[2px] font-medium truncate max-w-[75px]">{row.reason}</td>
+                            <td className="px-1 py-[2px] text-center tabular text-gray-400 text-[7px]">{row.voucherNo}</td>
+                            <td className="px-1.5 py-[2px] text-right tabular font-semibold text-rose-700">
+                              {formatNumber(row.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                        {cashOutRows.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-1.5 py-[3px] text-center text-gray-400 italic text-[7px]">
+                              No cash out withdrawals
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-1.5 py-[2.5px] bg-gray-50 border-t hairline flex justify-between items-center font-bold text-[7.8px]">
+                    <span>Total Cash Out</span>
+                    <strong className="tabular text-rose-700">
+                      {currencySymbol} {formatNumber(totalCashOut)}
+                    </strong>
+                  </div>
+                </section>
+              </div>
+
+              {/* =======================================================
+                   6. DAILY CASH STATEMENT SUMMARY TABLE
+                   ======================================================= */}
+              <section className="no-break mb-1">
+                <div className="font-bold uppercase text-[7.5px] text-gray-700 mb-0.5">
+                  6. DAILY CASH STATEMENT SUMMARY
+                </div>
+                <table className="w-full text-center text-[7.5px] border border-collapse hairline leading-tight bg-transparent">
+                  <thead>
+                    <tr className="bg-gray-100 border-b hairline text-[6.8px] text-gray-600 font-semibold">
+                      <th className="px-1 py-[2.5px]">OPENING (B/F)</th>
+                      <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
+                      <th className="px-1 py-[2.5px]">CASH COLLECTION</th>
+                      <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
+                      <th className="px-1 py-[2.5px]">TOTAL EXPENSE</th>
+                      <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
+                      <th className="px-1 py-[2.5px]">CASH OUT</th>
+                      <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
+                      <th className="px-1 py-[2.5px] bg-gray-150 font-bold text-gray-900">NET CASH IN HAND</th>
+                      <th className="px-1 py-[2.5px] text-rose-600">TOTAL DUE SALE</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-medium tabular text-[7.8px]">
+                    <tr>
+                      <td className="px-1 py-[3px] text-gray-700">
+                        {currencySymbol} {formatNumber(summary.previous_balance || 0)}
+                      </td>
+                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">+</td>
+                      <td className="px-1 py-[3px] text-emerald-700 font-semibold">
+                        {currencySymbol} {formatNumber(totalCashCollection)}
+                      </td>
+                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">-</td>
+                      <td className="px-1 py-[3px] text-rose-600 font-semibold">
+                        {currencySymbol} {formatNumber(totalExpense)}
+                      </td>
+                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">-</td>
+                      <td className="px-1 py-[3px] text-rose-600 font-semibold">
+                        {currencySymbol} {formatNumber(totalCashOut)}
+                      </td>
+                      <td className="px-0 py-[3px] text-gray-400 font-normal text-[7px]">=</td>
+                      <td className="px-1 py-[3px] bg-gray-50/80 font-bold text-black text-[8.5px]">
+                        {currencySymbol} {formatNumber(summary.closing_cash_balance)}
+                      </td>
+                      <td className="px-1 py-[3px] text-rose-600 font-semibold">
+                        {currencySymbol} {formatNumber(totalDueSales)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+            </div>
+
+            {/* FIXED BOTTOM FOOTER */}
+            <footer className="relative z-10 w-full text-center text-[6.5px] text-gray-400 tracking-wider m-0 p-0 leading-none">
+              Developed and managed by Mahfuz Ahmed
+            </footer>
+          </main>
+        );
+      })}
     </div>
   );
 });

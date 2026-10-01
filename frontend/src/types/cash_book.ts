@@ -42,4 +42,25 @@ export interface CashBookSummary {
   company_phone?: string | null;
   company_logo?: string | null;
   items: CashBookItem[];
+  supplier_summary?: SupplierPrintSummary | null;
+}
+
+export interface SupplierDailyAccount {
+  date: string;
+  previous_due: number;
+  purchase_amount: number;
+  return_amount: number;
+  payment_amount: number;
+  closing_due: number;
+}
+
+export interface SupplierPrintSummary {
+  supplier_id: string;
+  supplier_name: string;
+  previous_due: number;
+  purchase_amount: number;
+  return_amount: number;
+  payment_amount: number;
+  closing_due: number;
+  daily_accounts: SupplierDailyAccount[];
 }

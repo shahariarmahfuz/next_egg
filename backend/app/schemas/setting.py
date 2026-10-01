@@ -37,6 +37,7 @@ class BusinessSettingsResponse(BaseModel):
     thousand_separator: Optional[str] = None
     decimal_separator: Optional[str] = None
     default_currency_id: Optional[str] = None
+    supplier_print_supplier_id: Optional[str] = None
 
 class BusinessSettingsUpdate(BaseModel):
     business_name: Optional[str] = None
@@ -56,3 +57,11 @@ class BusinessSettingsUpdate(BaseModel):
     thousand_separator: Optional[str] = None
     decimal_separator: Optional[str] = None
     default_currency_id: Optional[str] = None
+    supplier_print_supplier_id: Optional[str] = None
+
+class SupplierPrintConfigResponse(BaseModel):
+    supplier_id: Optional[str] = None
+    supplier: Optional[dict] = None
+
+class SupplierPrintConfigUpdate(BaseModel):
+    supplier_id: Optional[str] = None
