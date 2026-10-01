@@ -27,6 +27,7 @@ class ExpenseCategoryResponse(ExpenseCategoryBase):
     created_at: datetime
     updated_at: datetime
     expense_count: Optional[int] = 0
+    total_amount: Optional[float] = 0.0
 
 
 # Expense Schemas

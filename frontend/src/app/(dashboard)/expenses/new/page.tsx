@@ -103,10 +103,14 @@ export default function AddExpensePage() {
   const createMutation = useMutation({
     mutationFn: (payload: ExpenseInput) => expenseService.createExpense(payload),
     onSuccess: (res) => {
-      // Invalidate queries so dashboard and manage expenses update immediately
+      // Invalidate queries so dashboard, cash book, and manage expenses update immediately
       queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
       queryClient.invalidateQueries({ queryKey: ["expenses-list"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-reports"] });
       queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-book"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
 
       const voucher = res.data?.voucher_no;
       const message = voucher

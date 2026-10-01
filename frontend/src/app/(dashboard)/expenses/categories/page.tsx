@@ -12,6 +12,9 @@ import {
   XCircle,
   Loader2,
   AlertTriangle,
+  AlertOctagon,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -32,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { HasPermission, useAuth } from "@/providers/auth-provider";
 import { expenseService } from "@/services/api";
 import { ExpenseCategory, ExpenseCategoryInput } from "@/types";
+import { toast } from "sonner";
 
 export default function ExpenseCategoriesPage() {
   const { hasPermission } = useAuth();
@@ -41,6 +45,9 @@ export default function ExpenseCategoriesPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<ExpenseCategory | null>(null);
+  const [hidingCategory, setHidingCategory] = useState<ExpenseCategory | null>(null);
+  const [hardDeletingCategory, setHardDeletingCategory] = useState<ExpenseCategory | null>(null);
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
 
   // Form State
   const [formData, setFormData] = useState<ExpenseCategoryInput>({
@@ -70,6 +77,7 @@ export default function ExpenseCategoriesPage() {
     mutationFn: (payload: ExpenseCategoryInput) => expenseService.createCategory(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories-active"] });
       setIsAddOpen(false);
       resetForm();
     },
@@ -84,6 +92,7 @@ export default function ExpenseCategoriesPage() {
       expenseService.updateCategory(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories-active"] });
       setEditingCategory(null);
       resetForm();
     },
@@ -92,15 +101,74 @@ export default function ExpenseCategoriesPage() {
     },
   });
 
-  // Delete Mutation
+  // Soft Delete / Hide Mutation (Safe Deactivation)
+  const hideMutation = useMutation({
+    mutationFn: (id: string) => expenseService.hideCategory(id),
+    onSuccess: (res) => {
+      toast.success(
+        `Category "${res.data?.name || "Category"}" has been deactivated and hidden from new expense entries.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories-active"] });
+      setHidingCategory(null);
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        "Failed to hide category";
+      toast.error(msg);
+    },
+  });
+
+  // Hard Delete Mutation (Category + All Associated Expense Transactions)
+  const hardDeleteMutation = useMutation({
+    mutationFn: (id: string) => expenseService.hardDeleteCategory(id),
+    onSuccess: (res) => {
+      const data = res.data;
+      toast.success(
+        data?.category_name
+          ? `Category "${data.category_name}" and ${data.deleted_expenses_count} associated expense(s) permanently deleted.`
+          : "Category and all associated expense transactions permanently deleted."
+      );
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories-active"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-list"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-book"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      setHardDeletingCategory(null);
+      setConfirmDeleteText("");
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        "Failed to hard delete category";
+      toast.error(msg);
+    },
+  });
+
+  // Delete Mutation (Standard)
   const deleteMutation = useMutation({
     mutationFn: (id: string) => expenseService.deleteCategory(id),
     onSuccess: () => {
+      toast.success("Category deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories-active"] });
       setDeletingCategory(null);
     },
     onError: (err: any) => {
-      alert(err.message || "Cannot delete category");
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        "Cannot delete category";
+      toast.error(msg);
     },
   });
 
@@ -250,11 +318,18 @@ export default function ExpenseCategoriesPage() {
                               </Badge>
                             </button>
                           </td>
-                          <td className="p-3 text-center font-medium text-foreground">
-                            {cat.expense_count || 0} vouchers
+                          <td className="p-3 text-center">
+                            <div className="font-medium text-foreground">
+                              {cat.expense_count || 0} vouchers
+                            </div>
+                            {Number(cat.total_amount || 0) > 0 && (
+                              <div className="text-[10px] text-muted-foreground font-mono">
+                                ৳{Number(cat.total_amount || 0).toLocaleString()}
+                              </div>
+                            )}
                           </td>
                           <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-1.5">
                               {hasPermission("expense.category.edit") && (
                                 <Button
                                   variant="ghost"
@@ -266,13 +341,43 @@ export default function ExpenseCategoriesPage() {
                                   <Edit2 className="h-3.5 w-3.5" />
                                 </Button>
                               )}
+
+                              {/* Safe Deletion: Hide / Deactivate */}
+                              {cat.status === "active" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setHidingCategory(cat)}
+                                  className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                                  title="Hide / Deactivate Category (Safe - keeps all expenses)"
+                                >
+                                  <EyeOff className="h-3.5 w-3.5" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    updateMutation.mutate({ id: cat.id, payload: { status: "active" } })
+                                  }
+                                  className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                                  title="Activate Category"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+
+                              {/* Destructive: Permanent Hard Delete */}
                               {hasPermission("expense.category.delete") && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => setDeletingCategory(cat)}
-                                  className="h-7 w-7 text-muted-foreground hover:text-rose-500"
-                                  title="Delete Category"
+                                  onClick={() => {
+                                    setConfirmDeleteText("");
+                                    setHardDeletingCategory(cat);
+                                  }}
+                                  className="h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10"
+                                  title="Hard Delete Category & All Expenses (Permanent)"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -396,7 +501,148 @@ export default function ExpenseCategoriesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Delete Confirmation Modal */}
+        {/* Soft Delete / Hide Confirmation Modal (Safe) */}
+        <Dialog open={!!hidingCategory} onOpenChange={() => setHidingCategory(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-amber-600 flex items-center gap-2">
+                <EyeOff className="h-5 w-5" />
+                Hide / Deactivate Category
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground pt-1">
+                Are you sure you want to deactivate and hide category{" "}
+                <span className="font-bold text-foreground">"{hidingCategory?.name}"</span>?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-md p-3 text-xs space-y-2 text-muted-foreground">
+              <p className="font-semibold text-amber-700 dark:text-amber-400">Safe Deactivation:</p>
+              <ul className="list-disc pl-4 space-y-1 text-[11px]">
+                <li>Category will be hidden from new expense entry dropdowns.</li>
+                <li>
+                  All <span className="font-bold text-foreground">{hidingCategory?.expense_count || 0} existing expense transactions</span> remain untouched in the database.
+                </li>
+                <li>Historical reports, ledgers, and cash book calculations remain completely preserved.</li>
+                <li>You can reactivate this category at any time.</li>
+              </ul>
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setHidingCategory(null)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                disabled={hideMutation.isPending}
+                onClick={() => hidingCategory && hideMutation.mutate(hidingCategory.id)}
+                className="text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white gap-2"
+              >
+                {hideMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Hide / Deactivate Category
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Hard Delete Confirmation Modal (Destructive) */}
+        <Dialog
+          open={!!hardDeletingCategory}
+          onOpenChange={() => {
+            setHardDeletingCategory(null);
+            setConfirmDeleteText("");
+          }}
+        >
+          <DialogContent className="sm:max-w-md border-rose-500/40">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-rose-600 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Permanent Hard Delete
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground pt-1">
+                Destructive Action: Permanently removes the category and ALL of its transactions.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 pt-1">
+              <div className="bg-rose-500/10 border border-rose-500/30 rounded-md p-3 text-xs space-y-2">
+                <p className="font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                  <AlertOctagon className="h-4 w-4" />
+                  Irreversible Deletion Warning
+                </p>
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <div>
+                    Category: <span className="font-bold text-foreground">{hardDeletingCategory?.name}</span>
+                  </div>
+                  <div>
+                    Associated Transactions:{" "}
+                    <span className="font-bold text-rose-600 dark:text-rose-400">
+                      {hardDeletingCategory?.expense_count || 0} vouchers
+                    </span>
+                  </div>
+                  <div>
+                    Total Expense Amount:{" "}
+                    <span className="font-bold text-rose-600 dark:text-rose-400">
+                      ৳{Number(hardDeletingCategory?.total_amount || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                  This operation will permanently delete this category AND ALL {hardDeletingCategory?.expense_count || 0} associated expense transactions from the database.
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  Cash Book daily expenses, expense reports, and ledgers will immediately update and exclude these records.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Type <span className="text-rose-600 font-bold">DELETE</span> to confirm permanent deletion:
+                </Label>
+                <Input
+                  placeholder="DELETE"
+                  value={confirmDeleteText}
+                  onChange={(e) => setConfirmDeleteText(e.target.value)}
+                  className="text-xs font-mono border-rose-500/30 focus-visible:ring-rose-500"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setHardDeletingCategory(null);
+                  setConfirmDeleteText("");
+                }}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={confirmDeleteText !== "DELETE" || hardDeleteMutation.isPending}
+                onClick={() =>
+                  hardDeletingCategory && hardDeleteMutation.mutate(hardDeletingCategory.id)
+                }
+                className="text-xs font-semibold gap-2 bg-rose-600 hover:bg-rose-700"
+              >
+                {hardDeleteMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Permanently Delete Category & All Expenses
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Modal (Standard) */}
         <Dialog open={!!deletingCategory} onOpenChange={() => setDeletingCategory(null)}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>

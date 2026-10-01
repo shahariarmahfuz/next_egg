@@ -1,11 +1,13 @@
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, or_, and_, extract
+from sqlalchemy import func, select, or_, and_, extract, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.expense import Expense, ExpenseCategory
+from app.models.activity_log import ActivityLog
 from app.schemas.expense import (
     ExpenseCategoryCreate,
     ExpenseCategoryUpdate,
@@ -58,14 +60,19 @@ class ExpenseService:
         result = await db.execute(query)
         categories = result.scalars().all()
 
+        # Query stats (count and sum) for all categories in one query
+        exp_stats_res = await db.execute(
+            select(
+                Expense.category_id,
+                func.count(Expense.id).label("count"),
+                func.coalesce(func.sum(Expense.amount), 0.0).label("total"),
+            ).group_by(Expense.category_id)
+        )
+        stats_map = {row[0]: (row[1], float(row[2])) for row in exp_stats_res.all()}
+
         responses = []
         for cat in categories:
-            # Count expenses for this category
-            exp_count_res = await db.execute(
-                select(func.count(Expense.id)).where(Expense.category_id == cat.id)
-            )
-            exp_count = exp_count_res.scalar() or 0
-
+            exp_count, exp_total = stats_map.get(cat.id, (0, 0.0))
             responses.append(
                 ExpenseCategoryResponse(
                     id=cat.id,
@@ -75,6 +82,7 @@ class ExpenseService:
                     created_at=cat.created_at,
                     updated_at=cat.updated_at,
                     expense_count=exp_count,
+                    total_amount=exp_total,
                 )
             )
 
@@ -110,6 +118,7 @@ class ExpenseService:
             created_at=category.created_at,
             updated_at=category.updated_at,
             expense_count=0,
+            total_amount=0.0,
         )
 
     async def update_category(
@@ -146,10 +155,15 @@ class ExpenseService:
         await db.commit()
         await db.refresh(category)
 
-        exp_count_res = await db.execute(
-            select(func.count(Expense.id)).where(Expense.category_id == category.id)
+        exp_stats_res = await db.execute(
+            select(
+                func.count(Expense.id),
+                func.coalesce(func.sum(Expense.amount), 0.0),
+            ).where(Expense.category_id == category.id)
         )
-        exp_count = exp_count_res.scalar() or 0
+        row = exp_stats_res.first()
+        exp_count = row[0] if row else 0
+        exp_total = float(row[1]) if row else 0.0
 
         return ExpenseCategoryResponse(
             id=category.id,
@@ -159,9 +173,131 @@ class ExpenseService:
             created_at=category.created_at,
             updated_at=category.updated_at,
             expense_count=exp_count,
+            total_amount=exp_total,
         )
 
-    async def delete_category(self, db: AsyncSession, category_id: str) -> None:
+    async def soft_delete_category(
+        self, db: AsyncSession, category_id: str
+    ) -> ExpenseCategoryResponse:
+        """
+        Soft delete / Hide category: Sets status to inactive.
+        Existing transactions and historical reports remain completely untouched.
+        """
+        result = await db.execute(select(ExpenseCategory).where(ExpenseCategory.id == category_id))
+        category = result.scalar_one_or_none()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Expense category not found.",
+            )
+
+        category.status = "inactive"
+        await db.commit()
+        await db.refresh(category)
+
+        exp_stats_res = await db.execute(
+            select(
+                func.count(Expense.id),
+                func.coalesce(func.sum(Expense.amount), 0.0),
+            ).where(Expense.category_id == category.id)
+        )
+        row = exp_stats_res.first()
+        exp_count = row[0] if row else 0
+        exp_total = float(row[1]) if row else 0.0
+
+        return ExpenseCategoryResponse(
+            id=category.id,
+            name=category.name,
+            description=category.description,
+            status=category.status,
+            created_at=category.created_at,
+            updated_at=category.updated_at,
+            expense_count=exp_count,
+            total_amount=exp_total,
+        )
+
+    async def hard_delete_category(
+        self, db: AsyncSession, category_id: str, user_id: str, ip_address: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Permanent Hard Delete:
+        Removes the Expense Category AND ALL Expense transactions belonging to it
+        in a single atomic database transaction.
+        Also records an ActivityLog entry.
+        """
+        result = await db.execute(select(ExpenseCategory).where(ExpenseCategory.id == category_id))
+        category = result.scalar_one_or_none()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Expense category not found.",
+            )
+
+        category_name = category.name
+
+        try:
+            # 1. Gather all expenses under this category for audit logging
+            exp_res = await db.execute(
+                select(Expense).where(Expense.category_id == category_id)
+            )
+            expenses = exp_res.scalars().all()
+            deleted_count = len(expenses)
+            deleted_amount = sum(float(e.amount) for e in expenses)
+            voucher_numbers = [e.voucher_no for e in expenses]
+
+            # 2. Record ActivityLog audit entry
+            log_payload = json.dumps({
+                "category_id": category_id,
+                "category_name": category_name,
+                "deleted_expenses_count": deleted_count,
+                "deleted_amount": round(deleted_amount, 2),
+                "voucher_numbers": voucher_numbers,
+            })
+            log_entry = ActivityLog(
+                user_id=user_id,
+                action="expense_category.hard_delete",
+                entity_type="expense_category",
+                entity_id=category_id,
+                ip_address=ip_address,
+                payload=log_payload,
+            )
+            db.add(log_entry)
+
+            # 3. Delete all associated expenses first (respecting FK constraint)
+            await db.execute(
+                delete(Expense).where(Expense.category_id == category_id)
+            )
+
+            # 4. Delete the category itself
+            await db.delete(category)
+
+            # 5. Commit atomic transaction
+            await db.commit()
+
+            return {
+                "category_id": category_id,
+                "category_name": category_name,
+                "deleted_expenses_count": deleted_count,
+                "deleted_amount": round(deleted_amount, 2),
+            }
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to hard delete expense category: {str(e)}",
+            )
+
+    async def delete_category(
+        self, db: AsyncSession, category_id: str, mode: str = "safe", user_id: Optional[str] = None
+    ) -> Any:
+        if mode == "hard":
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="user_id is required for hard delete.",
+                )
+            return await self.hard_delete_category(db, category_id, user_id)
+
         result = await db.execute(select(ExpenseCategory).where(ExpenseCategory.id == category_id))
         category = result.scalar_one_or_none()
         if not category:
@@ -177,7 +313,7 @@ class ExpenseService:
         if (exp_res.scalar() or 0) > 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete category because it has associated expense entries. Set its status to inactive instead.",
+                detail="Cannot delete category because it has associated expense entries. Set its status to inactive or use Hard Delete instead.",
             )
 
         await db.delete(category)

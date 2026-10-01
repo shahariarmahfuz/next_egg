@@ -717,6 +717,19 @@ export const expenseService = {
     return http.delete<{ id: string }>(`/expenses/categories/${id}`);
   },
 
+  hideCategory: async (id: string) => {
+    return http.patch<ExpenseCategory>(`/expenses/categories/${id}/hide`);
+  },
+
+  hardDeleteCategory: async (id: string) => {
+    return http.delete<{
+      id: string;
+      category_name: string;
+      deleted_expenses_count: number;
+      deleted_amount: number;
+    }>(`/expenses/categories/${id}/hard-delete`);
+  },
+
   getExpenses: async (filters: ExpenseFilters = {}) => {
     const params = new URLSearchParams();
     if (filters.search) params.append("search", filters.search);

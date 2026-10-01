@@ -95,19 +95,22 @@ export default function ManageExpensesPage() {
 
   const [hardDeletingExpense, setHardDeletingExpense] = useState<Expense | null>(null);
 
-  // Delete Mutation
+  // Delete Mutation (Permanent Hard Delete)
   const deleteMutation = useMutation({
     mutationFn: (id: string) => expenseService.deleteExpense(id),
     onSuccess: () => {
-      toast.success("Expense voucher deleted successfully");
+      toast.success("Expense record deleted permanently");
       queryClient.invalidateQueries({ queryKey: ["expenses-list"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-book"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
-      queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
       setDeletingExpense(null);
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete expense";
+      const msg = err?.response?.data?.detail || err?.response?.data?.error?.message || err?.message || "Failed to delete expense";
       toast.error(msg);
     },
   });
@@ -116,15 +119,18 @@ export default function ManageExpensesPage() {
   const hardDeleteMutation = useMutation({
     mutationFn: (id: string) => expenseService.hardDeleteExpense(id),
     onSuccess: () => {
-      toast.success("Expense voucher deleted permanently");
+      toast.success("Expense record deleted permanently");
       queryClient.invalidateQueries({ queryKey: ["expenses-list"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-book"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
-      queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
       setHardDeletingExpense(null);
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to permanently delete expense";
+      const msg = err?.response?.data?.detail || err?.response?.data?.error?.message || err?.message || "Failed to permanently delete expense";
       toast.error(msg);
     },
   });
@@ -135,8 +141,12 @@ export default function ManageExpensesPage() {
       expenseService.updateExpense(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses-list"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses-reports"] });
       queryClient.invalidateQueries({ queryKey: ["expense-report-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["cash-book"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
       setEditingExpense(null);
     },
     onError: (err: any) => {
@@ -408,29 +418,17 @@ export default function ManageExpensesPage() {
                                 </Button>
                               )}
 
-                              {/* Delete Voucher */}
+                              {/* Delete Expense Record */}
                               {hasPermission("expense.delete") && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setDeletingExpense(exp)}
-                                    className="h-7 w-7 text-muted-foreground hover:text-rose-500"
-                                    title="Delete Expense Voucher"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setHardDeletingExpense(exp)}
-                                    className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
-                                    title="Hard Delete Expense Voucher"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
-                                  </Button>
-                                </>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setDeletingExpense(exp)}
+                                  className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                  title="Permanently Delete Expense Record"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
                               )}
                             </div>
                           </td>
@@ -659,12 +657,17 @@ export default function ManageExpensesPage() {
             <DialogHeader>
               <DialogTitle className="text-base font-bold text-rose-600 flex items-center gap-2">
                 <Trash2 className="h-5 w-5" />
-                Delete Expense Entry
+                Delete Expense Record
               </DialogTitle>
-              <DialogDescription className="text-xs">
-                Are you sure you want to delete voucher{" "}
-                <span className="font-bold text-foreground">{deletingExpense?.voucher_no}</span>?
-                This will automatically reduce total business expenses and update profit calculation.
+              <DialogDescription className="text-xs space-y-2 pt-1">
+                <span>
+                  Are you sure you want to permanently delete expense voucher{" "}
+                  <strong className="text-foreground">{deletingExpense?.voucher_no}</strong> (
+                  {formatCurrency(deletingExpense?.amount)})?
+                </span>
+                <span className="block text-muted-foreground">
+                  This record will be permanently deleted from the database and will no longer appear in Expense Lists, Expense Reports, or the Cash Book.
+                </span>
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="pt-2">
@@ -679,7 +682,7 @@ export default function ManageExpensesPage() {
                 className="text-xs font-semibold gap-2"
               >
                 {deleteMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Delete Voucher
+                Delete Permanently
               </Button>
             </DialogFooter>
           </DialogContent>

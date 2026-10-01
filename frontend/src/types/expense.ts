@@ -6,6 +6,7 @@ export interface ExpenseCategory {
   created_at: string;
   updated_at: string;
   expense_count?: number;
+  total_amount?: number;
 }
 
 export interface ExpenseCategoryInput {

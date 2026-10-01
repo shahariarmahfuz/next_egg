@@ -75,14 +75,53 @@ async def update_category(
     )
 
 
-@router.delete("/categories/{category_id}", response_model=ResponseModel[dict])
-async def delete_category(
+@router.patch("/categories/{category_id}/hide", response_model=ResponseModel[ExpenseCategoryResponse])
+async def hide_category(
+    category_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("expense.category.edit")),
+):
+    """Soft delete / Hide an expense category by setting its status to inactive."""
+    category = await expense_service.soft_delete_category(db, category_id)
+    return ResponseModel[ExpenseCategoryResponse](
+        success=True,
+        message="Expense category marked as inactive and hidden from new expense entries",
+        data=category,
+    )
+
+
+@router.delete("/categories/{category_id}/hard-delete", response_model=ResponseModel[dict])
+async def hard_delete_category(
     category_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("expense.category.delete")),
 ):
-    """Delete an unused expense category."""
-    await expense_service.delete_category(db, category_id)
+    """Permanently delete an expense category and all its associated expense transactions."""
+    result = await expense_service.hard_delete_category(db, category_id, current_user.id)
+    return ResponseModel[dict](
+        success=True,
+        message=f"Category '{result['category_name']}' and {result['deleted_expenses_count']} associated expense transaction(s) permanently deleted",
+        data=result,
+    )
+
+
+@router.delete("/categories/{category_id}", response_model=ResponseModel[dict])
+async def delete_category(
+    category_id: str,
+    mode: str = Query("safe", description="Deletion mode: 'safe' or 'hard'"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("expense.category.delete")),
+):
+    """Delete an expense category. If mode='hard', deletes category and all associated expenses."""
+    if mode == "hard":
+        result = await expense_service.hard_delete_category(db, category_id, current_user.id)
+        return ResponseModel[dict](
+            success=True,
+            message=f"Category '{result['category_name']}' and {result['deleted_expenses_count']} associated expense transaction(s) permanently deleted",
+            data=result,
+        )
+
+    await expense_service.delete_category(db, category_id, mode="safe")
     return ResponseModel[dict](
         success=True,
         message="Expense category deleted successfully",

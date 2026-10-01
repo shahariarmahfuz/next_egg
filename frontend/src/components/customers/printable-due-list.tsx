@@ -2,7 +2,7 @@
 
 import React from "react";
 import { CustomerItem } from "@/types";
-import { formatCurrency, formatNumber, formatDate } from "@/utils/formatters";
+import { formatCurrency, formatNumber } from "@/utils/formatters";
 import { useSettingsStore } from "@/store/settings";
 
 export interface PrintableDueListProps {
@@ -16,24 +16,19 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
   ({ customers, searchQuery, totalCustomers, totalAmount }, ref) => {
     const { settings } = useSettingsStore();
 
-    // Dynamic Business Information
-    const businessName = settings.business_name || "BUSINESS ENTERPRISE";
-    const contactParts = [
-      settings.business_address,
-      settings.business_phone ? `Mobile: ${settings.business_phone}` : null,
-      settings.business_email ? `Email: ${settings.business_email}` : null,
-    ].filter(Boolean);
-    const businessDetails = contactParts.join(" | ");
+    // Dynamic Business & Website Information
+    const websiteName = settings.website?.trim() || settings.business_name?.trim() || "";
 
     const currencySymbol = settings.currency?.symbol || "৳";
 
-    // Dynamic As of Date based on business timezone and formatting
-    const asOfDate = formatDate(new Date()) || new Date().toLocaleDateString("en-GB");
-
-    // Dynamic Statement Text reflecting active filters
-    const statementText = searchQuery && searchQuery.trim()
-      ? `Filtered: "${searchQuery.trim()}"`
-      : "All Outstanding Accounts";
+    // Compact DD/MM/YYYY date format for print
+    const formatPrintDate = (d: Date = new Date()) => {
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+    const asOfDate = formatPrintDate(new Date());
 
     // Total accounts count
     const totalAccountsCount =
@@ -107,89 +102,133 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                   width: 148mm;
                   margin: 0 auto;
                   background: #ffffff;
-                  padding: 6mm 7mm;
+                  padding: 5mm 6mm;
                   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
                   box-sizing: border-box;
+                  position: relative;
               }
 
-              /* Header Area */
-              .customer-due-master-print .header {
-                  text-align: center;
-                  border-bottom: 0.5px solid #bbb;
-                  padding-bottom: 3px;
-                  margin-bottom: 5px;
+              /* Watermark Layer */
+              .customer-due-master-print .watermark-layer {
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  bottom: 0;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  pointer-events: none;
+                  user-select: none;
+                  z-index: 0;
+                  overflow: hidden;
               }
 
-              .customer-due-master-print .header h1 {
-                  font-size: 16px;
+              .customer-due-master-print .watermark-image {
+                  max-width: 250px;
+                  max-height: 250px;
+                  object-fit: contain;
+                  opacity: 0.045;
+                  filter: grayscale(100%);
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+              }
+
+              .customer-due-master-print .watermark-text {
+                  transform: rotate(-30deg);
+                  font-size: 26px;
                   font-weight: 700;
-                  color: #000;
-                  letter-spacing: 0.5px;
-                  margin-bottom: 1px;
+                  color: rgba(0, 0, 0, 0.04) !important;
                   text-transform: uppercase;
+                  letter-spacing: 3px;
+                  white-space: nowrap;
+                  line-height: 1;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
               }
 
-              .customer-due-master-print .header p {
-                  font-size: 8px;
-                  color: #444;
-                  font-weight: 400;
-              }
-
-              .customer-due-master-print .header .doc-title {
-                  display: inline-block;
-                  margin-top: 2px;
-                  border: 0.5px solid #bbb;
-                  padding: 1px 10px;
-                  border-radius: 8px;
-                  font-weight: 600;
-                  font-size: 8.5px;
-                  color: #b02a37;
-                  text-transform: uppercase;
-              }
-
-              /* Meta Information */
+              /* Top Information Line */
               .customer-due-master-print .meta-info {
+                  position: relative;
+                  z-index: 1;
                   display: flex;
                   justify-content: space-between;
                   align-items: center;
-                  margin-bottom: 5px;
+                  margin-bottom: 6px;
                   font-size: 8.5px;
                   font-weight: 500;
                   background: #f8f9fa;
-                  padding: 3px 6px;
-                  border: 0.5px solid #ccc;
+                  padding: 3.5px 6px;
+                  border: 0.5px solid #888;
+                  box-sizing: border-box;
+                  width: 100%;
+              }
+
+              .customer-due-master-print .meta-info .meta-left {
+                  text-align: left;
+                  flex: 1;
+                  white-space: nowrap;
+              }
+
+              .customer-due-master-print .meta-info .meta-center {
+                  text-align: center;
+                  flex: 1.5;
+                  font-weight: 700;
+                  font-size: 10px;
+                  color: #000;
+                  letter-spacing: 0.4px;
+                  text-transform: uppercase;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                  padding: 0 4px;
+              }
+
+              .customer-due-master-print .meta-info .meta-right {
+                  text-align: right;
+                  flex: 1;
+                  white-space: nowrap;
               }
 
               /* Section Title */
               .customer-due-master-print .section-title {
+                  position: relative;
+                  z-index: 1;
                   font-size: 8.5px;
                   font-weight: 700;
                   text-transform: uppercase;
                   margin-top: 5px;
-                  margin-bottom: 2px;
+                  margin-bottom: 3px;
                   color: #000;
               }
 
               /* ================= TABLE DESIGN ================= */
               .customer-due-master-print table {
+                  position: relative;
+                  z-index: 1;
                   width: 100%;
                   border-collapse: collapse;
                   margin-bottom: 8px;
                   table-layout: fixed;
+                  box-sizing: border-box;
+                  border: 0.5px solid #888;
               }
 
               .customer-due-master-print table,
               .customer-due-master-print th,
               .customer-due-master-print td {
-                  border: 0.5px solid #ccc;
+                  border: 0.5px solid #888;
+                  box-sizing: border-box;
               }
 
               .customer-due-master-print th,
               .customer-due-master-print td {
-                  padding: 3px 4px;
+                  padding: 2.5px 3.5px;
                   font-size: 8.5px;
+                  line-height: 1.25;
                   overflow: hidden;
                   word-wrap: break-word;
+                  box-sizing: border-box;
               }
 
               .customer-due-master-print th {
@@ -216,35 +255,11 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                   font-size: 9px;
               }
 
-              /* Signature Area */
-              .customer-due-master-print .signature-area {
-                  display: flex;
-                  justify-content: space-between;
-                  margin-top: 25px;
-                  padding: 0 8px;
-              }
-
-              .customer-due-master-print .sig-block {
-                  text-align: center;
-                  width: 80px;
-              }
-
-              .customer-due-master-print .sig-line {
-                  border-top: 0.5px dashed #888;
-                  margin-bottom: 2px;
-              }
-
-              .customer-due-master-print .sig-text {
-                  font-size: 7.5px;
-                  color: #222;
-                  font-weight: 400;
-              }
-
               /* ================= PRINT RULES (NATURAL A5 PAGINATION) ================= */
               @media print {
                   @page {
                       size: A5 portrait;
-                      margin: 5mm 6mm 5mm 6mm;
+                      margin: 5mm 5mm 5mm 5mm;
                       @bottom-right {
                           content: "Page " counter(page) " of " counter(pages);
                           font-size: 7.5px;
@@ -270,7 +285,7 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                   .customer-due-master-print .page {
                       width: 100% !important;
                       max-width: 100% !important;
-                      padding: 0 !important;
+                      padding: 0 1.5mm !important;
                       margin: 0 !important;
                       box-shadow: none !important;
                       border: none !important;
@@ -278,34 +293,69 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                       min-height: 0 !important;
                       max-height: none !important;
                       overflow: visible !important;
+                      box-sizing: border-box !important;
                       break-inside: auto !important;
                       page-break-inside: auto !important;
+                  }
+
+                  .customer-due-master-print .watermark-layer {
+                      position: fixed !important;
+                      top: 0 !important;
+                      left: 0 !important;
+                      width: 100% !important;
+                      height: 100% !important;
+                      display: flex !important;
+                      align-items: center !important;
+                      justify-content: center !important;
+                      pointer-events: none !important;
+                      user-select: none !important;
+                      z-index: 0 !important;
+                      overflow: hidden !important;
+                  }
+
+                  .customer-due-master-print .watermark-image {
+                      max-width: 250px !important;
+                      max-height: 250px !important;
+                      opacity: 0.045 !important;
+                      filter: grayscale(100%) !important;
+                      -webkit-print-color-adjust: exact !important;
+                      print-color-adjust: exact !important;
+                  }
+
+                  .customer-due-master-print .watermark-text {
+                      color: rgba(0, 0, 0, 0.04) !important;
+                      -webkit-print-color-adjust: exact !important;
+                      print-color-adjust: exact !important;
                   }
 
                   .customer-due-master-print .no-print {
                       display: none !important;
                   }
 
-                  .customer-due-master-print table,
+                  .customer-due-master-print table {
+                      width: 100% !important;
+                      border-collapse: collapse !important;
+                      border: 0.35pt solid #666 !important;
+                      box-sizing: border-box !important;
+                      margin-bottom: 6px !important;
+                      -webkit-print-color-adjust: exact !important;
+                      print-color-adjust: exact !important;
+                  }
+
                   .customer-due-master-print th,
                   .customer-due-master-print td {
-                      border: 0.25pt solid #d5d5d5 !important;
+                      border: 0.35pt solid #666 !important;
+                      box-sizing: border-box !important;
                       -webkit-print-color-adjust: exact !important;
                       print-color-adjust: exact !important;
                   }
 
                   .customer-due-master-print .meta-info {
-                      border: 0.25pt solid #d5d5d5 !important;
+                      width: 100% !important;
+                      border: 0.35pt solid #666 !important;
+                      box-sizing: border-box !important;
                       -webkit-print-color-adjust: exact !important;
                       print-color-adjust: exact !important;
-                  }
-
-                  .customer-due-master-print .header {
-                      border-bottom: 0.35pt solid #bbb !important;
-                  }
-
-                  .customer-due-master-print .sig-line {
-                      border-top: 0.25pt dashed #bbb !important;
                   }
 
                   /* Natural continuous table pagination */
@@ -314,11 +364,6 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                   }
 
                   .customer-due-master-print tbody tr {
-                      break-inside: avoid !important;
-                      page-break-inside: avoid !important;
-                  }
-
-                  .customer-due-master-print .signature-area {
                       break-inside: avoid !important;
                       page-break-inside: avoid !important;
                   }
@@ -336,28 +381,33 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
 
         {/* Continuous Single A5 Page Container */}
         <div className="page" data-print-container="continuous-single-page">
-          {/* Header */}
-          <div className="header">
-            {settings.business_logo && (
-              <div style={{ marginBottom: "2px", display: "flex", justifyContent: "center" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={settings.business_logo}
-                  alt={businessName}
-                  style={{ maxHeight: "36px", maxWidth: "160px", objectFit: "contain" }}
-                />
-              </div>
+          {/* Subtle Branded Watermark Layer */}
+          <div className="watermark-layer" aria-hidden="true">
+            {settings.business_logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={settings.business_logo}
+                alt=""
+                className="watermark-image"
+              />
+            ) : (
+              <span className="watermark-text">
+                {websiteName || settings.business_name || "BUSINESS ENTERPRISE"}
+              </span>
             )}
-            <h1>{businessName}</h1>
-            {businessDetails && <p>{businessDetails}</p>}
-            <div className="doc-title">Customer Due List / Statement</div>
           </div>
 
-          {/* Meta Info */}
+          {/* Top Information Line */}
           <div className="meta-info">
-            <div><strong>As of Date:</strong> {asOfDate}</div>
-            <div><strong>Statement:</strong> {statementText}</div>
-            <div><strong>Total Accounts:</strong> {totalAccountsCount}</div>
+            <div className="meta-left">
+              <strong>As of Date:</strong> {asOfDate}
+            </div>
+            <div className="meta-center">
+              {websiteName}
+            </div>
+            <div className="meta-right">
+              <strong>Total Accounts:</strong> {totalAccountsCount}
+            </div>
           </div>
 
           {/* Due Customers Table */}
@@ -396,32 +446,16 @@ export const PrintableDueList = React.forwardRef<HTMLDivElement, PrintableDueLis
                 <td
                   colSpan={4}
                   className="text-right"
-                  style={{ paddingRight: "6px", color: "#b02a37" }}
+                  style={{ paddingRight: "6px", color: "#000", fontWeight: 700 }}
                 >
                   Total Due Amount:
                 </td>
-                <td className="text-right" style={{ color: "#b02a37" }}>
+                <td className="text-right" style={{ color: "#000", fontWeight: 700 }}>
                   {formatCurrency(calculatedTotalDue)}
                 </td>
               </tr>
             </tbody>
           </table>
-
-          {/* Signatures at the end of the complete dataset */}
-          <div className="signature-area">
-            <div className="sig-block">
-              <div className="sig-line"></div>
-              <div className="sig-text">Prepared By</div>
-            </div>
-            <div className="sig-block">
-              <div className="sig-line"></div>
-              <div className="sig-text">Verified By</div>
-            </div>
-            <div className="sig-block">
-              <div className="sig-line"></div>
-              <div className="sig-text">Proprietor / Manager</div>
-            </div>
-          </div>
         </div>
       </div>
     );
