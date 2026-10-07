@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Sequence
@@ -165,15 +166,25 @@ class PurchaseService:
     ) -> Purchase:
         """
         Updates purchase order and recalculates product stock levels safely.
-        Validates non-negative stock rule.
+        Reconciles net inventory differences without rejecting negative current stock.
         """
         purchase = await purchase_repository.get_by_id_loaded(db, purchase_id)
         if not purchase:
             raise NotFoundException(f"Purchase order with ID '{purchase_id}' not found.")
 
+        # Update purchase date if provided
+        if purchase_in.purchase_date is not None:
+            purchase.purchase_date = purchase_in.purchase_date
+
+        if purchase_in.invoice_no is not None:
+            purchase.invoice_no = purchase_in.invoice_no
+        if "notes" in purchase_in.model_fields_set or "note" in purchase_in.model_fields_set:
+            val = purchase_in.notes if purchase_in.notes is not None else purchase_in.note
+            purchase.notes = val.strip() if (val and val.strip()) else None
+
         if purchase_in.items is None:
             old_due = purchase.due_amount
-            
+
             # Recalculate basic financial fields
             if purchase_in.discount_amount is not None:
                 purchase.discount_amount = purchase_in.discount_amount
@@ -181,11 +192,11 @@ class PurchaseService:
                 purchase.tax_amount = purchase_in.tax_amount
             if purchase_in.paid_amount is not None:
                 purchase.paid_amount = purchase_in.paid_amount
-                
+
             purchase.grand_total = max(0.0, purchase.subtotal - purchase.discount_amount + purchase.tax_amount)
             if purchase.paid_amount > purchase.grand_total:
                 purchase.paid_amount = purchase.grand_total
-                
+
             purchase.due_amount = max(0.0, purchase.grand_total - purchase.paid_amount)
             if purchase.due_amount <= 0:
                 purchase.payment_status = "paid"
@@ -193,75 +204,91 @@ class PurchaseService:
                 purchase.payment_status = "partial"
             else:
                 purchase.payment_status = "unpaid"
-                
-            if purchase_in.invoice_no is not None:
-                purchase.invoice_no = purchase_in.invoice_no
-            if purchase_in.notes is not None:
-                purchase.notes = purchase_in.notes
+
             if purchase_in.purchase_date is not None:
-                purchase.purchase_date = purchase_in.purchase_date
                 await db.execute(
                     update(InventoryBatch)
                     .where(InventoryBatch.purchase_id == purchase.id)
-                    .values(purchase_date=purchase_in.purchase_date)
+                    .values(purchase_date=purchase.purchase_date)
                 )
 
             db.add(purchase)
-            
+
             # Update supplier ledger based on the difference
-            supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
-            if supplier:
-                supplier.current_balance = supplier.current_balance - old_due + purchase.due_amount
-                db.add(supplier)
-                
+            if purchase_in.supplier_id and purchase_in.supplier_id != purchase.supplier_id:
+                old_supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
+                if old_supplier:
+                    old_supplier.current_balance -= old_due
+                    db.add(old_supplier)
+                new_supplier = await supplier_repository.get_by_id(db, purchase_in.supplier_id)
+                if new_supplier:
+                    new_supplier.current_balance += purchase.due_amount
+                    db.add(new_supplier)
+                purchase.supplier_id = purchase_in.supplier_id
+            else:
+                supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
+                if supplier:
+                    supplier.current_balance = supplier.current_balance - old_due + purchase.due_amount
+                    db.add(supplier)
+
             await db.flush()
             return purchase
 
-        # Re-evaluate stock changes and batch updates
-        # Check existing batches to ensure consumed quantities are not violated
+        # When items ARE provided:
+        # 1. Map old and new quantities per product
+        old_qty_by_prod: dict[str, float] = {}
+        for old_item in purchase.items:
+            old_qty_by_prod[old_item.product_id] = old_qty_by_prod.get(old_item.product_id, 0.0) + old_item.quantity
+
+        new_qty_by_prod: dict[str, float] = {}
+        for item_data in purchase_in.items:
+            new_qty_by_prod[item_data.product_id] = new_qty_by_prod.get(item_data.product_id, 0.0) + item_data.quantity
+
+        # 2. Check existing batches to ensure consumed quantities are not violated
         batches_q = select(InventoryBatch).where(InventoryBatch.purchase_id == purchase.id)
         existing_batches = (await db.execute(batches_q)).scalars().all()
-        consumed_map = {}
+        consumed_map: dict[str, float] = {}
         for b in existing_batches:
             consumed = b.quantity - b.remaining_quantity
-            consumed_map[b.product_id] = consumed_map.get(b.product_id, 0.0) + consumed
+            if consumed > 0:
+                consumed_map[b.product_id] = consumed_map.get(b.product_id, 0.0) + consumed
 
         # Check if new items cover the already consumed quantities
-        new_items_qty = {item.product_id: item.quantity for item in purchase_in.items}
         for prod_id, consumed_qty in consumed_map.items():
             if consumed_qty > 0:
-                if prod_id not in new_items_qty or new_items_qty[prod_id] < consumed_qty:
+                new_q = new_qty_by_prod.get(prod_id, 0.0)
+                if new_q < consumed_qty:
                     prod = await product_repository.get_by_id(db, id=prod_id)
                     p_name = prod.name if prod else prod_id
                     raise BadRequestException(
                         f"Cannot update purchase: {consumed_qty} units of '{p_name}' have already been sold/consumed in sales."
                     )
 
-        # Step 1: Revert previous stock increases
-        for old_item in purchase.items:
-            product = await product_repository.get_by_id(db, id=old_item.product_id)
-            if product:
-                product.current_stock -= old_item.quantity
-                if product.current_stock < 0:
-                    raise BadRequestException(
-                        f"Cannot update purchase: reverting stock for product '{product.name}' would cause negative stock ({product.current_stock})."
-                    )
-                db.add(product)
+        # 3. Validate products and reconcile Product.current_stock using net delta
+        all_prod_ids = set(old_qty_by_prod.keys()) | set(new_qty_by_prod.keys())
+        products_by_id: dict[str, Product] = {}
+        for prod_id in all_prod_ids:
+            prod = await product_repository.get_by_id(db, id=prod_id)
+            if not prod:
+                raise NotFoundException(f"Product with ID '{prod_id}' not found.")
+            if prod.product_type == "FARM":
+                raise BadRequestException(f"Farm products cannot be purchased via regular purchases (Product: {prod.name}).")
+            products_by_id[prod_id] = prod
 
-        # Delete old batches to replace with updated ones
-        await db.execute(delete(InventoryBatch).where(InventoryBatch.purchase_id == purchase.id))
+            # Reconcile net stock delta: new_qty - old_qty (allows negative stock)
+            old_q = old_qty_by_prod.get(prod_id, 0.0)
+            new_q = new_qty_by_prod.get(prod_id, 0.0)
+            net_delta = new_q - old_q
+            if net_delta != 0.0:
+                prod.current_stock += net_delta
+                db.add(prod)
 
-        # Step 2: Apply new items and increase stock
+        # 4. Prepare new line items and calculate pricing
         subtotal_dec = Decimal("0.0")
         new_items: list[PurchaseItem] = []
+        item_pricing_info: list[tuple[str, float, float]] = []
 
         for item_data in purchase_in.items:
-            product = await product_repository.get_by_id(db, id=item_data.product_id)
-            if not product:
-                raise NotFoundException(f"Product with ID '{item_data.product_id}' not found.")
-            if product.product_type == "FARM":
-                raise BadRequestException(f"Farm products cannot be purchased via regular purchases (Product: {product.name}).")
-
             qty_dec = Decimal(str(item_data.quantity))
             discount_dec = Decimal(str(item_data.discount or 0.0))
             mode = item_data.pricing_mode or "unit_price"
@@ -287,28 +314,9 @@ class PurchaseService:
             line_total = float(line_total_dec)
             subtotal_dec += line_total_dec
 
-            product.current_stock += item_data.quantity
-            db.add(product)
-
-            # Create updated batch preserving already consumed quantities
-            already_consumed = consumed_map.get(product.id, 0.0)
-            remaining = max(0.0, item_data.quantity - already_consumed)
-            new_batch = InventoryBatch(
-                product_id=product.id,
-                purchase_id=purchase.id,
-                quantity=item_data.quantity,
-                remaining_quantity=remaining,
-                unit_cost=unit_price,
-                purchase_date=purchase.purchase_date or datetime.now(timezone.utc),
-            )
-            db.add(new_batch)
-            await db.flush()
-            if remaining > 0:
-                await reconcile_uncovered_sales_for_batch(db, new_batch)
-
             new_items.append(
                 PurchaseItem(
-                    product_id=product.id,
+                    product_id=item_data.product_id,
                     quantity=item_data.quantity,
                     unit_price=unit_price,
                     discount=item_data.discount,
@@ -316,12 +324,53 @@ class PurchaseService:
                     pricing_mode=mode,
                 )
             )
+            item_pricing_info.append((item_data.product_id, item_data.quantity, unit_price))
 
-        # Clear old items & replace
+        # 5. Reconcile inventory batches
+        existing_batches_by_prod: dict[str, list[InventoryBatch]] = defaultdict(list)
+        for b in existing_batches:
+            existing_batches_by_prod[b.product_id].append(b)
+
+        remaining_consumed_tracker = dict(consumed_map)
+
+        for prod_id, item_qty, unit_cost in item_pricing_info:
+            consumed_total = remaining_consumed_tracker.get(prod_id, 0.0)
+            allocated_consumed = min(item_qty, consumed_total)
+            remaining_batch_qty = max(0.0, round(item_qty - allocated_consumed, 4))
+            remaining_consumed_tracker[prod_id] = max(0.0, round(consumed_total - allocated_consumed, 4))
+
+            if existing_batches_by_prod[prod_id]:
+                batch = existing_batches_by_prod[prod_id].pop(0)
+                batch.quantity = item_qty
+                batch.remaining_quantity = remaining_batch_qty
+                batch.unit_cost = unit_cost
+                batch.purchase_date = purchase.purchase_date
+                db.add(batch)
+            else:
+                batch = InventoryBatch(
+                    product_id=prod_id,
+                    purchase_id=purchase.id,
+                    quantity=item_qty,
+                    remaining_quantity=remaining_batch_qty,
+                    unit_cost=unit_cost,
+                    purchase_date=purchase.purchase_date,
+                )
+                db.add(batch)
+
+            await db.flush()
+            if remaining_batch_qty > 0:
+                await reconcile_uncovered_sales_for_batch(db, batch)
+
+        # Delete any unneeded old batches for removed items
+        for old_batches_list in existing_batches_by_prod.values():
+            for old_batch in old_batches_list:
+                await db.delete(old_batch)
+
+        # 6. Replace purchase items
         purchase.items.clear()
         purchase.items = new_items
 
-        # Recalculate financial totals
+        # 7. Recalculate financial totals
         discount_amount_dec = Decimal(str(purchase_in.discount_amount if purchase_in.discount_amount is not None else purchase.discount_amount))
         tax_amount_dec = Decimal(str(purchase_in.tax_amount if purchase_in.tax_amount is not None else purchase.tax_amount))
         paid_amount_dec = Decimal(str(purchase_in.paid_amount if purchase_in.paid_amount is not None else purchase.paid_amount))
@@ -354,19 +403,24 @@ class PurchaseService:
         purchase.payment_status = payment_status
         due = float(due_dec)
 
-        if purchase_in.invoice_no is not None:
-            purchase.invoice_no = purchase_in.invoice_no
-        if "notes" in purchase_in.model_fields_set or "note" in purchase_in.model_fields_set:
-            val = purchase_in.notes if purchase_in.notes is not None else purchase_in.note
-            purchase.notes = val.strip() if (val and val.strip()) else None
-
         db.add(purchase)
 
         # Update supplier ledger based on the difference
-        supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
-        if supplier:
-            supplier.current_balance = supplier.current_balance - old_due + due
-            db.add(supplier)
+        if purchase_in.supplier_id and purchase_in.supplier_id != purchase.supplier_id:
+            old_supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
+            if old_supplier:
+                old_supplier.current_balance -= old_due
+                db.add(old_supplier)
+            new_supplier = await supplier_repository.get_by_id(db, purchase_in.supplier_id)
+            if new_supplier:
+                new_supplier.current_balance += due
+                db.add(new_supplier)
+            purchase.supplier_id = purchase_in.supplier_id
+        else:
+            supplier = await supplier_repository.get_by_id(db, purchase.supplier_id)
+            if supplier:
+                supplier.current_balance = supplier.current_balance - old_due + due
+                db.add(supplier)
 
         await db.flush()
         return await purchase_repository.get_by_id_loaded(db, purchase.id) or purchase
@@ -517,10 +571,6 @@ class PurchaseService:
             product = await product_repository.get_by_id(db, item.product_id)
             if product:
                 product.current_stock -= item.quantity
-                if product.current_stock < 0:
-                    raise BadRequestException(
-                        f"Cannot delete purchase order: stock for product '{product.name}' has already been consumed ({product.current_stock})."
-                    )
                 db.add(product)
 
         # Delete inventory batches for this purchase
