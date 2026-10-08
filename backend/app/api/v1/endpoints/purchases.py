@@ -32,6 +32,7 @@ async def list_purchases(
     search: Optional[str] = Query(None),
     supplier_id: Optional[str] = Query(None),
     payment_status: Optional[str] = Query(None),
+    product_id: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     from_date: Optional[datetime] = Query(None),
@@ -43,6 +44,7 @@ async def list_purchases(
     search = search if isinstance(search, str) else None
     supplier_id = supplier_id if isinstance(supplier_id, str) else None
     payment_status = payment_status if isinstance(payment_status, str) else None
+    product_id = product_id if isinstance(product_id, str) else None
 
     settings = await setting_service.get_business_settings(db)
     tz_str = (settings.timezone if settings else None) or "UTC"
@@ -52,7 +54,7 @@ async def list_purchases(
 
     skip = (page - 1) * size
     purchases, total = await purchase_service.get_purchases_paginated(
-        db, skip=skip, limit=size, search=search, supplier_id=supplier_id, payment_status=payment_status, start_date=start_date, end_date=end_date
+        db, skip=skip, limit=size, search=search, supplier_id=supplier_id, payment_status=payment_status, product_id=product_id, start_date=start_date, end_date=end_date
     )
     pages = math.ceil(total / size) if total > 0 else 0
 
@@ -62,6 +64,7 @@ async def list_purchases(
         search=search,
         supplier_id=supplier_id,
         payment_status=payment_status,
+        product_id=product_id,
         start_date=start_date,
         end_date=end_date,
     )

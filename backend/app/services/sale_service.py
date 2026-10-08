@@ -631,6 +631,7 @@ class SaleService:
         search: Optional[str] = None,
         customer_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         sort_by: Optional[str] = "newest",
@@ -642,6 +643,7 @@ class SaleService:
             search=search,
             customer_id=customer_id,
             payment_status=payment_status,
+            product_id=product_id,
             start_date=start_date,
             end_date=end_date,
             sort_by=sort_by,
@@ -654,6 +656,7 @@ class SaleService:
         search: Optional[str] = None,
         customer_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> dict:
@@ -662,6 +665,7 @@ class SaleService:
             search=search,
             customer_id=customer_id,
             payment_status=payment_status,
+            product_id=product_id,
             start_date=start_date,
             end_date=end_date,
         )

@@ -361,6 +361,7 @@ export const purchaseService = {
     search?: string;
     supplier_id?: string;
     payment_status?: string;
+    product_id?: string;
     start_date?: string;
     end_date?: string;
   }) => {
@@ -406,6 +407,7 @@ export const saleService = {
     search?: string;
     customer_id?: string;
     payment_status?: string;
+    product_id?: string;
     start_date?: string;
     end_date?: string;
     from_date?: string;
@@ -419,6 +421,7 @@ export const saleService = {
     search?: string;
     customer_id?: string;
     payment_status?: string;
+    product_id?: string;
     start_date?: string;
     end_date?: string;
     from_date?: string;

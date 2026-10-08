@@ -440,6 +440,7 @@ class PurchaseService:
         search: Optional[str] = None,
         supplier_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> tuple[Sequence[Purchase], int]:
@@ -450,6 +451,7 @@ class PurchaseService:
             search=search,
             supplier_id=supplier_id,
             payment_status=payment_status,
+            product_id=product_id,
             start_date=start_date,
             end_date=end_date,
         )
@@ -461,6 +463,7 @@ class PurchaseService:
         search: Optional[str] = None,
         supplier_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> dict:
@@ -469,6 +472,7 @@ class PurchaseService:
             search=search,
             supplier_id=supplier_id,
             payment_status=payment_status,
+            product_id=product_id,
             start_date=start_date,
             end_date=end_date,
         )

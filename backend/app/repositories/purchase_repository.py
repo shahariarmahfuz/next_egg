@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Sequence
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -65,6 +65,7 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
         search: Optional[str] = None,
         supplier_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> tuple[Sequence[Purchase], int]:
@@ -90,6 +91,14 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
                 query = query.where(Purchase.due_amount > 0)
             else:
                 query = query.where(Purchase.payment_status == payment_status.strip())
+
+        if product_id and product_id.strip():
+            query = query.where(
+                exists().where(
+                    PurchaseItem.purchase_id == Purchase.id,
+                    PurchaseItem.product_id == product_id.strip(),
+                )
+            )
 
         if start_date:
             query = query.where(Purchase.purchase_date >= start_date)
@@ -125,6 +134,7 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
         search: Optional[str] = None,
         supplier_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> dict:
@@ -156,6 +166,14 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
                 query = query.where(Purchase.due_amount > 0)
             else:
                 query = query.where(Purchase.payment_status == payment_status.strip())
+
+        if product_id and product_id.strip():
+            query = query.where(
+                exists().where(
+                    PurchaseItem.purchase_id == Purchase.id,
+                    PurchaseItem.product_id == product_id.strip(),
+                )
+            )
 
         if start_date:
             query = query.where(Purchase.purchase_date >= start_date)
@@ -191,6 +209,9 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
                 items_query = items_query.where(Purchase.due_amount > 0)
             else:
                 items_query = items_query.where(Purchase.payment_status == payment_status.strip())
+
+        if product_id and product_id.strip():
+            items_query = items_query.where(PurchaseItem.product_id == product_id.strip())
 
         if start_date:
             items_query = items_query.where(Purchase.purchase_date >= start_date)

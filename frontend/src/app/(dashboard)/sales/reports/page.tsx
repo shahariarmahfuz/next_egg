@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Eye, Filter, TrendingUp, CircleCheck, CircleAlert, Boxes } from "lucide-react";
-import { saleService } from "@/services/api";
-import { SaleItem } from "@/types";
+import { productService, saleService } from "@/services/api";
+import { ProductItem, SaleItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,20 +21,29 @@ export default function SalesReportPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<string>("");
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [viewingSale, setViewingSale] = useState<SaleItem | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
 
+  const { data: productsData } = useQuery({
+    queryKey: ["all-products-dropdown"],
+    queryFn: () => productService.getProducts({ size: 100 }),
+  });
+
+  const products: ProductItem[] = productsData?.data?.items || [];
+
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["sales-reports", page, debouncedSearch, paymentStatus, startDate, endDate],
+    queryKey: ["sales-reports", page, debouncedSearch, paymentStatus, selectedProductId, startDate, endDate],
     queryFn: () =>
       saleService.getSales({
         page,
         size: 15,
         search: debouncedSearch || undefined,
         payment_status: paymentStatus || undefined,
+        product_id: selectedProductId || undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       }),
@@ -142,7 +151,7 @@ export default function SalesReportPage() {
               className="pl-9 bg-background w-full"
             />
           </div>
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <select
               value={paymentStatus}
               onChange={(e) => {
@@ -155,6 +164,22 @@ export default function SalesReportPage() {
               <option value="paid">Paid</option>
               <option value="partial">Partial</option>
               <option value="due">Due</option>
+            </select>
+
+            <select
+              value={selectedProductId}
+              onChange={(e) => {
+                setSelectedProductId(e.target.value);
+                setPage(1);
+              }}
+              className="flex h-10 w-full sm:w-48 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="">All Products</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>

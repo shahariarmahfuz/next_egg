@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Sequence
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -41,6 +41,7 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
         search: Optional[str] = None,
         customer_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         sort_by: Optional[str] = "newest",
@@ -67,6 +68,14 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
                 query = query.where(Sale.due_amount > 0)
             else:
                 query = query.where(Sale.payment_status == payment_status.strip())
+
+        if product_id and product_id.strip():
+            query = query.where(
+                exists().where(
+                    SaleItem.sale_id == Sale.id,
+                    SaleItem.product_id == product_id.strip(),
+                )
+            )
 
         if start_date:
             query = query.where(Sale.sale_date >= start_date)
@@ -111,6 +120,7 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
         search: Optional[str] = None,
         customer_id: Optional[str] = None,
         payment_status: Optional[str] = None,
+        product_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> dict:
@@ -141,6 +151,13 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
                 query = query.where(Sale.due_amount > 0)
             else:
                 query = query.where(Sale.payment_status == payment_status.strip())
+        if product_id and product_id.strip():
+            query = query.where(
+                exists().where(
+                    SaleItem.sale_id == Sale.id,
+                    SaleItem.product_id == product_id.strip(),
+                )
+            )
         if start_date:
             query = query.where(Sale.sale_date >= start_date)
         if end_date:
@@ -173,6 +190,8 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
                 items_query = items_query.where(Sale.due_amount > 0)
             else:
                 items_query = items_query.where(Sale.payment_status == payment_status.strip())
+        if product_id and product_id.strip():
+            items_query = items_query.where(SaleItem.product_id == product_id.strip())
         if start_date:
             items_query = items_query.where(Sale.sale_date >= start_date)
         if end_date:
