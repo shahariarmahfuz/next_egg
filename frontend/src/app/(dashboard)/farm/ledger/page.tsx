@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { farmService } from "@/services/api";
 import { FarmBalanceItem, FarmLedgerResponse } from "@/types";
 import { useAuth, HasPermission } from "@/providers/auth-provider";
+import { formatDate } from "@/utils/formatters";
 
 export default function FarmLedgerPage() {
   const { hasPermission } = useAuth();
@@ -336,7 +337,7 @@ export default function FarmLedgerPage() {
                               Opening
                             </Badge>
                           ) : (
-                            item.date
+                            formatDate(item.date)
                           )}
                         </td>
 

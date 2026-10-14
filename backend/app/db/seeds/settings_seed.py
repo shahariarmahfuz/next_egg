@@ -32,8 +32,8 @@ async def seed_settings_and_currencies(db: AsyncSession):
         settings_data = {
             "business_name": "Next Egg",
             "timezone": "UTC",
-            "date_format": "YYYY-MM-DD",
-            "time_format": "24h",
+            "date_format": "yyyy-MM-dd",
+            "time_format": "HH:mm",
             "week_start": "Monday",
             "language": "en",
             "thousand_separator": ",",

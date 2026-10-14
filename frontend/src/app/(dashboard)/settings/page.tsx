@@ -26,6 +26,9 @@ import {
   ChevronsUpDown,
   X,
   Truck,
+  Boxes,
+  User,
+  UserCheck,
 } from "lucide-react";
 import { useSettingsStore } from "@/store/settings";
 import { apiClient } from "@/lib/api-client";
@@ -38,7 +41,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
 import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
 import { useAuth } from "@/providers/auth-provider";
-import { supplierService, settingsService } from "@/services/api";
+import { supplierService, customerService, settingsService } from "@/services/api";
 
 const urlValidator = z
   .string()
@@ -197,6 +200,55 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
     setSelectedSupplier(null);
   };
 
+  // Stock Report Customer configuration query and state
+  const { data: stockReportCustomerConfigData, refetch: refetchStockReportCustomer } = useQuery({
+    queryKey: ["stock-report-customer-config"],
+    queryFn: () => settingsService.getStockReportCustomerConfig(),
+    enabled: canEdit,
+  });
+
+  const [selectedStockCustomerId, setSelectedStockCustomerId] = useState<string>("");
+  const [selectedStockCustomer, setSelectedStockCustomer] = useState<any>(null);
+  const [stockCustomerSearch, setStockCustomerSearch] = useState("");
+  const [openStockCustomerPopover, setOpenStockCustomerPopover] = useState(false);
+  const [isSavingStockCustomer, setIsSavingStockCustomer] = useState(false);
+
+  useEffect(() => {
+    if (stockReportCustomerConfigData?.data) {
+      setSelectedStockCustomerId(stockReportCustomerConfigData.data.customer_id || "");
+      setSelectedStockCustomer(stockReportCustomerConfigData.data.customer || null);
+    }
+  }, [stockReportCustomerConfigData]);
+
+  const debouncedStockCustomerSearch = useDebounce(stockCustomerSearch, 300);
+
+  const { data: searchCustomersData, isLoading: isSearchingStockCustomers } = useQuery({
+    queryKey: ["customers-search-stock-settings", debouncedStockCustomerSearch],
+    queryFn: () => customerService.getCustomers({ search: debouncedStockCustomerSearch || undefined, size: 20 }),
+    enabled: canEdit && openStockCustomerPopover,
+  });
+
+  const searchedCustomers = searchCustomersData?.data?.items || [];
+
+  const handleSaveStockReportCustomer = async () => {
+    if (!canEdit) return;
+    try {
+      setIsSavingStockCustomer(true);
+      await settingsService.updateStockReportCustomerConfig({ customer_id: selectedStockCustomerId || null });
+      toast.success("Stock Report dedicated customer saved successfully");
+      await refetchStockReportCustomer();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save Stock Report customer setting");
+    } finally {
+      setIsSavingStockCustomer(false);
+    }
+  };
+
+  const handleClearStockReportCustomer = () => {
+    setSelectedStockCustomerId("");
+    setSelectedStockCustomer(null);
+  };
+
   const form = useForm<BusinessSettingsFormValues>({
     resolver: zodResolver(businessSettingsSchema),
     defaultValues: {
@@ -327,6 +379,14 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                 className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
                 <Printer className="w-4 h-4 mr-2" /> Supplier Print (Owner)
+              </TabsTrigger>
+            )}
+            {canEdit && (
+              <TabsTrigger
+                value="stock-report"
+                className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                <Boxes className="w-4 h-4 mr-2" /> Stock Report Customer
               </TabsTrigger>
             )}
           </TabsList>
@@ -869,6 +929,180 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                         className="text-destructive hover:bg-destructive/10"
                       >
                         Remove Selected Supplier
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {/* TAB 4: Stock Report Customer */}
+          {canEdit && (
+            <TabsContent value="stock-report" className="space-y-6">
+              <Card className="glass-card border-none shadow-xl shadow-black/5 bg-gradient-to-br from-card/80 to-accent/20">
+                <CardHeader className="border-b border-border/50 bg-accent/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center">
+                        <Boxes className="w-5 h-5 mr-2 text-primary" /> Stock Report Dedicated Customer
+                      </CardTitle>
+                      <CardDescription>
+                        Select a specific customer whose sales will be displayed in their own separate summary card on the Stock Report and excluded from the Cash Sales and Due Sales breakdown.
+                      </CardDescription>
+                    </div>
+                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Stock Report Setting
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="space-y-2 max-w-xl">
+                    <label className="text-sm font-semibold flex items-center gap-2">
+                      <User className="w-4 h-4 text-primary" /> Select Dedicated Customer
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Authorized users can select exactly one customer. Their sales for the selected product and date will appear in a separate card and will not be mixed into Cash Sales or Due Sales.
+                    </p>
+
+                    <Popover open={openStockCustomerPopover} onOpenChange={setOpenStockCustomerPopover}>
+                      <PopoverTrigger asChild>
+                        {selectedStockCustomer ? (
+                          <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 cursor-pointer transition-colors flex items-center justify-between gap-3 text-xs w-full">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <UserCheck className="h-4 w-4 text-primary shrink-0" />
+                              <div className="truncate">
+                                <span className="font-semibold text-foreground text-sm block">
+                                  {selectedStockCustomer.name}
+                                </span>
+                                <span className="text-muted-foreground text-xs block">
+                                  Code: {selectedStockCustomer.customer_code || "—"} | Phone: {selectedStockCustomer.phone || "—"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-background/80 border text-foreground">
+                                Due: {formatCurrency(selectedStockCustomer.current_balance || 0)}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleClearStockReportCustomer();
+                                }}
+                                className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                title="Clear selected customer"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openStockCustomerPopover}
+                            className="w-full justify-between h-10 text-xs sm:text-sm font-normal bg-background/50 border-input hover:bg-accent/50"
+                          >
+                            <span className="flex items-center gap-2 text-muted-foreground truncate">
+                              <Search className="h-4 w-4 shrink-0 opacity-70" />
+                              Select or search customer (Name, Phone, Code)...
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        )}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[320px] max-w-[calc(100vw-2rem)] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search customer name, code, phone..."
+                            value={stockCustomerSearch}
+                            onValueChange={setStockCustomerSearch}
+                          />
+                          <CommandList className="max-h-60 overflow-y-auto">
+                            {isSearchingStockCustomers ? (
+                              <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                                Searching customers...
+                              </div>
+                            ) : searchedCustomers.length === 0 ? (
+                              <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
+                                No customers found.
+                              </CommandEmpty>
+                            ) : (
+                              <CommandGroup>
+                                {searchedCustomers.map((cust: any) => (
+                                  <CommandItem
+                                    key={cust.id}
+                                    value={`${cust.name} ${cust.customer_code || ""} ${cust.phone || ""}`}
+                                    onSelect={() => {
+                                      setSelectedStockCustomerId(cust.id);
+                                      setSelectedStockCustomer(cust);
+                                      setOpenStockCustomerPopover(false);
+                                      setStockCustomerSearch("");
+                                    }}
+                                    className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs flex items-center justify-between gap-2"
+                                  >
+                                    <div className="truncate">
+                                      <span className="font-medium text-foreground block">{cust.name}</span>
+                                      <span className="text-[11px] text-muted-foreground font-mono">
+                                        {cust.customer_code || "—"} {cust.phone ? `| ${cust.phone}` : ""}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-muted-foreground shrink-0">
+                                      Due: {formatCurrency(cust.current_balance || 0)}
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-4 border-t border-border/40">
+                    <Button
+                      type="button"
+                      onClick={handleSaveStockReportCustomer}
+                      disabled={isSavingStockCustomer}
+                      className="min-w-[140px] shadow-lg shadow-primary/20"
+                    >
+                      {isSavingStockCustomer ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" /> Save Customer Setting
+                        </>
+                      )}
+                    </Button>
+                    {selectedStockCustomerId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={async () => {
+                          handleClearStockReportCustomer();
+                          try {
+                            setIsSavingStockCustomer(true);
+                            await settingsService.updateStockReportCustomerConfig({ customer_id: null });
+                            await refetchStockReportCustomer();
+                            toast.success("Stock Report customer setting cleared");
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to clear");
+                          } finally {
+                            setIsSavingStockCustomer(false);
+                          }
+                        }}
+                        disabled={isSavingStockCustomer}
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        Remove Selected Customer
                       </Button>
                     )}
                   </div>

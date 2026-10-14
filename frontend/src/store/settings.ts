@@ -27,6 +27,7 @@ export interface BusinessSettings {
   decimal_separator: string;
   currency: Currency;
   supplier_print_supplier_id?: string;
+  stock_report_customer_id?: string;
 }
 
 const defaultSettings: BusinessSettings = {

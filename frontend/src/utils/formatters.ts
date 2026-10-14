@@ -59,15 +59,67 @@ export function formatNumber(amount: number | undefined | null, forceDecimals?: 
 }
 
 /**
+ * Normalize date format tokens for date-fns (e.g., YYYY -> yyyy, DD -> dd).
+ */
+export function normalizeDateFormat(fmt?: string): string {
+  if (!fmt) return "MMM dd, yyyy";
+  return fmt
+    .replace(/YYYY/g, "yyyy")
+    .replace(/YY/g, "yy")
+    .replace(/DD/g, "dd");
+}
+
+/**
+ * Normalize time format tokens for date-fns (e.g., "24h" -> "HH:mm", "12h" -> "hh:mm a").
+ */
+export function normalizeTimeFormat(fmt?: string): string {
+  if (!fmt) return "hh:mm a";
+  const trimmed = fmt.trim();
+  if (trimmed === "24h" || trimmed === "24") return "HH:mm";
+  if (trimmed === "12h" || trimmed === "12") return "hh:mm a";
+  return trimmed;
+}
+
+/**
+ * Safely validate timezone, fallback to UTC.
+ */
+function getValidTimezone(tz?: string): string {
+  if (!tz) return "UTC";
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
  * Format ISO Date strings based on timezone and date format.
  */
-export function formatDate(dateString: string | Date): string {
+export function formatDate(dateString: string | Date | undefined | null): string {
   if (!dateString) return "";
   const { settings } = useSettingsStore.getState();
+  const tz = getValidTimezone(settings?.timezone);
+  const fmt = normalizeDateFormat(settings?.date_format);
+
   try {
+    // If it is a date-only string like "2026-10-07", parse it in UTC so calendar day does not shift
+    if (typeof dateString === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateString.trim())) {
+      const [year, month, day] = dateString.trim().split("-").map(Number);
+      const utcDate = new Date(Date.UTC(year, month - 1, day));
+      return formatInTimeZone(utcDate, "UTC", fmt);
+    }
+
     const date = typeof dateString === "string" ? new Date(dateString) : dateString;
-    return formatInTimeZone(date, settings.timezone, settings.date_format);
+    if (isNaN(date.getTime())) return String(dateString);
+    return formatInTimeZone(date, tz, fmt);
   } catch {
+    try {
+      const date = typeof dateString === "string" ? new Date(dateString) : dateString;
+      if (!isNaN(date.getTime())) {
+        return formatInTimeZone(date, tz, "yyyy-MM-dd");
+      }
+    } catch {}
     return String(dateString);
   }
 }
@@ -75,13 +127,23 @@ export function formatDate(dateString: string | Date): string {
 /**
  * Format Time string based on timezone and time format.
  */
-export function formatTime(dateString: string | Date): string {
+export function formatTime(dateString: string | Date | undefined | null): string {
   if (!dateString) return "";
   const { settings } = useSettingsStore.getState();
+  const tz = getValidTimezone(settings?.timezone);
+  const fmt = normalizeTimeFormat(settings?.time_format);
+
   try {
     const date = typeof dateString === "string" ? new Date(dateString) : dateString;
-    return formatInTimeZone(date, settings.timezone, settings.time_format);
+    if (isNaN(date.getTime())) return String(dateString);
+    return formatInTimeZone(date, tz, fmt);
   } catch {
+    try {
+      const date = typeof dateString === "string" ? new Date(dateString) : dateString;
+      if (!isNaN(date.getTime())) {
+        return formatInTimeZone(date, tz, "HH:mm");
+      }
+    } catch {}
     return String(dateString);
   }
 }
@@ -89,15 +151,22 @@ export function formatTime(dateString: string | Date): string {
 /**
  * Format ISO Date and Time strings based on timezone.
  */
-export function formatDateTime(dateString: string | Date): string {
+export function formatDateTime(dateString: string | Date | undefined | null): string {
   if (!dateString) return "";
   const { settings } = useSettingsStore.getState();
+  const tz = getValidTimezone(settings?.timezone);
+  const dateFmt = normalizeDateFormat(settings?.date_format);
+  const timeFmt = normalizeTimeFormat(settings?.time_format);
+  const fmt = `${dateFmt} ${timeFmt}`;
+
   try {
     const date = typeof dateString === "string" ? new Date(dateString) : dateString;
-    const formatStr = `${settings.date_format} ${settings.time_format}`;
-    return formatInTimeZone(date, settings.timezone, formatStr);
+    if (isNaN(date.getTime())) return String(dateString);
+    return formatInTimeZone(date, tz, fmt);
   } catch {
-    return String(dateString);
+    const d = formatDate(dateString);
+    const t = formatTime(dateString);
+    return `${d} ${t}`.trim();
   }
 }
 

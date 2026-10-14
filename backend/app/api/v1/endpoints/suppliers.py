@@ -109,6 +109,7 @@ async def get_supplier_ledger(
     page_size: Optional[int] = Query(None, ge=1, le=100),
     size: Optional[int] = Query(None, ge=1, le=100),
     all_transactions: Optional[bool] = Query(False, alias="all"),
+    order: Optional[str] = Query("desc"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(RequirePermission("supplier.view")),
 ):
@@ -126,6 +127,7 @@ async def get_supplier_ledger(
         end_date=end_date,
         page=eff_page,
         page_size=eff_size,
+        order=order or "desc",
     )
     return ResponseModel[SupplierLedgerResponse](
         success=True,

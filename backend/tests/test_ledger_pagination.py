@@ -112,19 +112,22 @@ async def test_supplier_ledger_pagination_page_sizes_and_boundaries(test_db: Asy
     supplier.current_balance = 20500.0
     await test_db.commit()
 
-    # 1. Test unpaginated (full ledger)
-    full_ledger = await supplier_service.get_supplier_ledger(test_db, supplier.id)
+    # 1. Test unpaginated (full ledger: newest -> oldest)
+    full_ledger = await supplier_service.get_supplier_ledger(test_db, supplier.id, order="desc")
     assert full_ledger["total"] == 30
     assert len(full_ledger["transactions"]) == 30
     assert full_ledger["summary"]["opening_balance"] == 5000.0
     assert full_ledger["summary"]["total_purchases"] == 20000.0
     assert full_ledger["summary"]["total_payments"] == 4500.0
     assert full_ledger["summary"]["current_due"] == 20500.0
-    # Final transaction running balance matches current balance
-    assert full_ledger["transactions"][-1]["running_balance"] == 20500.0
+    # First transaction (newest) matches current balance
+    assert full_ledger["transactions"][0]["running_balance"] == 20500.0
+    # Last transaction (oldest) matches opening balance
+    assert full_ledger["transactions"][-1]["running_balance"] == 5000.0
+    assert full_ledger["transactions"][-1]["type"] == "Opening Balance"
 
     # 2. Test 10 records per page (First, Middle, Last page)
-    # Page 1: 10 records
+    # Page 1: 10 records (newest 10 transactions)
     p1 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=1, page_size=10)
     assert p1["total"] == 30
     assert p1["pages"] == 3
@@ -132,9 +135,11 @@ async def test_supplier_ledger_pagination_page_sizes_and_boundaries(test_db: Asy
     assert p1["page_size"] == 10
     assert len(p1["transactions"]) == 10
     assert p1["summary"]["current_due"] == 20500.0
+    # Newest transaction is first on Page 1
+    assert p1["transactions"][0]["running_balance"] == 20500.0
     last_p1_tx = p1["transactions"][-1]
 
-    # Page 2 (middle): 10 records
+    # Page 2 (middle): 10 records (progressively older transactions)
     p2 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=2, page_size=10)
     assert p2["total"] == 30
     assert p2["pages"] == 3
@@ -143,19 +148,21 @@ async def test_supplier_ledger_pagination_page_sizes_and_boundaries(test_db: Asy
     assert len(p2["transactions"]) == 10
     first_p2_tx = p2["transactions"][0]
 
-    # CRITICAL ACCOUNTING CHECK: Running Due continuity across page boundaries
-    # first item of page 2 must continue directly from last item of page 1
-    expected_p2_first_balance = round(last_p1_tx["running_balance"] + first_p2_tx["debit"] - first_p2_tx["credit"], 2)
-    assert first_p2_tx["running_balance"] == expected_p2_first_balance
-    assert first_p2_tx["running_balance"] != first_p2_tx["debit"] - first_p2_tx["credit"]  # Not reset to 0!
+    # CRITICAL ACCOUNTING CHECK: Running Due continuity across page boundaries (newest -> oldest)
+    # last item of page 1 was immediately preceded by first item of page 2 in historical timeline
+    # So: last_p1_tx.running_balance == first_p2_tx.running_balance + last_p1_tx.debit - last_p1_tx.credit
+    expected_p1_last_balance = round(first_p2_tx["running_balance"] + last_p1_tx["debit"] - last_p1_tx["credit"], 2)
+    assert last_p1_tx["running_balance"] == expected_p1_last_balance
 
-    # Page 3 (last page): 10 records
+    # Page 3 (last page): 10 records (oldest transactions)
     p3 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=3, page_size=10)
     assert p3["total"] == 30
     assert p3["pages"] == 3
     assert p3["page"] == 3
     assert len(p3["transactions"]) == 10
-    assert p3["transactions"][-1]["running_balance"] == 20500.0
+    # Oldest transaction is last on the last page
+    assert p3["transactions"][-1]["type"] == "Opening Balance"
+    assert p3["transactions"][-1]["running_balance"] == 5000.0
 
     # 3. Test 25 records per page (default)
     p25_1 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=1, page_size=25)
@@ -164,13 +171,16 @@ async def test_supplier_ledger_pagination_page_sizes_and_boundaries(test_db: Asy
     assert p25_1["page"] == 1
     assert p25_1["page_size"] == 25
     assert len(p25_1["transactions"]) == 25
+    # Newest transaction on Page 1
+    assert p25_1["transactions"][0]["running_balance"] == 20500.0
 
     p25_2 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=2, page_size=25)
     assert p25_2["total"] == 30
     assert p25_2["pages"] == 2
     assert p25_2["page"] == 2
-    assert len(p25_2["transactions"]) == 5  # remaining 5 items
-    assert p25_2["transactions"][-1]["running_balance"] == 20500.0
+    assert len(p25_2["transactions"]) == 5  # remaining 5 items (oldest)
+    assert p25_2["transactions"][-1]["type"] == "Opening Balance"
+    assert p25_2["transactions"][-1]["running_balance"] == 5000.0
 
     # 4. Test 50 records per page
     p50 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=1, page_size=50)
@@ -250,15 +260,19 @@ async def test_customer_ledger_pagination_page_sizes_and_boundaries(test_db: Asy
     customer.current_balance = 34000.0
     await test_db.commit()
 
-    # 1. Full unpaginated ledger
-    full_ledger = await customer_service.get_customer_ledger(test_db, customer.id)
+    # 1. Full unpaginated ledger (newest -> oldest)
+    full_ledger = await customer_service.get_customer_ledger(test_db, customer.id, order="desc")
     assert full_ledger["total"] == 30
     assert len(full_ledger["transactions"]) == 30
     assert full_ledger["summary"]["opening_balance"] == 3000.0
     assert full_ledger["summary"]["total_sales"] == 40000.0
     assert full_ledger["summary"]["total_collections"] == 9000.0
     assert full_ledger["summary"]["current_due"] == 34000.0
-    assert full_ledger["transactions"][-1]["running_balance"] == 34000.0
+    # First transaction (newest) matches current balance
+    assert full_ledger["transactions"][0]["running_balance"] == 34000.0
+    # Last transaction (oldest) matches opening balance
+    assert full_ledger["transactions"][-1]["running_balance"] == 3000.0
+    assert full_ledger["transactions"][-1]["type"] == "Opening Balance"
 
     # 2. 10 records per page (First, Middle, Last)
     p1 = await customer_service.get_customer_ledger(test_db, customer.id, page=1, page_size=10)
@@ -267,6 +281,7 @@ async def test_customer_ledger_pagination_page_sizes_and_boundaries(test_db: Asy
     assert p1["page"] == 1
     assert p1["page_size"] == 10
     assert len(p1["transactions"]) == 10
+    assert p1["transactions"][0]["running_balance"] == 34000.0
     last_p1_tx = p1["transactions"][-1]
 
     p2 = await customer_service.get_customer_ledger(test_db, customer.id, page=2, page_size=10)
@@ -276,27 +291,31 @@ async def test_customer_ledger_pagination_page_sizes_and_boundaries(test_db: Asy
     assert len(p2["transactions"]) == 10
     first_p2_tx = p2["transactions"][0]
 
-    # Continuity check: page 2 first item running balance continues from page 1 last item
-    expected_p2_first_balance = round(last_p1_tx["running_balance"] + first_p2_tx["debit"] - first_p2_tx["credit"], 2)
-    assert first_p2_tx["running_balance"] == expected_p2_first_balance
+    # Continuity check: page 1 last item was immediately preceded by page 2 first item in history
+    expected_p1_last_balance = round(first_p2_tx["running_balance"] + last_p1_tx["debit"] - last_p1_tx["credit"], 2)
+    assert last_p1_tx["running_balance"] == expected_p1_last_balance
 
     p3 = await customer_service.get_customer_ledger(test_db, customer.id, page=3, page_size=10)
     assert p3["total"] == 30
     assert p3["pages"] == 3
     assert p3["page"] == 3
     assert len(p3["transactions"]) == 10
-    assert p3["transactions"][-1]["running_balance"] == 34000.0
+    assert p3["transactions"][-1]["type"] == "Opening Balance"
+    assert p3["transactions"][-1]["running_balance"] == 3000.0
 
     # 3. 25 records per page
     p25_1 = await customer_service.get_customer_ledger(test_db, customer.id, page=1, page_size=25)
     assert p25_1["total"] == 30
     assert p25_1["pages"] == 2
     assert len(p25_1["transactions"]) == 25
+    assert p25_1["transactions"][0]["running_balance"] == 34000.0
 
     p25_2 = await customer_service.get_customer_ledger(test_db, customer.id, page=2, page_size=25)
     assert p25_2["total"] == 30
     assert p25_2["pages"] == 2
     assert len(p25_2["transactions"]) == 5
+    assert p25_2["transactions"][-1]["type"] == "Opening Balance"
+    assert p25_2["transactions"][-1]["running_balance"] == 3000.0
 
     # 4. 50 records per page
     p50 = await customer_service.get_customer_ledger(test_db, customer.id, page=1, page_size=50)
@@ -350,26 +369,138 @@ async def test_ledger_pagination_with_date_range_and_all(test_db: AsyncSession, 
     start_filter = datetime(2026, 9, 22, 0, 0, 0, tzinfo=timezone.utc)
     end_filter = datetime(2026, 9, 22, 23, 59, 59, tzinfo=timezone.utc)
 
-    # Paginate filtered with page_size=2
+    # Paginate filtered with page_size=2 (5 transactions on Sept 22: newest -> oldest)
     res_p1 = await supplier_service.get_supplier_ledger(
         test_db, supplier.id, start_date=start_filter, end_date=end_filter, page=1, page_size=2
     )
     assert res_p1["total"] == 5
     assert res_p1["pages"] == 3
     assert len(res_p1["transactions"]) == 2
-    # The first filtered item's running balance includes the opening balance + prior purchases!
-    # Opening 1000 + 5 purchases on Sept 21 (2500) + 1st purchase on Sept 22 (500) = 4000
-    assert res_p1["transactions"][0]["running_balance"] == 4000.0
+    # The first filtered item's running balance is the latest purchase on Sept 22:
+    # Opening 1000 + 5 purchases on Sept 21 (2500) + 5 purchases on Sept 22 (2500) = 6000
+    assert res_p1["transactions"][0]["running_balance"] == 6000.0
+    assert res_p1["transactions"][1]["running_balance"] == 5500.0
 
     res_p2 = await supplier_service.get_supplier_ledger(
         test_db, supplier.id, start_date=start_filter, end_date=end_filter, page=2, page_size=2
     )
     assert len(res_p2["transactions"]) == 2
-    # Continuing balance
     assert res_p2["transactions"][0]["running_balance"] == 5000.0
+    assert res_p2["transactions"][1]["running_balance"] == 4500.0
 
     res_p3 = await supplier_service.get_supplier_ledger(
         test_db, supplier.id, start_date=start_filter, end_date=end_filter, page=3, page_size=2
     )
     assert len(res_p3["transactions"]) == 1
-    assert res_p3["transactions"][0]["running_balance"] == 6000.0
+    # Oldest purchase on Sept 22
+    assert res_p3["transactions"][0]["running_balance"] == 4000.0
+
+
+@pytest.mark.asyncio
+async def test_page_1_with_25_rows_newest_first_and_navigation(test_db: AsyncSession, test_user: User):
+    """
+    Direct verification of all User Requirements:
+    1. Test Page 1 with 25 rows.
+    2. Verify the newest transactions appear on Page 1.
+    3. Verify the oldest transactions appear on the last page.
+    4. Verify Previous/Next navigation.
+    5. Verify filters still work.
+    6. Verify Running Due remains correct.
+    """
+    now = datetime(2026, 10, 1, 8, 0, 0, tzinfo=timezone.utc)
+
+    # Supplier setup: Opening Balance = 10,000
+    supp_in = SupplierCreate(
+        name="25-Row Verification Supplier",
+        opening_balance=10000.0,
+    )
+    supplier = await supplier_service.create_supplier(test_db, supp_in)
+
+    # Create 35 distinct chronological purchases over 35 consecutive days
+    # Day 1 (Oct 2) to Day 35 (Nov 5)
+    # Each purchase is $100.
+    # Total events: 1 Opening Balance + 35 Purchases = 36 events
+    for i in range(35):
+        tx_date = now + timedelta(days=i + 1)
+        p = Purchase(
+            id=str(uuid.uuid4()),
+            purchase_no=f"PO-VERIFY-{i+1:03d}",
+            supplier_id=supplier.id,
+            user_id=test_user.id,
+            purchase_date=tx_date,
+            subtotal=100.0,
+            grand_total=100.0,
+            paid_amount=0.0,
+            due_amount=100.0,
+            payment_status="due",
+        )
+        test_db.add(p)
+
+    expected_current_due = 10000.0 + 35 * 100.0  # 13,500.0
+    supplier.current_balance = expected_current_due
+    await test_db.commit()
+
+    # 1. Test Page 1 with 25 rows
+    page1 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=1, page_size=25)
+    assert page1["total"] == 36
+    assert page1["pages"] == 2
+    assert page1["page"] == 1
+    assert page1["page_size"] == 25
+    assert len(page1["transactions"]) == 25
+
+    # 2. Verify the newest transactions appear on Page 1
+    # Top transaction on Page 1 must be PO-VERIFY-035 (Day 35, the newest event)
+    first_tx = page1["transactions"][0]
+    assert first_tx["voucher_no"] == "PO-VERIFY-035"
+    assert first_tx["running_balance"] == 13500.0
+    # Every subsequent transaction on Page 1 must be progressively older
+    for idx in range(len(page1["transactions"]) - 1):
+        curr_tx = page1["transactions"][idx]
+        next_tx = page1["transactions"][idx + 1]
+        curr_d = curr_tx["date"] if curr_tx["date"].tzinfo else curr_tx["date"].replace(tzinfo=timezone.utc)
+        next_d = next_tx["date"] if next_tx["date"].tzinfo else next_tx["date"].replace(tzinfo=timezone.utc)
+        assert curr_d >= next_d, "Transactions must be in descending chronological order (newest -> oldest)"
+        # Running due consistency: curr_tx was preceded by next_tx
+        assert curr_tx["running_balance"] == round(next_tx["running_balance"] + curr_tx["debit"] - curr_tx["credit"], 2)
+
+    # 25th row on Page 1 is PO-VERIFY-011 (Day 11)
+    last_tx_p1 = page1["transactions"][-1]
+    assert last_tx_p1["voucher_no"] == "PO-VERIFY-011"
+    # Opening 10000 + 11 purchases = 11,100
+    assert last_tx_p1["running_balance"] == 11100.0
+
+    # 3. Verify the oldest transactions appear on the last page (Page 2)
+    page2 = await supplier_service.get_supplier_ledger(test_db, supplier.id, page=2, page_size=25)
+    assert page2["page"] == 2
+    assert len(page2["transactions"]) == 11  # Remaining 11 transactions (PO-010 down to Opening Balance)
+
+    # Top of Page 2 is PO-VERIFY-010 (Day 10)
+    first_tx_p2 = page2["transactions"][0]
+    assert first_tx_p2["voucher_no"] == "PO-VERIFY-010"
+    assert first_tx_p2["running_balance"] == 11000.0
+
+    # Very bottom of Page 2 (last page) is the oldest event: Opening Balance
+    last_tx_p2 = page2["transactions"][-1]
+    assert last_tx_p2["type"] == "Opening Balance"
+    assert last_tx_p2["running_balance"] == 10000.0
+
+    # 4. Verify Previous/Next navigation continuity across Page 1 and Page 2
+    assert last_tx_p1["running_balance"] == round(first_tx_p2["running_balance"] + last_tx_p1["debit"] - last_tx_p1["credit"], 2)
+
+    # 5. Verify filters still work (e.g. date filter for Days 10 to 15)
+    filter_start = now + timedelta(days=10)
+    filter_end = now + timedelta(days=15)
+    filtered = await supplier_service.get_supplier_ledger(
+        test_db, supplier.id, start_date=filter_start, end_date=filter_end, page=1, page_size=25
+    )
+    assert filtered["total"] == 6  # Days 10, 11, 12, 13, 14, 15
+    assert len(filtered["transactions"]) == 6
+    # Newest filtered is Day 15
+    assert filtered["transactions"][0]["voucher_no"] == "PO-VERIFY-015"
+    assert filtered["transactions"][0]["running_balance"] == 11500.0
+    # Oldest filtered is Day 10
+    assert filtered["transactions"][-1]["voucher_no"] == "PO-VERIFY-010"
+    assert filtered["transactions"][-1]["running_balance"] == 11000.0
+    # Summary current_due remains overall account current balance
+    assert filtered["summary"]["current_due"] == 13500.0
+

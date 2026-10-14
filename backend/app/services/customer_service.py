@@ -146,6 +146,7 @@ class CustomerService:
         end_date: Optional[datetime] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
+        order: Optional[str] = None,
     ) -> dict:
         customer = await customer_repository.get_by_id(db, id=customer_id)
         if not customer:
@@ -326,6 +327,10 @@ class CustomerService:
             "manual_adjustments": round(manual_adjustments, 2),
             "current_due": round(customer.current_balance, 2),
         }
+
+        effective_order = order.lower() if order else None
+        if effective_order == "desc" or (effective_order is None and (page is not None or page_size is not None)):
+            calculated_events.reverse()
 
         total = len(calculated_events)
         if page is not None or page_size is not None:

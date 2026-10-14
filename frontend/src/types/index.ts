@@ -19,6 +19,7 @@ export * from "./supplier";
 export * from "./supplier_payment";
 export * from "./supplier_other_transaction";
 export * from "./user";
+export * from "./report";
 
 export interface CustomerFinancialSummary {
   customer_id: string;

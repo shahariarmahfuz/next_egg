@@ -5,6 +5,7 @@ import { useSettingsStore } from "@/store/settings";
 import { apiClient } from "@/lib/api-client";
 
 import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
+import { normalizeDateFormat, normalizeTimeFormat } from "@/utils/formatters";
 
 interface SettingsProviderProps {
   children: React.ReactNode;
@@ -20,7 +21,14 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         if (response.data) {
           const defaultCurrencyId = response.data.default_currency_id;
           const currency = STATIC_CURRENCIES.find((c) => c.id === defaultCurrencyId) || DEFAULT_CURRENCY;
-          setSettings({ ...response.data, currency });
+          const dateFormat = normalizeDateFormat(response.data.date_format);
+          const timeFormat = normalizeTimeFormat(response.data.time_format);
+          setSettings({
+            ...response.data,
+            date_format: dateFormat,
+            time_format: timeFormat,
+            currency,
+          });
         }
       } catch (error) {
         console.error("Failed to load business settings:", error);

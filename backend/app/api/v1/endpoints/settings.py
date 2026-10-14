@@ -12,25 +12,29 @@ from app.schemas.setting import (
     BusinessSettingsUpdate,
     SupplierPrintConfigResponse,
     SupplierPrintConfigUpdate,
+    StockReportCustomerConfigResponse,
+    StockReportCustomerConfigUpdate,
 )
 from app.services.setting_service import setting_service
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
+
 @router.get("/business", response_model=ResponseModel[BusinessSettingsResponse])
 async def get_business_settings(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     """Retrieve public and general business settings (for dashboard, formatting, and login)."""
     settings = await setting_service.get_business_settings(db, current_user=current_user)
     return ResponseModel[BusinessSettingsResponse](success=True, data=settings)
 
+
 @router.put("/business", response_model=ResponseModel[BusinessSettingsResponse])
 async def update_business_settings(
     settings_in: BusinessSettingsUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("settings.edit"))
+    current_user: User = Depends(RequirePermission("settings.edit")),
 ):
     """
     Update business settings.
@@ -40,10 +44,11 @@ async def update_business_settings(
     settings = await setting_service.update_business_settings(db, obj_in=settings_in, current_user=current_user)
     return ResponseModel[BusinessSettingsResponse](success=True, data=settings)
 
+
 @router.get("/supplier-print", response_model=ResponseModel[SupplierPrintConfigResponse])
 async def get_supplier_print_config(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Retrieve Owner-only Supplier Print configuration for Cash Book.
@@ -52,11 +57,12 @@ async def get_supplier_print_config(
     config = await setting_service.get_supplier_print_config(db, current_user=current_user)
     return ResponseModel[SupplierPrintConfigResponse](success=True, data=config)
 
+
 @router.put("/supplier-print", response_model=ResponseModel[SupplierPrintConfigResponse])
 async def update_supplier_print_config(
     config_in: SupplierPrintConfigUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update Owner-only Supplier Print configuration for Cash Book.
@@ -64,3 +70,24 @@ async def update_supplier_print_config(
     """
     config = await setting_service.update_supplier_print_config(db, obj_in=config_in, current_user=current_user)
     return ResponseModel[SupplierPrintConfigResponse](success=True, data=config)
+
+
+@router.get("/stock-report-customer", response_model=ResponseModel[StockReportCustomerConfigResponse])
+async def get_stock_report_customer_config(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve Stock Report dedicated customer configuration."""
+    config = await setting_service.get_stock_report_customer_config(db, current_user=current_user)
+    return ResponseModel[StockReportCustomerConfigResponse](success=True, data=config)
+
+
+@router.put("/stock-report-customer", response_model=ResponseModel[StockReportCustomerConfigResponse])
+async def update_stock_report_customer_config(
+    config_in: StockReportCustomerConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update Stock Report dedicated customer configuration. Requires authorized user."""
+    config = await setting_service.update_stock_report_customer_config(db, obj_in=config_in, current_user=current_user)
+    return ResponseModel[StockReportCustomerConfigResponse](success=True, data=config)

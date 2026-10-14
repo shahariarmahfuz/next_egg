@@ -4,16 +4,20 @@ from app.exceptions.custom import ForbiddenException, NotFoundException
 from app.models.user import User
 from app.repositories.setting_repository import setting_repository
 from app.repositories.supplier_repository import supplier_repository
+from app.repositories.customer_repository import customer_repository
 from app.schemas.setting import (
     BusinessSettingsResponse,
     BusinessSettingsUpdate,
     SettingCreate,
     SupplierPrintConfigResponse,
     SupplierPrintConfigUpdate,
+    StockReportCustomerConfigResponse,
+    StockReportCustomerConfigUpdate,
 )
 
 BRANDING_KEYS = {"business_logo", "app_icon_url", "favicon_url", "login_logo_url"}
 SUPPLIER_PRINT_KEY = "supplier_print_supplier_id"
+STOCK_REPORT_CUSTOMER_KEY = "stock_report_customer_id"
 
 class SettingService:
     async def get_business_settings(
@@ -46,6 +50,7 @@ class SettingService:
             decimal_separator=settings_dict.get("decimal_separator"),
             default_currency_id=settings_dict.get("default_currency_id"),
             supplier_print_supplier_id=supplier_print_id,
+            stock_report_customer_id=settings_dict.get(STOCK_REPORT_CUSTOMER_KEY),
         )
                 
         return response
@@ -130,5 +135,56 @@ class SettingService:
             ))
 
         return await self.get_supplier_print_config(db, current_user=current_user)
+
+    async def get_stock_report_customer_config(
+        self, db: AsyncSession, current_user: User
+    ) -> StockReportCustomerConfigResponse:
+        setting = await setting_repository.get_by_key(db, STOCK_REPORT_CUSTOMER_KEY)
+        customer_id = setting.value.strip() if setting and setting.value and setting.value.strip() else None
+
+        customer_data = None
+        if customer_id:
+            customer = await customer_repository.get_by_id(db, id=customer_id)
+            if customer:
+                customer_data = {
+                    "id": customer.id,
+                    "name": customer.name,
+                    "customer_code": customer.customer_code,
+                    "phone": customer.phone,
+                    "current_balance": customer.current_balance,
+                    "opening_balance": customer.opening_balance,
+                }
+
+        return StockReportCustomerConfigResponse(customer_id=customer_id, customer=customer_data)
+
+    async def update_stock_report_customer_config(
+        self, db: AsyncSession, obj_in: StockReportCustomerConfigUpdate, current_user: User
+    ) -> StockReportCustomerConfigResponse:
+        # Check authorization (owner, super_admin, or settings.edit)
+        is_admin = current_user.role and current_user.role.code in ["owner", "super_admin"]
+        user_perm_codes = {p.code for p in current_user.role.permissions} if current_user.role and current_user.role.permissions else set()
+        if not is_admin and "settings.edit" not in user_perm_codes:
+            raise ForbiddenException("Permission denied. Required permission: settings.edit")
+
+        customer_id = obj_in.customer_id.strip() if obj_in.customer_id and obj_in.customer_id.strip() else None
+
+        if customer_id:
+            customer = await customer_repository.get_by_id(db, id=customer_id)
+            if not customer:
+                raise NotFoundException(f"Customer with ID '{customer_id}' not found.")
+
+        setting = await setting_repository.get_by_key(db, STOCK_REPORT_CUSTOMER_KEY)
+        new_val = customer_id or ""
+        if setting:
+            await setting_repository.update(db, db_obj=setting, obj_in={"value": new_val})
+        else:
+            await setting_repository.create(db, obj_in=SettingCreate(
+                key=STOCK_REPORT_CUSTOMER_KEY,
+                value=new_val,
+                group_name="business",
+                description="Dedicated customer for Stock Report sales separation",
+            ))
+
+        return await self.get_stock_report_customer_config(db, current_user=current_user)
 
 setting_service = SettingService()

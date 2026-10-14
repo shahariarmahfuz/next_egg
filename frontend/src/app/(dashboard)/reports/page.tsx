@@ -11,6 +11,7 @@ import {
   DollarSign,
   Receipt,
   Loader2,
+  Boxes,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -67,6 +68,14 @@ const SupplierPaymentReportPage = dynamic(
   }
 );
 
+const StockReportPage = dynamic(
+  () => import("@/app/(dashboard)/reports/stock/page"),
+  {
+    loading: () => <ReportLoadingSkeleton title="Stock Report" />,
+    ssr: false,
+  }
+);
+
 function ReportLoadingSkeleton({ title }: { title: string }) {
   return (
     <Card className="glass-card p-6 space-y-4">
@@ -87,7 +96,7 @@ function ReportLoadingSkeleton({ title }: { title: string }) {
 
 export default function ReportsHubPage() {
   const [activeTab, setActiveTab] = useState<
-    "sales" | "sale_return" | "purchase" | "product_return" | "customer_collection" | "supplier_payment"
+    "sales" | "sale_return" | "purchase" | "product_return" | "customer_collection" | "supplier_payment" | "stock"
   >("sales");
 
   return (
@@ -180,6 +189,18 @@ export default function ReportsHubPage() {
                 <Receipt className="h-4 w-4 text-teal-400" />
                 <span>Supplier Payment Report</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab("stock")}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === "stock"
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                }`}
+              >
+                <Boxes className="h-4 w-4 text-indigo-400" />
+                <span>Stock Report</span>
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -192,6 +213,7 @@ export default function ReportsHubPage() {
           {activeTab === "product_return" && <ProductReturnReportPage />}
           {activeTab === "customer_collection" && <CustomerCollectionReportPage />}
           {activeTab === "supplier_payment" && <SupplierPaymentReportPage />}
+          {activeTab === "stock" && <StockReportPage />}
         </Suspense>
       </div>
     </HasPermission>

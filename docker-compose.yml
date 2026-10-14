@@ -16,7 +16,7 @@ services:
       - APP_NAME=Business Management API
       - APP_ENV=development
       - DEBUG=true
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://neondb_owner:npg_2j3xCmEBeNcV@ep-jolly-glade-az8f29ac-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?ssl=require}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://neondb_owner:npg_ZMtnKuWAoY37@ep-wild-unit-b3vg9qqz-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require}
       - SECRET_KEY=${SECRET_KEY:-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
       - BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000","http://localhost"]
     volumes:

@@ -14,7 +14,7 @@ For manual SQL dump backups:
 
 ### Create Compressed Database Dump
 ```bash
-pg_dump "postgresql://neondb_owner:npg_2j3xCmEBeNcV@ep-jolly-glade-az8f29ac-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require" \
+pg_dump "postgresql://username:password@ep-host-pooler.aws.neon.tech/neondb?sslmode=require" \
   -F c -b -v -f backup_$(date +%Y%m%d_%H%M%S).dump
 ```
 
@@ -26,7 +26,7 @@ To restore a `.dump` backup file:
 
 ```bash
 pg_restore --clean --if-exists --no-owner --no-privileges \
-  -d "postgresql://neondb_owner:npg_2j3xCmEBeNcV@ep-jolly-glade-az8f29ac-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require" \
+  -d "postgresql://username:password@ep-host-pooler.aws.neon.tech/neondb?sslmode=require" \
   backup_20260804_120000.dump
 ```
 

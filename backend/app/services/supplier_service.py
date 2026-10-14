@@ -382,6 +382,7 @@ class SupplierService:
         end_date: Optional[datetime] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
+        order: Optional[str] = None,
     ) -> dict:
         supplier = await supplier_repository.get_by_id(db, id=supplier_id)
         if not supplier:
@@ -442,6 +443,10 @@ class SupplierService:
             "manual_adjustments": round(manual_adjustments, 2),
             "current_due": round(supplier.current_balance, 2),
         }
+
+        effective_order = order.lower() if order else None
+        if effective_order == "desc" or (effective_order is None and (page is not None or page_size is not None)):
+            calculated_events.reverse()
 
         total = len(calculated_events)
         if page is not None or page_size is not None:

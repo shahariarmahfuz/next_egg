@@ -40,6 +40,7 @@ import {
   FileText,
   ClipboardList,
   PackageCheck,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -354,8 +355,9 @@ export function SidebarContent({
   const isCashActive = pathname.startsWith("/cash") || isCashBookActive || isCashOutActive || isCashOutManageActive;
 
   const isFilteredDashboardActive = pathname === "/dashboard/filtered";
-  const isReportsCenterActive = pathname.startsWith("/reports");
-  const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive;
+  const isReportsCenterActive = pathname === "/reports";
+  const isStockReportActive = pathname.startsWith("/reports/stock");
+  const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive || isStockReportActive;
 
   const isUsersActive = pathname.startsWith("/users");
 
@@ -406,7 +408,7 @@ export function SidebarContent({
     "accounts.cash_out.view",
     "reports.view",
   ]);
-  const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view"]);
+  const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view", "product.view"]);
   const showUsers = hasPermission("user.view");
   const showRoles = hasPermission("role.view");
   const showArchitecture = user?.role?.code === "owner";
@@ -1209,6 +1211,17 @@ export function SidebarContent({
                 activeColorClass={purpleActive}
                 label="Reports Center"
                 isActive={isReportsCenterActive}
+                onNavigate={onNavigate}
+              />
+            )}
+            {(hasPermission("reports.view") || hasPermission("product.view")) && (
+              <SubNavItem
+                href="/reports/stock"
+                icon={Boxes}
+                iconColor="text-purple-500 dark:text-purple-400"
+                activeColorClass={purpleActive}
+                label="Stock Report"
+                isActive={isStockReportActive}
                 onNavigate={onNavigate}
               />
             )}

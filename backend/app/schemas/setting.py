@@ -38,6 +38,7 @@ class BusinessSettingsResponse(BaseModel):
     decimal_separator: Optional[str] = None
     default_currency_id: Optional[str] = None
     supplier_print_supplier_id: Optional[str] = None
+    stock_report_customer_id: Optional[str] = None
 
 class BusinessSettingsUpdate(BaseModel):
     business_name: Optional[str] = None
@@ -58,6 +59,7 @@ class BusinessSettingsUpdate(BaseModel):
     decimal_separator: Optional[str] = None
     default_currency_id: Optional[str] = None
     supplier_print_supplier_id: Optional[str] = None
+    stock_report_customer_id: Optional[str] = None
 
 class SupplierPrintConfigResponse(BaseModel):
     supplier_id: Optional[str] = None
@@ -65,3 +67,11 @@ class SupplierPrintConfigResponse(BaseModel):
 
 class SupplierPrintConfigUpdate(BaseModel):
     supplier_id: Optional[str] = None
+
+class StockReportCustomerConfigResponse(BaseModel):
+    customer_id: Optional[str] = None
+    customer: Optional[dict] = None
+
+class StockReportCustomerConfigUpdate(BaseModel):
+    customer_id: Optional[str] = None
+

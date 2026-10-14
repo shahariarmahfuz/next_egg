@@ -16,6 +16,7 @@ import {
   CustomerItem,
   CustomerLedgerResponse,
   CustomerUpdatePayload,
+  DailyStockReportData,
   DashboardCardsSummary,
   Expense,
   ExpenseCategory,
@@ -949,7 +950,20 @@ export const settingsService = {
   updateSupplierPrintConfig: async (payload: { supplier_id?: string | null }) => {
     return http.put<{ supplier_id?: string | null; supplier?: any }>("/settings/supplier-print", payload);
   },
+  getStockReportCustomerConfig: async () => {
+    return http.get<{ customer_id?: string | null; customer?: any }>("/settings/stock-report-customer");
+  },
+  updateStockReportCustomerConfig: async (payload: { customer_id?: string | null }) => {
+    return http.put<{ customer_id?: string | null; customer?: any }>("/settings/stock-report-customer", payload);
+  },
 };
+
+export const reportService = {
+  getStockReport: async (params: { product_id: string; target_date: string; timezone?: string }) => {
+    return http.get<DailyStockReportData>("/reports/stock", params);
+  },
+};
+
 
 
 
