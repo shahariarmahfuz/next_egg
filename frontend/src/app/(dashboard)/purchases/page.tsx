@@ -13,6 +13,8 @@ import {
   FileText,
   Truck,
   BarChart3,
+  Printer,
+  Loader2,
 } from "lucide-react";
 import { purchaseService } from "@/services/api";
 import { PurchaseItem } from "@/types";
@@ -24,6 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
 import { PurchaseViewModal } from "@/components/purchases/purchase-view-modal";
+import { printPurchaseVoucher } from "@/components/purchases/purchase-export-utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
@@ -37,6 +40,18 @@ export default function PurchasesPage() {
   const [paymentStatus, setPaymentStatus] = useState<string>("");
   const [viewingPurchase, setViewingPurchase] = useState<PurchaseItem | null>(null);
   const [hardDeletingPurchase, setHardDeletingPurchase] = useState<PurchaseItem | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+
+  const handlePrintPurchase = async (purchase: PurchaseItem) => {
+    try {
+      setPrintingId(purchase.id);
+      await printPurchaseVoucher(purchase);
+    } catch (err) {
+      console.error("Failed to print purchase voucher:", err);
+    } finally {
+      setPrintingId(null);
+    }
+  };
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -239,44 +254,62 @@ export default function PurchasesPage() {
                           {purchase.payment_status}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setViewingPurchase(purchase)}
-                          title="View Purchase Details"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        <HasPermission code="purchase.edit">
-                          <Button asChild variant="ghost" size="icon" className="h-7 w-7" title="Edit Purchase">
-                            <Link href={`/purchases/${purchase.id}/edit`}>
-                              <Edit className="h-3.5 w-3.5" />
-                            </Link>
-                          </Button>
-                        </HasPermission>
-                        <HasPermission code="purchase.delete">
+                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => deleteMutation.mutate(purchase.id)}
-                            title="Normal Delete (Reduces stock & adjusts supplier balance)"
-                            className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => setViewingPurchase(purchase)}
+                            title="View Details"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Eye className="h-3.5 w-3.5" />
                           </Button>
 
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setHardDeletingPurchase(purchase)}
-                            title="Hard Delete (Permanently remove purchase order & all dependent payments/returns)"
-                            className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => handlePrintPurchase(purchase)}
+                            disabled={printingId === purchase.id}
+                            title="Print Invoice"
                           >
-                            <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
+                            {printingId === purchase.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            ) : (
+                              <Printer className="h-3.5 w-3.5 text-primary" />
+                            )}
                           </Button>
-                        </HasPermission>
+
+                          <HasPermission code="purchase.edit">
+                            <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Edit Purchase">
+                              <Link href={`/purchases/${purchase.id}/edit`}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Link>
+                            </Button>
+                          </HasPermission>
+                          <HasPermission code="purchase.delete">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteMutation.mutate(purchase.id)}
+                              title="Normal Delete (Reduces stock & adjusts supplier balance)"
+                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setHardDeletingPurchase(purchase)}
+                              title="Hard Delete (Permanently remove purchase order & all dependent payments/returns)"
+                              className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
+                            </Button>
+                          </HasPermission>
+                        </div>
                       </td>
                     </tr>
                   );

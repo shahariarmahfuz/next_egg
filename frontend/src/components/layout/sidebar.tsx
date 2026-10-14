@@ -352,13 +352,14 @@ export function SidebarContent({
   const isCashBookActive = pathname === "/cash/cash-book" || pathname === "/accounts/cash-book";
   const isCashOutActive = pathname === "/cash/cash-out" || pathname === "/accounts/cash-out";
   const isCashOutManageActive = pathname === "/cash/cash-out/manage";
-  const isCashActive = pathname.startsWith("/cash") || isCashBookActive || isCashOutActive || isCashOutManageActive;
+  const isCashOutReportActive = pathname === "/reports/cash-out";
+  const isCashActive = pathname.startsWith("/cash") || isCashBookActive || isCashOutActive || isCashOutManageActive || isCashOutReportActive;
 
   const isFilteredDashboardActive = pathname === "/dashboard/filtered";
   const isReportsCenterActive = pathname === "/reports";
   const isStockReportActive = pathname.startsWith("/reports/stock");
-  const isCashReportActive = pathname.startsWith("/reports/cash");
-  const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive || isStockReportActive || isCashReportActive;
+  const isCashReportActive = pathname === "/reports/cash";
+  const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive || isStockReportActive || isCashReportActive || isCashOutReportActive;
 
   const isUsersActive = pathname.startsWith("/users");
 
@@ -408,8 +409,9 @@ export function SidebarContent({
     "cash_out.view",
     "accounts.cash_out.view",
     "reports.view",
+    "cash_out_report.view",
   ]);
-  const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view", "stock_report.view", "cash_report.view"]);
+  const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view", "stock_report.view", "cash_report.view", "cash_out_report.view"]);
   const showUsers = hasPermission("user.view");
   const showRoles = hasPermission("role.view");
   const showArchitecture = user?.role?.code === "owner";
@@ -1179,6 +1181,17 @@ export function SidebarContent({
                 onNavigate={onNavigate}
               />
             )}
+            {hasPermission("cash_out_report.view") && (
+              <SubNavItem
+                href="/reports/cash-out"
+                icon={ArrowUpRight}
+                iconColor="text-teal-500 dark:text-teal-400"
+                activeColorClass={tealActive}
+                label="Cash Out Report"
+                isActive={isCashOutReportActive}
+                onNavigate={onNavigate}
+              />
+            )}
           </NavGroup>
         )}
 
@@ -1234,6 +1247,17 @@ export function SidebarContent({
                 activeColorClass={purpleActive}
                 label="Cash Report"
                 isActive={isCashReportActive}
+                onNavigate={onNavigate}
+              />
+            )}
+            {hasPermission("cash_out_report.view") && (
+              <SubNavItem
+                href="/reports/cash-out"
+                icon={ArrowUpRight}
+                iconColor="text-purple-500 dark:text-purple-400"
+                activeColorClass={purpleActive}
+                label="Cash Out Report"
+                isActive={isCashOutReportActive}
                 onNavigate={onNavigate}
               />
             )}

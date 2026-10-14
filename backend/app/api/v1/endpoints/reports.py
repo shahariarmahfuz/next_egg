@@ -6,7 +6,7 @@ from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
 from app.models.user import User
 from app.schemas.common import ResponseModel
-from app.schemas.report import DailyCashReportResponse, DailyStockReportResponse
+from app.schemas.report import CashOutReportResponse, DailyCashReportResponse, DailyStockReportResponse
 from app.services.report_service import report_service
 
 router = APIRouter(prefix="/reports", tags=["Reports Center"])
@@ -86,6 +86,43 @@ async def get_daily_cash_report(
     return ResponseModel[DailyCashReportResponse](
         success=True,
         message="Daily cash report generated successfully",
+        data=report,
+    )
+
+
+@router.get("/cash-out", response_model=ResponseModel[CashOutReportResponse])
+async def get_cash_out_report(
+    start_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format"),
+    end_date: Optional[str] = Query(None, description="End date in YYYY-MM-DD format"),
+    search: Optional[str] = Query(None, description="Search voucher no, reason, or notes"),
+    reason: Optional[str] = Query(None, description="Filter by reason/category"),
+    created_by_id: Optional[str] = Query(None, description="Filter by creator user ID"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=500, description="Page size"),
+    client_timezone: Optional[str] = Query(None, alias="timezone", description="Optional client timezone"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("cash_out_report.view")),
+):
+    """
+    Returns standalone Cash Out Report:
+    - Summary metrics: total cash outs, total amount, average cash out, top reason/category
+    - Reason-wise breakdown
+    - Filterable itemized records
+    """
+    report = await report_service.get_cash_out_report(
+        db=db,
+        start_date_str=start_date,
+        end_date_str=end_date,
+        search=search,
+        reason=reason,
+        created_by_id=created_by_id,
+        page=page,
+        page_size=page_size,
+        client_tz_str=client_timezone,
+    )
+    return ResponseModel[CashOutReportResponse](
+        success=True,
+        message="Cash out report generated successfully",
         data=report,
     )
 

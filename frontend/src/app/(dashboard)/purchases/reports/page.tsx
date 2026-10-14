@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Eye, ShoppingCart, CircleCheck, CircleAlert, Boxes, Calendar, ArrowRight } from "lucide-react";
-import { productService, purchaseService } from "@/services/api";
-import { ProductItem, PurchaseItem } from "@/types";
+import { Search, Eye, ShoppingCart, CircleCheck, CircleAlert, Boxes, Calendar, ArrowRight, Printer, Loader2, ChevronLeft, ChevronRight, Truck } from "lucide-react";
+import { productService, purchaseService, supplierService } from "@/services/api";
+import { ProductItem, PurchaseItem, SupplierItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { PurchaseViewModal } from "@/components/purchases/purchase-view-modal";
+import { printPurchaseVoucher } from "@/components/purchases/purchase-export-utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate, formatNumber } from "@/utils/formatters";
 
@@ -35,9 +36,43 @@ export default function PurchasesReportPage() {
   const [search, setSearch] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<string>("");
   const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [viewingPurchase, setViewingPurchase] = useState<PurchaseItem | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+
+  const shiftDays = (days: number) => {
+    const parseAndShift = (dateStr: string) => {
+      if (!dateStr) return new Date().toLocaleDateString('en-CA');
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+      date.setDate(date.getDate() + days);
+      return date.toLocaleDateString('en-CA');
+    };
+
+    setStartDate(parseAndShift(startDate));
+    setEndDate(parseAndShift(endDate));
+    setPage(1);
+  };
+
+  const goToToday = () => {
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    setStartDate(todayStr);
+    setEndDate(todayStr);
+    setPage(1);
+  };
+
+  const handlePrintPurchase = async (purchase: PurchaseItem) => {
+    try {
+      setPrintingId(purchase.id);
+      await printPurchaseVoucher(purchase);
+    } catch (err) {
+      console.error("Failed to print purchase voucher:", err);
+    } finally {
+      setPrintingId(null);
+    }
+  };
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -48,8 +83,15 @@ export default function PurchasesReportPage() {
 
   const products: ProductItem[] = productsData?.data?.items || [];
 
+  const { data: suppliersData } = useQuery({
+    queryKey: ["all-suppliers-dropdown"],
+    queryFn: () => supplierService.getSuppliers({ size: 100 }),
+  });
+
+  const suppliers: SupplierItem[] = suppliersData?.data?.items || [];
+
   const { data: purchasesData, isLoading } = useQuery({
-    queryKey: ["purchases-reports", page, debouncedSearch, paymentStatus, selectedProductId, startDate, endDate],
+    queryKey: ["purchases-reports", page, debouncedSearch, paymentStatus, selectedProductId, selectedSupplierId, startDate, endDate],
     queryFn: () =>
       purchaseService.getPurchases({
         page,
@@ -57,6 +99,7 @@ export default function PurchasesReportPage() {
         search: debouncedSearch || undefined,
         payment_status: paymentStatus || undefined,
         product_id: selectedProductId || undefined,
+        supplier_id: selectedSupplierId || undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       }),
@@ -88,7 +131,41 @@ export default function PurchasesReportPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <PageHeader title="Purchase Report" description="Comprehensive report of all purchase transactions." />
-        <div className="flex items-center w-full md:w-auto justify-between md:justify-start gap-1.5 sm:gap-2 p-1 sm:p-1.5 bg-card dark:bg-card/90 rounded-xl border border-border/80 dark:border-border/60 shadow-xs dark:shadow-none">
+        <div className="flex flex-wrap items-center w-full md:w-auto justify-between md:justify-start gap-1.5 sm:gap-2 p-1 sm:p-1.5 bg-card dark:bg-card/90 rounded-xl border border-border/80 dark:border-border/60 shadow-xs dark:shadow-none">
+          {/* Quick Date Navigation */}
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border border-border/60 shrink-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => shiftDays(-1)}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              title="Previous Day"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={startDate === today && endDate === today ? "default" : "ghost"}
+              size="sm"
+              onClick={goToToday}
+              className="h-7 px-2.5 text-xs font-semibold"
+              title="Reset to Today"
+            >
+              Today
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => shiftDays(1)}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              title="Next Day"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
           {/* FROM Date Field */}
           <div className="relative flex-1 md:flex-initial md:w-40 flex items-center min-w-0 bg-background dark:bg-muted/30 hover:bg-muted/40 dark:hover:bg-muted/50 transition-colors border border-border/70 dark:border-border/60 rounded-lg px-2.5 py-1.5 shadow-2xs dark:shadow-none cursor-pointer group focus-within:ring-2 focus-within:ring-primary/30">
             <input
@@ -152,55 +229,58 @@ export default function PurchasesReportPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-6">
-        <Card className="bg-white border-purple-500/20 shadow-xs dark:bg-purple-950/25 dark:border-purple-900/35 dark:shadow-none sm:dark:bg-purple-950/20 sm:dark:border-purple-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 sm:dark:text-purple-300 uppercase tracking-wider truncate">Total Purchases</span>
-              <div className="h-5 w-5 rounded-md bg-purple-500/10 dark:bg-purple-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <ShoppingCart className="h-3.5 w-3.5 text-purple-600 dark:text-purple-300" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-purple-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider truncate">Total Purchases</span>
+              <div className="h-7 w-7 rounded-lg bg-purple-500/10 dark:bg-purple-950/40 flex items-center justify-center shrink-0">
+                <ShoppingCart className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-purple-600 dark:text-purple-200 sm:dark:text-purple-200 truncate" title={formatNumber(totalPurchases, 0)}>{formatNumber(totalPurchases, 0)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-purple-600 dark:text-purple-300 truncate" title={formatNumber(totalPurchases, 0)}>{formatNumber(totalPurchases, 0)}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white border-emerald-500/20 shadow-xs dark:bg-emerald-950/25 dark:border-emerald-900/35 dark:shadow-none sm:dark:bg-emerald-950/20 sm:dark:border-emerald-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-300 sm:dark:text-emerald-300 uppercase tracking-wider truncate">Total Paid</span>
-              <div className="h-5 w-5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <CircleCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
+
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-emerald-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider truncate">Total Paid</span>
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
+                <CircleCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-emerald-600 dark:text-emerald-200 sm:dark:text-emerald-200 truncate" title={formatCurrency(totalPaid)}>{formatCurrency(totalPaid)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-300 truncate" title={formatCurrency(totalPaid)}>{formatCurrency(totalPaid)}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white border-orange-500/20 shadow-xs dark:bg-orange-950/25 dark:border-orange-900/35 dark:shadow-none sm:dark:bg-orange-950/20 sm:dark:border-orange-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-orange-600 dark:text-orange-300 sm:dark:text-orange-300 uppercase tracking-wider truncate">Total Due</span>
-              <div className="h-5 w-5 rounded-md bg-orange-500/10 dark:bg-orange-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <CircleAlert className="h-3.5 w-3.5 text-orange-600 dark:text-orange-300" />
+
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-orange-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider truncate">Total Due</span>
+              <div className="h-7 w-7 rounded-lg bg-orange-500/10 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
+                <CircleAlert className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-orange-600 dark:text-orange-200 sm:dark:text-orange-200 truncate" title={formatCurrency(totalDue)}>{formatCurrency(totalDue)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-orange-600 dark:text-orange-300 truncate" title={formatCurrency(totalDue)}>{formatCurrency(totalDue)}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white border-blue-500/20 shadow-xs dark:bg-blue-950/25 dark:border-blue-900/35 dark:shadow-none sm:dark:bg-blue-950/20 sm:dark:border-blue-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-300 sm:dark:text-blue-300 uppercase tracking-wider truncate">Total Quantity</span>
-              <div className="h-5 w-5 rounded-md bg-blue-500/10 dark:bg-blue-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <Boxes className="h-3.5 w-3.5 text-blue-600 dark:text-blue-300" />
+
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-blue-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider truncate">Total Quantity</span>
+              <div className="h-7 w-7 rounded-lg bg-blue-500/10 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+                <Boxes className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-blue-600 dark:text-blue-200 sm:dark:text-blue-200 truncate" title={formatNumber(totalQuantity)}>{formatNumber(totalQuantity)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-blue-600 dark:text-blue-300 truncate" title={formatNumber(totalQuantity)}>{formatNumber(totalQuantity)}</div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border-border/40 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-border/40 bg-muted/20 flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <Card className="border-border/60 bg-card/50 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden flex flex-col">
+        <div className="p-3.5 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -210,17 +290,34 @@ export default function PurchasesReportPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="pl-9 bg-background w-full"
+              className="pl-9 bg-background/80 border-border/60 h-9 text-xs rounded-xl w-full"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            {/* Supplier Dropdown Filter */}
+            <select
+              value={selectedSupplierId}
+              onChange={(e) => {
+                setSelectedSupplierId(e.target.value);
+                setPage(1);
+              }}
+              className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">All Suppliers</option>
+              {suppliers.map((supp) => (
+                <option key={supp.id} value={supp.id}>
+                  {supp.name} {supp.phone ? `(${supp.phone})` : ""}
+                </option>
+              ))}
+            </select>
+
             <select
               value={paymentStatus}
               onChange={(e) => {
                 setPaymentStatus(e.target.value);
                 setPage(1);
               }}
-              className="flex h-10 w-full sm:w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="flex h-9 w-full sm:w-36 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="">All Statuses</option>
               <option value="paid">Paid</option>
@@ -234,7 +331,7 @@ export default function PurchasesReportPage() {
                 setSelectedProductId(e.target.value);
                 setPage(1);
               }}
-              className="flex h-10 w-full sm:w-48 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="">All Products</option>
               {products.map((product) => (
@@ -258,7 +355,7 @@ export default function PurchasesReportPage() {
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Paid</th>
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Due</th>
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap w-[110px]">Status</th>
-                <th className="px-3 py-2.5 align-middle font-medium text-right whitespace-nowrap w-[80px]">Actions</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-right whitespace-nowrap w-[90px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -273,7 +370,7 @@ export default function PurchasesReportPage() {
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-14" /></td>
-                    <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-10 ml-auto" /></td>
+                    <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-14 ml-auto" /></td>
                   </tr>
                 ))
               ) : purchases.length === 0 ? (
@@ -296,9 +393,31 @@ export default function PurchasesReportPage() {
                       <td className="px-3 py-2 align-middle font-semibold text-amber-500 whitespace-nowrap">{formatCurrency(purchase.due_amount)}</td>
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{getStatusBadge(purchase.payment_status)}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewingPurchase(purchase)} title="View Purchase Details">
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => setViewingPurchase(purchase)}
+                            title="View Details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => handlePrintPurchase(purchase)}
+                            disabled={printingId === purchase.id}
+                            title="Print Invoice"
+                          >
+                            {printingId === purchase.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            ) : (
+                              <Printer className="h-3.5 w-3.5 text-primary" />
+                            )}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );

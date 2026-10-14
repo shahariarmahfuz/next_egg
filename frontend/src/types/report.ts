@@ -84,8 +84,41 @@ export interface CashOutReportItem {
   cash_out_date: string;
   amount: number;
   reason: string;
+  category?: string | null;
   notes?: string | null;
+  created_by_id?: string | null;
   created_by_name?: string | null;
+  status?: string;
+}
+
+export interface CashOutReasonBreakdown {
+  reason: string;
+  count: number;
+  total_amount: number;
+  percentage: number;
+}
+
+export interface CashOutReportSummary {
+  total_cash_outs: number;
+  total_amount: number;
+  average_amount: number;
+  top_reason?: string | null;
+  top_reason_amount?: number;
+}
+
+export interface CashOutReportData {
+  start_date: string;
+  end_date: string;
+  timezone: string;
+  summary: CashOutReportSummary;
+  reasons_breakdown: CashOutReasonBreakdown[];
+  items: CashOutReportItem[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  company_name?: string | null;
+  company_address?: string | null;
+  company_phone?: string | null;
 }
 
 export interface ExpenseReportItem {

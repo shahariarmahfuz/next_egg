@@ -321,52 +321,54 @@ export default function ManageSalesPage() {
                       <td className="px-3 py-2 align-middle whitespace-nowrap">
                         {getStatusBadge(sale.payment_status)}
                       </td>
-                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setViewingSale(sale)}
-                          title="View Sale Invoice Details"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
+                      <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => setViewingSale(sale)}
+                            title="View Details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
 
-                        <Button asChild variant="ghost" size="icon" className="h-7 w-7" title="Print Invoice (A4/A5/POS 80mm)">
-                          <Link href={`/sales/${sale.id}/print`}>
-                            <Printer className="h-3.5 w-3.5 text-primary" />
-                          </Link>
-                        </Button>
-
-                        <HasPermission code="sales.edit">
-                          <Button asChild variant="ghost" size="icon" className="h-7 w-7" title="Edit Sale Invoice">
-                            <Link href={`/sales/${sale.id}/edit`}>
-                              <Edit className="h-3.5 w-3.5" />
+                          <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Print Invoice">
+                            <Link href={`/sales/${sale.id}/print`}>
+                              <Printer className="h-3.5 w-3.5 text-primary" />
                             </Link>
                           </Button>
-                        </HasPermission>
 
-                        <HasPermission code="sales.delete">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteMutation.mutate(sale.id)}
-                            title="Normal Delete (Restores stock & customer balance)"
-                            className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <HasPermission code="sales.edit">
+                            <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Edit Sale Invoice">
+                              <Link href={`/sales/${sale.id}/edit`}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Link>
+                            </Button>
+                          </HasPermission>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setHardDeletingSale(sale)}
-                            title="Hard Delete (Permanently remove invoice & all dependent returns/collections)"
-                            className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
-                          </Button>
-                        </HasPermission>
+                          <HasPermission code="sales.delete">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteMutation.mutate(sale.id)}
+                              title="Normal Delete (Restores stock & customer balance)"
+                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setHardDeletingSale(sale)}
+                              title="Hard Delete (Permanently remove invoice & all dependent returns/collections)"
+                              className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
+                            </Button>
+                          </HasPermission>
+                        </div>
                       </td>
                     </tr>
                   );

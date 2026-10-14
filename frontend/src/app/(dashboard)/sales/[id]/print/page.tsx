@@ -58,7 +58,7 @@ export default function InvoicePrintPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <HasPermission code="sales.print">
+    <HasPermission code={["sales.print", "sales.view", "reports.view", "sales.report.view"]}>
       <div className="space-y-6 max-w-6xl mx-auto pb-12 print:p-0 print:m-0 print:max-w-none">
         {/* Top Control Bar (Hidden when printing) */}
         <Card className="glass-card print:hidden">

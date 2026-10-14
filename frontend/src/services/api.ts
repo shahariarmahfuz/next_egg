@@ -16,6 +16,7 @@ import {
   CustomerItem,
   CustomerLedgerResponse,
   CustomerUpdatePayload,
+  CashOutReportData,
   DailyCashReportData,
   DailyStockReportData,
   DashboardCardsSummary,
@@ -965,6 +966,18 @@ export const reportService = {
   },
   getCashReport: async (params?: { target_date?: string; start_date?: string; end_date?: string; timezone?: string }) => {
     return http.get<DailyCashReportData>("/reports/cash-report", params);
+  },
+  getCashOutReport: async (params?: {
+    start_date?: string;
+    end_date?: string;
+    search?: string;
+    reason?: string;
+    created_by_id?: string;
+    page?: number;
+    page_size?: number;
+    timezone?: string;
+  }) => {
+    return http.get<CashOutReportData>("/reports/cash-out", params);
   },
 };
 

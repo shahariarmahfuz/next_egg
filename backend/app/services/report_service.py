@@ -1,8 +1,8 @@
 import zoneinfo
 from datetime import date, datetime, time, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
-from sqlalchemy import func, select
+from typing import List, Optional
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,9 @@ from app.schemas.report import (
     CashSaleReportItem,
     CustomerCollectionReportItem,
     CashOutReportItem,
+    CashOutReasonBreakdown,
+    CashOutReportSummary,
+    CashOutReportResponse,
     ExpenseReportItem,
     CashReportBreakdown,
     DailyCashReportResponse,
@@ -586,6 +589,191 @@ class ReportService:
             company_phone=business_settings.business_phone,
             company_logo=business_settings.business_logo,
             breakdown=breakdown,
+        )
+
+    async def get_cash_out_report(
+        self,
+        db: AsyncSession,
+        start_date_str: Optional[str] = None,
+        end_date_str: Optional[str] = None,
+        search: Optional[str] = None,
+        reason: Optional[str] = None,
+        created_by_id: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
+        client_tz_str: Optional[str] = None,
+    ) -> CashOutReportResponse:
+        """
+        Standalone Cash Out Report:
+        - Date range filtering (with timezone conversion to UTC)
+        - Search query over cash_out_no, reason, and notes
+        - Category/Reason and Creator user filters
+        - Summary metrics: total_cash_outs, total_amount, average_amount, top_reason, top_reason_amount
+        - Breakdown by reason/category with count, total_amount, percentage
+        - Paginated or itemized records with creator name
+        """
+        business_settings = await setting_service.get_business_settings(db)
+        tz_name = client_tz_str or business_settings.timezone or "Asia/Dhaka"
+
+        try:
+            tz = zoneinfo.ZoneInfo(tz_name)
+        except Exception:
+            tz = timezone.utc
+            tz_name = "UTC"
+
+        now_tz = datetime.now(tz)
+        if start_date_str and end_date_str:
+            try:
+                start_d = datetime.strptime(start_date_str.strip(), "%Y-%m-%d").date()
+                end_d = datetime.strptime(end_date_str.strip(), "%Y-%m-%d").date()
+            except (ValueError, AttributeError):
+                raise BadRequestException("Invalid date range format. Expected YYYY-MM-DD.")
+        elif start_date_str:
+            try:
+                start_d = datetime.strptime(start_date_str.strip(), "%Y-%m-%d").date()
+                end_d = start_d
+            except (ValueError, AttributeError):
+                raise BadRequestException("Invalid date format. Expected YYYY-MM-DD.")
+        else:
+            start_d = now_tz.date()
+            end_d = start_d
+
+        if start_d > end_d:
+            raise BadRequestException("start_date cannot be after end_date.")
+
+        start_local = datetime.combine(start_d, time.min).replace(tzinfo=tz)
+        end_local = datetime.combine(end_d, time.max).replace(tzinfo=tz)
+        start_utc = start_local.astimezone(timezone.utc)
+        end_utc = end_local.astimezone(timezone.utc)
+
+        # Build base filter conditions
+        conditions = [
+            CashOut.cash_out_date >= start_utc,
+            CashOut.cash_out_date <= end_utc,
+        ]
+
+        if search and search.strip():
+            pat = f"%{search.strip()}%"
+            conditions.append(
+                or_(
+                    CashOut.cash_out_no.ilike(pat),
+                    CashOut.reason.ilike(pat),
+                    CashOut.notes.ilike(pat),
+                )
+            )
+
+        if reason and reason.strip() and reason.strip().lower() != "all":
+            conditions.append(CashOut.reason == reason.strip())
+
+        if created_by_id and created_by_id.strip() and created_by_id.strip().lower() != "all":
+            conditions.append(CashOut.created_by_id == created_by_id.strip())
+
+        # 1. Total Count & Total Amount
+        summary_query = select(
+            func.count(CashOut.id),
+            func.coalesce(func.sum(CashOut.amount), 0.0),
+        ).where(*conditions)
+        summary_res = await db.execute(summary_query)
+        total_count, total_amount_raw = summary_res.first() or (0, 0.0)
+
+        total_amount_dec = Decimal(str(total_amount_raw or 0.0)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        total_amount = float(total_amount_dec)
+        avg_amount = round(total_amount / total_count, 2) if total_count > 0 else 0.0
+
+        # 2. Reason / Category Breakdown
+        breakdown_query = (
+            select(
+                CashOut.reason,
+                func.count(CashOut.id).label("count"),
+                func.coalesce(func.sum(CashOut.amount), 0.0).label("total_amount"),
+            )
+            .where(*conditions)
+            .group_by(CashOut.reason)
+            .order_by(desc("total_amount"))
+        )
+        breakdown_res = await db.execute(breakdown_query)
+        reasons_breakdown: List[CashOutReasonBreakdown] = []
+        top_reason: Optional[str] = None
+        top_reason_amount: float = 0.0
+
+        for r_reason, r_count, r_amount_raw in breakdown_res.all():
+            r_dec = Decimal(str(r_amount_raw or 0.0)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            r_amount = float(r_dec)
+            pct = round((r_amount / total_amount * 100), 1) if total_amount > 0 else 0.0
+            reasons_breakdown.append(
+                CashOutReasonBreakdown(
+                    reason=r_reason,
+                    count=r_count,
+                    total_amount=r_amount,
+                    percentage=pct,
+                )
+            )
+
+        if reasons_breakdown:
+            top_reason = reasons_breakdown[0].reason
+            top_reason_amount = reasons_breakdown[0].total_amount
+
+        # 3. Itemized List
+        limit = max(1, min(page_size, 500))
+        offset = (max(1, page) - 1) * limit
+        items_query = (
+            select(CashOut)
+            .options(selectinload(CashOut.created_by))
+            .where(*conditions)
+            .order_by(CashOut.cash_out_date.desc(), CashOut.cash_out_no.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        items_res = (await db.execute(items_query)).scalars().all()
+
+        items: List[CashOutReportItem] = []
+        for co in items_res:
+            creator_name = (
+                getattr(co.created_by, "full_name", None)
+                or getattr(co.created_by, "username", None)
+                if co.created_by
+                else None
+            )
+            items.append(
+                CashOutReportItem(
+                    id=str(co.id),
+                    cash_out_no=co.cash_out_no,
+                    cash_out_date=co.cash_out_date,
+                    amount=float(co.amount),
+                    reason=co.reason,
+                    category=co.reason,
+                    notes=co.notes,
+                    created_by_id=str(co.created_by_id),
+                    created_by_name=creator_name,
+                    status="completed",
+                )
+            )
+
+        summary = CashOutReportSummary(
+            total_cash_outs=total_count,
+            total_amount=total_amount,
+            average_amount=avg_amount,
+            top_reason=top_reason,
+            top_reason_amount=top_reason_amount,
+        )
+
+        return CashOutReportResponse(
+            start_date=start_d.strftime("%Y-%m-%d"),
+            end_date=end_d.strftime("%Y-%m-%d"),
+            timezone=tz_name,
+            summary=summary,
+            reasons_breakdown=reasons_breakdown,
+            items=items,
+            total_count=total_count,
+            page=page,
+            page_size=limit,
+            company_name=business_settings.business_name,
+            company_address=business_settings.business_address,
+            company_phone=business_settings.business_phone,
         )
 
 

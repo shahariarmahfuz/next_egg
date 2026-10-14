@@ -107,8 +107,47 @@ class CashOutReportItem(BaseModel):
     cash_out_date: datetime
     amount: float
     reason: str
+    category: Optional[str] = None
     notes: Optional[str] = None
+    created_by_id: Optional[str] = None
     created_by_name: Optional[str] = None
+    status: str = "completed"
+
+
+class CashOutReasonBreakdown(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    reason: str
+    count: int
+    total_amount: float
+    percentage: float = 0.0
+
+
+class CashOutReportSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    total_cash_outs: int = 0
+    total_amount: float = 0.0
+    average_amount: float = 0.0
+    top_reason: Optional[str] = None
+    top_reason_amount: float = 0.0
+
+
+class CashOutReportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    start_date: str
+    end_date: str
+    timezone: str
+    summary: CashOutReportSummary
+    reasons_breakdown: List[CashOutReasonBreakdown] = Field(default_factory=list)
+    items: List[CashOutReportItem] = Field(default_factory=list)
+    total_count: int = 0
+    page: int = 1
+    page_size: int = 50
+    company_name: Optional[str] = None
+    company_address: Optional[str] = None
+    company_phone: Optional[str] = None
 
 
 class ExpenseReportItem(BaseModel):

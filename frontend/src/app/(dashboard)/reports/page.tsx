@@ -11,6 +11,7 @@ import {
   DollarSign,
   Receipt,
   Loader2,
+  ArrowUpRight,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -67,6 +68,14 @@ const SupplierPaymentReportPage = dynamic(
   }
 );
 
+const CashOutReportPage = dynamic(
+  () => import("@/app/(dashboard)/reports/cash-out/page"),
+  {
+    loading: () => <ReportLoadingSkeleton title="Cash Out Report" />,
+    ssr: false,
+  }
+);
+
 function ReportLoadingSkeleton({ title }: { title: string }) {
   return (
     <Card className="glass-card p-6 space-y-4">
@@ -87,7 +96,7 @@ function ReportLoadingSkeleton({ title }: { title: string }) {
 
 export default function ReportsHubPage() {
   const [activeTab, setActiveTab] = useState<
-    "sales" | "sale_return" | "purchase" | "product_return" | "customer_collection" | "supplier_payment"
+    "sales" | "sale_return" | "purchase" | "product_return" | "customer_collection" | "supplier_payment" | "cash_out"
   >("sales");
 
   return (
@@ -102,18 +111,18 @@ export default function ReportsHubPage() {
       <div className="space-y-6">
         <PageHeader
           title="Centralized Business Reports & Analytics"
-          description="Consolidated reporting portal combining sales, customer collections, purchase orders, supplier payments, and return metrics."
+          description="Consolidated reporting portal combining sales, customer collections, purchase orders, supplier payments, cash withdrawals, and return metrics."
         />
 
         {/* Navigation Tabs Bar */}
-        <Card className="glass-card">
+        <Card className="glass-card border-border/60 shadow-xs rounded-2xl">
           <CardContent className="p-2 w-full max-w-full overflow-visible">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:inline-flex lg:flex-row gap-1.5 w-full">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:inline-flex lg:flex-row gap-1.5 w-full">
               <button
                 onClick={() => setActiveTab("sales")}
-                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "sales"
-                    ? "bg-primary text-primary-foreground shadow-md"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
@@ -123,21 +132,21 @@ export default function ReportsHubPage() {
 
               <button
                 onClick={() => setActiveTab("sale_return")}
-                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "sale_return"
-                    ? "bg-primary text-primary-foreground shadow-md"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
                 <RotateCcw className="h-4 w-4 shrink-0 text-amber-400" />
-                <span>Sale Return Report</span>
+                <span>Sale Return</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("purchase")}
-                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "purchase"
-                    ? "bg-primary text-primary-foreground shadow-md"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
@@ -147,38 +156,50 @@ export default function ReportsHubPage() {
 
               <button
                 onClick={() => setActiveTab("product_return")}
-                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "product_return"
-                    ? "bg-primary text-primary-foreground shadow-md"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
                 <Truck className="h-4 w-4 shrink-0 text-purple-400" />
-                <span>Product Return Report</span>
+                <span>Product Return</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("customer_collection")}
-                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "customer_collection"
-                    ? "bg-primary text-primary-foreground shadow-md"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
                 <DollarSign className="h-4 w-4 shrink-0 text-emerald-400" />
-                <span>Customer Collection Report</span>
+                <span>Collections</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("supplier_payment")}
-                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "supplier_payment"
-                    ? "bg-primary text-primary-foreground shadow-md"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
                 <Receipt className="h-4 w-4 shrink-0 text-teal-400" />
-                <span>Supplier Payment Report</span>
+                <span>Supplier Payments</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("cash_out")}
+                className={`flex items-center justify-start lg:justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
+                  activeTab === "cash_out"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                }`}
+              >
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-rose-400" />
+                <span>Cash Out Report</span>
               </button>
             </div>
           </CardContent>
@@ -192,6 +213,7 @@ export default function ReportsHubPage() {
           {activeTab === "product_return" && <ProductReturnReportPage />}
           {activeTab === "customer_collection" && <CustomerCollectionReportPage />}
           {activeTab === "supplier_payment" && <SupplierPaymentReportPage />}
+          {activeTab === "cash_out" && <CashOutReportPage />}
         </Suspense>
       </div>
     </HasPermission>

@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { X, ShoppingCart, User, Printer, Calendar, FileText } from "lucide-react";
+import { X, ShoppingCart, User, Calendar, FileText } from "lucide-react";
 import { SaleItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,12 +48,6 @@ export function SaleViewModal({ sale, isOpen, onClose }: SaleViewModalProps) {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/sales/${sale.id}/print`}>
-                <Printer className="mr-1.5 h-4 w-4 text-primary" />
-                Print Studio (A4/A5/POS)
-              </Link>
-            </Button>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-4 w-4" />
             </Button>

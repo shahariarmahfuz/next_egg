@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Eye, Filter, TrendingUp, CircleCheck, CircleAlert, Boxes } from "lucide-react";
-import { productService, saleService } from "@/services/api";
-import { ProductItem, SaleItem } from "@/types";
+import { Search, Eye, Filter, TrendingUp, CircleCheck, CircleAlert, Boxes, Printer, Loader2, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { customerService, productService, saleService } from "@/services/api";
+import { CustomerItem, ProductItem, SaleItem } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { SaleViewModal } from "@/components/sales/sale-view-modal";
+import { printSaleInvoice } from "@/components/sales/sale-export-utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate, formatNumber } from "@/utils/formatters";
 
@@ -22,9 +23,43 @@ export default function SalesReportPage() {
   const [search, setSearch] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<string>("");
   const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [viewingSale, setViewingSale] = useState<SaleItem | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+
+  const shiftDays = (days: number) => {
+    const parseAndShift = (dateStr: string) => {
+      if (!dateStr) return new Date().toLocaleDateString('en-CA');
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+      date.setDate(date.getDate() + days);
+      return date.toLocaleDateString('en-CA');
+    };
+
+    setStartDate(parseAndShift(startDate));
+    setEndDate(parseAndShift(endDate));
+    setPage(1);
+  };
+
+  const goToToday = () => {
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    setStartDate(todayStr);
+    setEndDate(todayStr);
+    setPage(1);
+  };
+
+  const handlePrintSale = async (sale: SaleItem) => {
+    try {
+      setPrintingId(sale.id);
+      await printSaleInvoice(sale);
+    } catch (err) {
+      console.error("Failed to print sale invoice:", err);
+    } finally {
+      setPrintingId(null);
+    }
+  };
 
   const debouncedSearch = useDebounce(search, 300);
 
@@ -35,8 +70,15 @@ export default function SalesReportPage() {
 
   const products: ProductItem[] = productsData?.data?.items || [];
 
+  const { data: customersData } = useQuery({
+    queryKey: ["all-customers-dropdown"],
+    queryFn: () => customerService.getCustomers({ size: 100 }),
+  });
+
+  const customers: CustomerItem[] = customersData?.data?.items || [];
+
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["sales-reports", page, debouncedSearch, paymentStatus, selectedProductId, startDate, endDate],
+    queryKey: ["sales-reports", page, debouncedSearch, paymentStatus, selectedProductId, selectedCustomerId, startDate, endDate],
     queryFn: () =>
       saleService.getSales({
         page,
@@ -44,6 +86,7 @@ export default function SalesReportPage() {
         search: debouncedSearch || undefined,
         payment_status: paymentStatus || undefined,
         product_id: selectedProductId || undefined,
+        customer_id: selectedCustomerId || undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       }),
@@ -75,70 +118,107 @@ export default function SalesReportPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <PageHeader title="Sales Report" description="Comprehensive report of all sales transactions." />
-        <div className="flex items-center space-x-3 bg-card p-2 rounded-lg border shadow-sm">
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="start_date" className="text-xs">From</Label>
-            <Input type="date" id="start_date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-auto h-8 text-xs" />
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* Quick Date Navigation */}
+          <div className="flex items-center gap-1 bg-card/60 backdrop-blur-sm p-1 rounded-xl border border-border/70 shadow-2xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => shiftDays(-1)}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+              title="Previous Day (-1d)"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={startDate === today && endDate === today ? "default" : "ghost"}
+              size="sm"
+              onClick={goToToday}
+              className="h-8 px-3 text-xs font-semibold rounded-lg"
+              title="Reset to Today"
+            >
+              Today
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => shiftDays(1)}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+              title="Next Day (+1d)"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="end_date" className="text-xs">To</Label>
-            <Input type="date" id="end_date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-auto h-8 text-xs" />
+
+          <div className="flex items-center gap-2 bg-card/60 backdrop-blur-sm p-1.5 rounded-xl border border-border/70 shadow-2xs">
+            <div className="flex items-center space-x-1.5">
+              <Label htmlFor="start_date" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pl-1">From</Label>
+              <Input type="date" id="start_date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} className="w-auto h-8 text-xs bg-background/80 border-border/60 rounded-lg" />
+            </div>
+            <span className="text-muted-foreground/40 text-xs font-bold">—</span>
+            <div className="flex items-center space-x-1.5">
+              <Label htmlFor="end_date" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">To</Label>
+              <Input type="date" id="end_date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} className="w-auto h-8 text-xs bg-background/80 border-border/60 rounded-lg" />
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-6">
-        <Card className="bg-white border-blue-500/20 shadow-xs dark:bg-blue-950/25 dark:border-blue-900/35 dark:shadow-none sm:dark:bg-blue-950/20 sm:dark:border-blue-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-blue-600 dark:text-blue-300 sm:dark:text-blue-300 uppercase tracking-wider truncate">Total Sales</span>
-              <div className="h-5 w-5 rounded-md bg-blue-500/10 dark:bg-blue-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-300" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-blue-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider truncate">Total Sales</span>
+              <div className="h-7 w-7 rounded-lg bg-blue-500/10 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+                <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-blue-600 dark:text-blue-200 sm:dark:text-blue-200 truncate" title={formatCurrency(totalSales)}>{formatCurrency(totalSales)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-blue-600 dark:text-blue-300 truncate" title={formatCurrency(totalSales)}>{formatCurrency(totalSales)}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-emerald-500/20 shadow-xs dark:bg-emerald-950/25 dark:border-emerald-900/35 dark:shadow-none sm:dark:bg-emerald-950/20 sm:dark:border-emerald-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-300 sm:dark:text-emerald-300 uppercase tracking-wider truncate">Total Paid</span>
-              <div className="h-5 w-5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <CircleCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-emerald-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider truncate">Total Paid</span>
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
+                <CircleCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-emerald-600 dark:text-emerald-200 sm:dark:text-emerald-200 truncate" title={formatCurrency(totalPaid)}>{formatCurrency(totalPaid)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-300 truncate" title={formatCurrency(totalPaid)}>{formatCurrency(totalPaid)}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-orange-500/20 shadow-xs dark:bg-orange-950/25 dark:border-orange-900/35 dark:shadow-none sm:dark:bg-orange-950/20 sm:dark:border-orange-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-orange-600 dark:text-orange-300 sm:dark:text-orange-300 uppercase tracking-wider truncate">Total Due</span>
-              <div className="h-5 w-5 rounded-md bg-orange-500/10 dark:bg-orange-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <CircleAlert className="h-3.5 w-3.5 text-orange-600 dark:text-orange-300" />
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-orange-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider truncate">Total Due</span>
+              <div className="h-7 w-7 rounded-lg bg-orange-500/10 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
+                <CircleAlert className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-orange-600 dark:text-orange-200 sm:dark:text-orange-200 truncate" title={formatCurrency(totalDue)}>{formatCurrency(totalDue)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-orange-600 dark:text-orange-300 truncate" title={formatCurrency(totalDue)}>{formatCurrency(totalDue)}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-purple-500/20 shadow-xs dark:bg-purple-950/25 dark:border-purple-900/35 dark:shadow-none sm:dark:bg-purple-950/20 sm:dark:border-purple-900/30 min-w-0 rounded-xl">
-          <CardContent className="p-2.5 sm:p-4 min-w-0 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 sm:dark:text-purple-300 uppercase tracking-wider truncate">Total Units</span>
-              <div className="h-5 w-5 rounded-md bg-purple-500/10 dark:bg-purple-950/50 flex items-center justify-center shrink-0 sm:hidden">
-                <Boxes className="h-3.5 w-3.5 text-purple-600 dark:text-purple-300" />
+        <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-purple-500/30 transition-all">
+          <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[11px] sm:text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider truncate">Total Units</span>
+              <div className="h-7 w-7 rounded-lg bg-purple-500/10 dark:bg-purple-950/40 flex items-center justify-center shrink-0">
+                <Boxes className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
-            <div className="text-[18px] sm:text-xl font-bold sm:font-extrabold tracking-tight text-purple-600 dark:text-purple-200 sm:dark:text-purple-200 truncate" title={formatNumber(totalUnits)}>{formatNumber(totalUnits)}</div>
+            <div className="text-xl sm:text-2xl font-black tracking-tight text-purple-600 dark:text-purple-300 truncate" title={formatNumber(totalUnits)}>{formatNumber(totalUnits)}</div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border-border/40 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-border/40 bg-muted/20 flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <Card className="border-border/60 bg-card/50 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden flex flex-col">
+        <div className="p-3.5 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -148,17 +228,34 @@ export default function SalesReportPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="pl-9 bg-background w-full"
+              className="pl-9 bg-background/80 border-border/60 h-9 text-xs rounded-xl w-full"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            {/* Customer Dropdown Filter */}
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => {
+                setSelectedCustomerId(e.target.value);
+                setPage(1);
+              }}
+              className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">All Customers</option>
+              {customers.map((cust) => (
+                <option key={cust.id} value={cust.id}>
+                  {cust.name} {cust.phone ? `(${cust.phone})` : ""}
+                </option>
+              ))}
+            </select>
+
             <select
               value={paymentStatus}
               onChange={(e) => {
                 setPaymentStatus(e.target.value);
                 setPage(1);
               }}
-              className="flex h-10 w-full sm:w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="flex h-9 w-full sm:w-36 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="">All Statuses</option>
               <option value="paid">Paid</option>
@@ -196,7 +293,7 @@ export default function SalesReportPage() {
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Paid</th>
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Due</th>
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap w-[110px]">Status</th>
-                <th className="px-3 py-2.5 align-middle font-medium text-right whitespace-nowrap w-[80px]">Actions</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-right whitespace-nowrap w-[90px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -211,7 +308,7 @@ export default function SalesReportPage() {
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-3 py-2 align-middle"><Skeleton className="h-4 w-14" /></td>
-                    <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-10 ml-auto" /></td>
+                    <td className="px-3 py-2 align-middle text-right"><Skeleton className="h-4 w-14 ml-auto" /></td>
                   </tr>
                 ))
               ) : sales.length === 0 ? (
@@ -234,9 +331,31 @@ export default function SalesReportPage() {
                       <td className="px-3 py-2 align-middle font-semibold text-amber-500 whitespace-nowrap">{formatCurrency(sale.due_amount)}</td>
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{getStatusBadge(sale.payment_status)}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewingSale(sale)} title="View Sale Invoice Details">
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => setViewingSale(sale)}
+                            title="View Details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => handlePrintSale(sale)}
+                            disabled={printingId === sale.id}
+                            title="Print Invoice"
+                          >
+                            {printingId === sale.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            ) : (
+                              <Printer className="h-3.5 w-3.5 text-primary" />
+                            )}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
