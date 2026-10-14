@@ -95,60 +95,7 @@ class ReportService:
             else:
                 configured_customer_id = None
 
-        # 1. Prior Movements (Strictly before start_utc) to compute Opening Stock
-        prior_purchases = (
-            await db.execute(
-                select(func.coalesce(func.sum(PurchaseItem.quantity), 0.0))
-                .join(Purchase, PurchaseItem.purchase_id == Purchase.id)
-                .where(
-                    PurchaseItem.product_id == product_id,
-                    Purchase.purchase_date < start_utc,
-                )
-            )
-        ).scalar_one()
-
-        prior_purch_returns = (
-            await db.execute(
-                select(func.coalesce(func.sum(ProductReturnItem.quantity), 0.0))
-                .join(ProductReturn, ProductReturnItem.product_return_id == ProductReturn.id)
-                .where(
-                    ProductReturnItem.product_id == product_id,
-                    ProductReturn.return_date < start_utc,
-                )
-            )
-        ).scalar_one()
-
-        prior_sales = (
-            await db.execute(
-                select(func.coalesce(func.sum(SaleItem.quantity), 0.0))
-                .join(Sale, SaleItem.sale_id == Sale.id)
-                .where(
-                    SaleItem.product_id == product_id,
-                    Sale.sale_date < start_utc,
-                )
-            )
-        ).scalar_one()
-
-        prior_sale_returns = (
-            await db.execute(
-                select(func.coalesce(func.sum(SaleReturnItem.quantity), 0.0))
-                .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
-                .where(
-                    SaleReturnItem.product_id == product_id,
-                    SaleReturn.return_date < start_utc,
-                )
-            )
-        ).scalar_one()
-
-        opening_stock = (
-            float(product.opening_stock)
-            + float(prior_purchases)
-            - float(prior_purch_returns)
-            - float(prior_sales)
-            + float(prior_sale_returns)
-        )
-
-        # 2. Query Day's Transactions (Within [start_utc, end_utc])
+        # 1. Query Day's Transactions (Within [start_utc, end_utc])
         purchases_res = (
             await db.execute(
                 select(PurchaseItem, Purchase)
@@ -306,11 +253,79 @@ class ReportService:
                 "payment_status": None,
             })
 
+        # 2. Determine End-of-Day Remaining Stock (Anchored to authoritative product.current_stock)
+        now_utc = datetime.now(timezone.utc)
+        live_current_stock = float(product.current_stock)
+
+        if end_utc < now_utc:
+            # Target date is in the past: reverse all transactions after end_utc
+            after_purchases = (
+                await db.execute(
+                    select(func.coalesce(func.sum(PurchaseItem.quantity), 0.0))
+                    .join(Purchase, PurchaseItem.purchase_id == Purchase.id)
+                    .where(
+                        PurchaseItem.product_id == product_id,
+                        Purchase.purchase_date > end_utc,
+                    )
+                )
+            ).scalar_one()
+
+            after_purch_returns = (
+                await db.execute(
+                    select(func.coalesce(func.sum(ProductReturnItem.quantity), 0.0))
+                    .join(ProductReturn, ProductReturnItem.product_return_id == ProductReturn.id)
+                    .where(
+                        ProductReturnItem.product_id == product_id,
+                        ProductReturn.return_date > end_utc,
+                    )
+                )
+            ).scalar_one()
+
+            after_sales = (
+                await db.execute(
+                    select(func.coalesce(func.sum(SaleItem.quantity), 0.0))
+                    .join(Sale, SaleItem.sale_id == Sale.id)
+                    .where(
+                        SaleItem.product_id == product_id,
+                        Sale.sale_date > end_utc,
+                    )
+                )
+            ).scalar_one()
+
+            after_sale_returns = (
+                await db.execute(
+                    select(func.coalesce(func.sum(SaleReturnItem.quantity), 0.0))
+                    .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
+                    .where(
+                        SaleReturnItem.product_id == product_id,
+                        SaleReturn.return_date > end_utc,
+                    )
+                )
+            ).scalar_one()
+
+            after_net_inflow = (float(after_purchases) - float(after_purch_returns)) + float(after_sale_returns)
+            after_net_outflow = float(after_sales)
+            remaining_stock = live_current_stock - after_net_inflow + after_net_outflow
+        else:
+            # Target date is Today (or future): remaining stock at end of target date matches live current stock
+            remaining_stock = live_current_stock
+
+        # Derive Previous Stock (start of day balance) using the day's balancing equation:
+        # Previous Stock + Today's Inflows - Today's Outflows = Remaining Stock
+        day_net_inflow = (day_purchases - day_purch_returns) + day_sale_returns
+        day_net_outflow = day_sales
+        previous_stock = remaining_stock - day_net_inflow + day_net_outflow
+
+        if abs(remaining_stock) < 1e-6:
+            remaining_stock = 0.0
+        if abs(previous_stock) < 1e-6:
+            previous_stock = 0.0
+
         # Sort movements chronologically
         raw_movements.sort(key=lambda m: (m["timestamp"], m["id"]))
 
-        # Calculate Running Balance for the day
-        current_running = opening_stock
+        # Calculate Running Balance for the day starting from previous_stock
+        current_running = previous_stock
         movements: list[StockMovementItem] = []
         for m in raw_movements:
             if m["in_out"] == "IN":
@@ -319,14 +334,6 @@ class ReportService:
                 current_running -= m["quantity"]
             m["running_stock"] = round(current_running, 4)
             movements.append(StockMovementItem(**m))
-
-        remaining_stock = (
-            opening_stock
-            + day_purchases
-            - day_purch_returns
-            - day_sales
-            + day_sale_returns
-        )
 
         product_info = StockReportProductInfo(
             id=product.id,
@@ -337,14 +344,15 @@ class ReportService:
             brand=product.brand,
             barcode=product.barcode,
             selling_price=float(product.selling_price),
-            current_stock=float(product.current_stock),
+            current_stock=live_current_stock,
         )
 
         return DailyStockReportResponse(
             product=product_info,
             target_date=target_date_str.strip(),
             timezone=tz_name,
-            opening_stock=round(opening_stock, 4),
+            opening_stock=round(previous_stock, 4),
+            previous_stock=round(previous_stock, 4),
             purchases=round(day_purchases, 4),
             sales=round(day_sales, 4),
             cash_sales=round(day_cash_sales, 4),

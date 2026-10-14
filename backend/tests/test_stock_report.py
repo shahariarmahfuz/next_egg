@@ -53,6 +53,7 @@ async def test_stock_report_endpoint():
         assert report["product"]["id"] == product.id
         assert report["target_date"] == "2026-09-20"
         assert "opening_stock" in report
+        assert "previous_stock" in report
         assert "purchases" in report
         assert "sales" in report
         assert "cash_sales" in report
@@ -210,4 +211,72 @@ async def test_stock_report_rbac_permission():
                 headers={"Authorization": f"Bearer {emp_token}"},
             )
             assert emp_res.status_code == 403, f"Expected 403 but got {emp_res.status_code}: {emp_res.text}"
+
+
+@pytest.mark.asyncio
+async def test_zero_stock_product_has_no_phantom_stock():
+    """
+    Verifies that when a product's current live stock is 0.0 and no transactions
+    occurred today, both Previous Stock and Remaining Stock are 0.0 (no phantom stock drift).
+    """
+    import uuid
+    from datetime import date
+    from app.models.role import Role
+
+    async with AsyncSessionLocal() as session:
+        user_res = await session.execute(
+            select(User).join(User.role).where(Role.code.in_(["owner", "admin"]), User.status == "active")
+        )
+        user = user_res.scalars().first()
+        if not user:
+            user_res = await session.execute(select(User).where(User.status == "active"))
+            user = user_res.scalars().first()
+        assert user is not None
+
+        unique_suffix = uuid.uuid4().hex[:8]
+        zero_prod = Product(
+            product_code=f"PROD-ZERO-{unique_suffix}",
+            name=f"Zero Stock Product {unique_suffix}",
+            unit="pcs",
+            opening_stock=0.0,
+            current_stock=0.0,
+            opening_stock_unit_cost=0.0,
+            selling_price=10.0,
+            minimum_stock=0.0,
+            status="active",
+        )
+        session.add(zero_prod)
+        await session.commit()
+        await session.refresh(zero_prod)
+        prod_id = zero_prod.id
+
+    token = create_access_token(subject=user.id)
+    headers = {"Authorization": f"Bearer {token}"}
+    today_str = date.today().strftime("%Y-%m-%d")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get(
+            f"/api/v1/reports/stock?product_id={prod_id}&target_date={today_str}",
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["success"] is True
+        report = data["data"]
+
+        # Current stock must be 0.0
+        assert report["product"]["current_stock"] == 0.0
+        # Opening/Previous stock must be exactly 0.0 (no phantom opening stock)
+        assert report["opening_stock"] == 0.0
+        assert report["previous_stock"] == 0.0
+        # No movements today
+        assert report["purchases"] == 0.0
+        assert report["sales"] == 0.0
+        # Remaining stock must be 0.0
+        assert report["remaining_stock"] == 0.0
+        # Balancing equation: previous_stock + purchases - sales = remaining_stock
+        assert report["previous_stock"] + report["purchases"] - report["sales"] == report["remaining_stock"]
+
 

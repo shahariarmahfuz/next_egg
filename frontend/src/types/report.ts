@@ -38,6 +38,7 @@ export interface DailyStockReportData {
   target_date: string;
   timezone: string;
   opening_stock: number;
+  previous_stock?: number;
   purchases: number;
   sales: number;
   cash_sales: number;

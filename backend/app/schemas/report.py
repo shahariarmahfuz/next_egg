@@ -52,6 +52,7 @@ class DailyStockReportResponse(BaseModel):
     timezone: str
 
     opening_stock: float
+    previous_stock: float = 0.0
     purchases: float
     sales: float
     cash_sales: float

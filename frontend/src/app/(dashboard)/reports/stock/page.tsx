@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -18,18 +18,16 @@ import {
   Check,
   Loader2,
   AlertCircle,
-  Building2,
   Tag,
-  Barcode,
-  Layers,
   UserCheck,
   Settings as SettingsIcon,
+  PackageSearch,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -58,6 +56,7 @@ export default function StockReportPage() {
   const getTodayStr = () => new Date().toLocaleDateString("en-CA");
 
   const [targetDate, setTargetDate] = useState<string>(getTodayStr());
+  // Initial state is null (no product auto-selected on load)
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
   const [productSearch, setProductSearch] = useState<string>("");
   const [isProductPopoverOpen, setIsProductPopoverOpen] = useState<boolean>(false);
@@ -76,14 +75,7 @@ export default function StockReportPage() {
 
   const productSuggestions: ProductItem[] = productSearchData?.data?.items || [];
 
-  // Automatically select the first product if none selected and catalog exists
-  useEffect(() => {
-    if (!selectedProduct && productSuggestions.length > 0 && !debouncedProductQuery) {
-      setSelectedProduct(productSuggestions[0]);
-    }
-  }, [productSuggestions, selectedProduct, debouncedProductQuery]);
-
-  // Fetch daily stock report data
+  // Fetch daily stock report data ONLY when a product is explicitly selected
   const {
     data: stockReportData,
     isLoading: isReportLoading,
@@ -131,7 +123,7 @@ export default function StockReportPage() {
         <div className="print:hidden">
           <PageHeader
             title="Daily Product Stock Report"
-            description="Track daily inventory opening balances, purchases, sales breakdowns (cash & due), and closing stock."
+            description="Track daily inventory balances, purchases, sales breakdowns (cash & due), and remaining stock."
             action={
               <div className="flex flex-wrap items-center gap-2">
                 <Link href="/settings/stock-report">
@@ -174,7 +166,7 @@ export default function StockReportPage() {
         </div>
 
         {/* Filters Card (Hidden on print) */}
-        <Card className="glass-card print:hidden border-primary/20 shadow-sm">
+        <Card className="glass-card print:hidden border shadow-xs">
           <CardContent className="p-4 sm:p-5">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
               {/* Product Selector */}
@@ -211,7 +203,7 @@ export default function StockReportPage() {
                       ) : (
                         <span className="text-muted-foreground flex items-center gap-2">
                           <Search className="h-3.5 w-3.5 opacity-70" />
-                          Choose a product...
+                          Select a product...
                         </span>
                       )}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -336,8 +328,25 @@ export default function StockReportPage() {
           </CardContent>
         </Card>
 
+        {/* Clean Empty State when No Product is Selected */}
+        {!selectedProduct && (
+          <Card className="border border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 p-8 sm:p-14 text-center rounded-2xl">
+            <div className="max-w-md mx-auto space-y-3">
+              <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-xs">
+                <PackageSearch className="h-7 w-7" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-foreground">
+                No Product Selected
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Please search and select a product from the dropdown above to view its daily stock summary, purchases, sales breakdowns, and remaining stock.
+              </p>
+            </div>
+          </Card>
+        )}
+
         {/* Error State */}
-        {reportError && (
+        {selectedProduct && reportError && (
           <Card className="border-destructive/30 bg-destructive/5 p-4">
             <div className="flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
@@ -349,71 +358,80 @@ export default function StockReportPage() {
         )}
 
         {/* Loading Skeleton */}
-        {isReportLoading && !report && (
+        {selectedProduct && isReportLoading && !report && (
           <div className="space-y-4">
             <Skeleton className="h-24 w-full rounded-xl" />
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {[...Array(6)].map((_, i) => (
-                <Skeleton key={i} className="h-28 w-full rounded-xl" />
+                <Skeleton key={i} className="h-24 w-full rounded-xl" />
               ))}
             </div>
           </div>
         )}
 
         {/* Main Content when Report is loaded */}
-        {report && (
+        {selectedProduct && report && (
           <div className="space-y-6">
-            {/* Selected Product Banner Card */}
-            <Card className="glass-card border-primary/20 bg-gradient-to-r from-card via-card to-accent/20">
+            {/* Unified Modern Product Banner Card */}
+            <Card className="border shadow-xs bg-card overflow-hidden">
               <CardContent className="p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="space-y-1">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-lg font-bold text-foreground">
+                      <h2 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
                         {report.product.name}
-                      </span>
-                      <Badge variant="outline" className="text-xs font-mono py-0.5">
+                      </h2>
+                      <Badge variant="outline" className="font-mono text-xs px-2 py-0.5">
                         {report.product.product_code}
                       </Badge>
-                      <Badge variant="secondary" className="text-xs">
-                        Unit: {report.product.unit}
-                      </Badge>
                       {report.product.category && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Tag className="h-3 w-3" />
+                        <Badge variant="secondary" className="text-xs font-normal">
                           {report.product.category}
+                        </Badge>
+                      )}
+                      {report.product.brand && (
+                        <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                          <Tag className="h-3 w-3" />
+                          {report.product.brand}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                      <span>Report Target: <strong className="text-foreground">{formatDate(report.target_date)}</strong></span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                      <span>Report Date: <strong className="text-foreground">{formatDate(report.target_date)}</strong></span>
                       <span>•</span>
-                      <span>Timezone: <strong>{report.timezone}</strong></span>
-                      {report.configured_customer && (
-                        <>
-                          <span>•</span>
-                          <span className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-medium">
-                            <UserCheck className="h-3 w-3" />
-                            Configured Customer: <strong>{report.configured_customer.name}</strong>
-                          </span>
-                        </>
-                      )}
+                      <span>Unit: <strong className="text-foreground">{report.product.unit}</strong></span>
                       {report.product.selling_price > 0 && (
                         <>
                           <span>•</span>
-                          <span>Unit Price: <strong>{formatCurrency(report.product.selling_price)}</strong></span>
+                          <span>Unit Price: <strong className="text-foreground">{formatCurrency(report.product.selling_price)}</strong></span>
+                        </>
+                      )}
+                      {report.configured_customer && (
+                        <>
+                          <span>•</span>
+                          <span className="text-cyan-700 dark:text-cyan-400 font-medium flex items-center gap-1">
+                            <UserCheck className="h-3.5 w-3.5" />
+                            Tracked Customer: <strong>{report.configured_customer.name}</strong>
+                          </span>
                         </>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-[11px] text-muted-foreground uppercase font-semibold">
+                  {/* Prominent Live Current Stock Box */}
+                  <div className="flex items-center gap-3 bg-muted/60 dark:bg-muted/30 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 shrink-0 self-start md:self-auto">
+                    <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Package className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Current Live Stock
                       </div>
-                      <div className="text-base font-extrabold text-foreground font-mono">
-                        {formatNumber(report.product.current_stock)} {report.product.unit}
+                      <div className="text-lg sm:text-xl font-extrabold font-mono text-foreground">
+                        {formatNumber(report.product.current_stock)}{" "}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          {report.product.unit}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -421,152 +439,140 @@ export default function StockReportPage() {
               </CardContent>
             </Card>
 
-            {/* Daily Product Stock Summary - The 6 Required Metrics */}
+            {/* Daily Product Stock Summary - Clean, Modern Minimal Cards */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Boxes className="h-4 w-4 text-primary" />
                   Daily Stock Summary ({formatDate(report.target_date)})
                 </h3>
-                <span className="text-[11px] text-muted-foreground hidden sm:inline">
-                  {report.configured_customer
-                    ? "Sales = Cash + Due + Customer Sales | Closing Stock = Opening + Purchases − Sales"
-                    : "Closing Stock = Opening Stock + Purchases − Sales"}
-                </span>
               </div>
 
               <div
-                className={`grid grid-cols-2 md:grid-cols-3 ${
-                  report.configured_customer ? "lg:grid-cols-7" : "lg:grid-cols-6"
-                } gap-3`}
+                className={`grid grid-cols-2 sm:grid-cols-3 ${
+                  report.configured_customer ? "lg:grid-cols-4 xl:grid-cols-7" : "lg:grid-cols-3 xl:grid-cols-6"
+                } gap-3 sm:gap-4`}
               >
-                {/* 1. Opening Stock */}
-                <Card className="glass-card border-blue-500/20 bg-blue-500/5 hover:border-blue-500/40 transition-all">
-                  <CardContent className="p-3.5 space-y-1">
+                {/* Previous Stock */}
+                <Card className="border border-l-4 border-l-blue-500 shadow-2xs hover:shadow-xs transition-all">
+                  <CardContent className="p-3.5 sm:p-4 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-                        1. Opening Stock
+                      <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        Previous Stock
                       </span>
-                      <Package className="h-3.5 w-3.5 text-blue-500/60" />
+                      <div className="h-6 w-6 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <Package className="h-3.5 w-3.5" />
+                      </div>
                     </div>
-                    <div className="text-xl font-black text-foreground font-mono pt-1">
-                      {formatNumber(report.opening_stock)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Start of day balance
+                    <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
+                      {formatNumber(report.previous_stock ?? report.opening_stock)}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* 2. Purchases */}
-                <Card className="glass-card border-sky-500/20 bg-sky-500/5 hover:border-sky-500/40 transition-all">
-                  <CardContent className="p-3.5 space-y-1">
+                {/* Purchases */}
+                <Card className="border border-l-4 border-l-sky-500 shadow-2xs hover:shadow-xs transition-all">
+                  <CardContent className="p-3.5 sm:p-4 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-sky-600 dark:text-sky-400">
-                        2. Purchases
+                      <span className="text-xs font-semibold text-sky-600 dark:text-sky-400">
+                        Purchases
                       </span>
-                      <TrendingUp className="h-3.5 w-3.5 text-sky-500/60" />
+                      <div className="h-6 w-6 rounded-md bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                        <TrendingUp className="h-3.5 w-3.5" />
+                      </div>
                     </div>
-                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono pt-1">
+                    <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono pt-1">
                       +{formatNumber(report.purchases)}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Purchased on day
-                    </div>
                   </CardContent>
                 </Card>
 
-                {/* 3. Sales (Total) */}
-                <Card className="glass-card border-purple-500/20 bg-purple-500/5 hover:border-purple-500/40 transition-all">
-                  <CardContent className="p-3.5 space-y-1">
+                {/* Total Sales */}
+                <Card className="border border-l-4 border-l-purple-500 shadow-2xs hover:shadow-xs transition-all">
+                  <CardContent className="p-3.5 sm:p-4 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
-                        3. Total Sales
+                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                        Total Sales
                       </span>
-                      <TrendingDown className="h-3.5 w-3.5 text-purple-500/60" />
+                      <div className="h-6 w-6 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                        <TrendingDown className="h-3.5 w-3.5" />
+                      </div>
                     </div>
-                    <div className="text-xl font-black text-rose-600 dark:text-rose-400 font-mono pt-1">
+                    <div className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 font-mono pt-1">
                       -{formatNumber(report.sales)}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Total quantity sold
-                    </div>
                   </CardContent>
                 </Card>
 
-                {/* 4. Cash Sales */}
-                <Card className="glass-card border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40 transition-all">
-                  <CardContent className="p-3.5 space-y-1">
+                {/* Cash Sales */}
+                <Card className="border border-l-4 border-l-emerald-500 shadow-2xs hover:shadow-xs transition-all">
+                  <CardContent className="p-3.5 sm:p-4 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                        4. Cash Sales
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        Cash Sales
                       </span>
-                      <DollarSign className="h-3.5 w-3.5 text-emerald-500/60" />
+                      <div className="h-6 w-6 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <DollarSign className="h-3.5 w-3.5" />
+                      </div>
                     </div>
-                    <div className="text-xl font-black text-foreground font-mono pt-1">
+                    <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
                       {formatNumber(report.cash_sales)}
                     </div>
-                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                      Paid portion
-                    </div>
                   </CardContent>
                 </Card>
 
-                {/* 5. Due Sales */}
-                <Card className="glass-card border-amber-500/20 bg-amber-500/5 hover:border-amber-500/40 transition-all">
-                  <CardContent className="p-3.5 space-y-1">
+                {/* Due Sales */}
+                <Card className="border border-l-4 border-l-amber-500 shadow-2xs hover:shadow-xs transition-all">
+                  <CardContent className="p-3.5 sm:p-4 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                        5. Due Sales
+                      <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        Due Sales
                       </span>
-                      <CreditCard className="h-3.5 w-3.5 text-amber-500/60" />
+                      <div className="h-6 w-6 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                        <CreditCard className="h-3.5 w-3.5" />
+                      </div>
                     </div>
-                    <div className="text-xl font-black text-foreground font-mono pt-1">
+                    <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
                       {formatNumber(report.due_sales)}
                     </div>
-                    <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                      Credit / due portion
-                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Dedicated Customer Sales (Only when a customer is configured in Settings) */}
+                {/* Special Tracked Customer Sales (if configured) */}
                 {report.configured_customer && (
-                  <Card className="glass-card border-cyan-500/30 bg-cyan-500/10 hover:border-cyan-500/50 transition-all">
-                    <CardContent className="p-3.5 space-y-1">
+                  <Card className="border border-l-4 border-l-cyan-500 shadow-2xs hover:shadow-xs transition-all">
+                    <CardContent className="p-3.5 sm:p-4 space-y-1">
                       <div className="flex items-center justify-between">
                         <span
-                          className="text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 truncate max-w-[120px]"
+                          className="text-xs font-semibold text-cyan-700 dark:text-cyan-300 truncate max-w-[120px]"
                           title={report.configured_customer.name}
                         >
                           {report.configured_customer.name}
                         </span>
-                        <UserCheck className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                        <div className="h-6 w-6 rounded-md bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
+                          <UserCheck className="h-3.5 w-3.5" />
+                        </div>
                       </div>
-                      <div className="text-xl font-black text-foreground font-mono pt-1">
+                      <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
                         {formatNumber(report.customer_sales)}
-                      </div>
-                      <div className="text-[10px] text-cyan-700 dark:text-cyan-300 font-medium truncate">
-                        Selected Customer Sales
                       </div>
                     </CardContent>
                   </Card>
                 )}
 
-                {/* 6. Remaining Stock */}
-                <Card className="glass-card border-indigo-500/30 bg-indigo-500/10 hover:border-indigo-500/50 transition-all shadow-sm">
-                  <CardContent className="p-3.5 space-y-1">
+                {/* Remaining Stock */}
+                <Card className="border border-l-4 border-l-indigo-600 dark:border-l-indigo-400 shadow-2xs hover:shadow-xs transition-all">
+                  <CardContent className="p-3.5 sm:p-4 space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                         Remaining Stock
                       </span>
-                      <Boxes className="h-3.5 w-3.5 text-indigo-500" />
+                      <div className="h-6 w-6 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                        <Boxes className="h-3.5 w-3.5" />
+                      </div>
                     </div>
-                    <div className="text-xl font-black text-primary font-mono pt-1">
+                    <div className="text-xl sm:text-2xl font-black text-primary font-mono pt-1">
                       {formatNumber(report.remaining_stock)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground font-medium">
-                      End of day balance
                     </div>
                   </CardContent>
                 </Card>
