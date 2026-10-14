@@ -37,6 +37,10 @@ class User(TimestampedBaseModel):
     role: Mapped["Role"] = relationship("Role", lazy="selectin", foreign_keys=[role_id])
     roles: Mapped[list["Role"]] = relationship("Role", secondary="user_roles", back_populates="users", lazy="selectin")
 
+    @property
+    def name(self) -> str:
+        return self.full_name or self.username
+
     __table_args__ = (
         Index("idx_user_username", "username"),
         Index("idx_user_email", "email"),

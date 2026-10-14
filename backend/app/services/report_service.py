@@ -500,7 +500,12 @@ class ReportService:
         for co in cash_out_records:
             co_dec = Decimal(str(co.amount))
             cash_outs_dec += co_dec
-            creator_name = co.created_by.name if co.created_by else None
+            creator_name = (
+                getattr(co.created_by, "full_name", None)
+                or getattr(co.created_by, "username", None)
+                if co.created_by
+                else None
+            )
             breakdown.cash_outs.append(
                 CashOutReportItem(
                     id=str(co.id),
@@ -530,7 +535,12 @@ class ReportService:
             exp_dec = Decimal(str(exp.amount))
             expenses_dec += exp_dec
             cat_name = exp.category.name if exp.category else "Expense"
-            creator_name = exp.created_by.name if exp.created_by else None
+            creator_name = (
+                getattr(exp.created_by, "full_name", None)
+                or getattr(exp.created_by, "username", None)
+                if exp.created_by
+                else None
+            )
             breakdown.expenses.append(
                 ExpenseReportItem(
                     id=str(exp.id),
