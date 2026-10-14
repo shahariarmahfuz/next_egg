@@ -1,7 +1,9 @@
 import zoneinfo
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions.custom import BadRequestException, NotFoundException
@@ -10,14 +12,24 @@ from app.models.product_return import ProductReturn, ProductReturnItem
 from app.models.purchase import Purchase, PurchaseItem
 from app.models.sale import Sale, SaleItem
 from app.models.sale_return import SaleReturn, SaleReturnItem
+from app.models.customer_collection import CustomerCollection
+from app.models.cash_out import CashOut
+from app.models.expense import Expense, ExpenseCategory
 from app.repositories.product_repository import product_repository
 from app.repositories.setting_repository import setting_repository
 from app.repositories.customer_repository import customer_repository
+from app.services.setting_service import setting_service
 from app.schemas.report import (
     ConfiguredCustomerInfo,
     DailyStockReportResponse,
     StockMovementItem,
     StockReportProductInfo,
+    CashSaleReportItem,
+    CustomerCollectionReportItem,
+    CashOutReportItem,
+    ExpenseReportItem,
+    CashReportBreakdown,
+    DailyCashReportResponse,
 )
 
 
@@ -345,5 +357,219 @@ class ReportService:
             movements=movements,
         )
 
+    async def get_daily_cash_report(
+        self,
+        db: AsyncSession,
+        target_date_str: Optional[str] = None,
+        start_date_str: Optional[str] = None,
+        end_date_str: Optional[str] = None,
+        client_tz_str: Optional[str] = None,
+    ) -> DailyCashReportResponse:
+        """
+        Calculates daily cash summary and itemized breakdown:
+        - Cash Inflow: Cash Sales (paid_amount > 0) + Customer Collections
+        - Cash Outflow: Cash Outs (physical cash withdrawal) + Expenses
+        - Net Remaining Cash: Cash In - Cash Out (Decimal precision)
+        """
+        # Fetch business configuration (Timezone, Business Profile)
+        business_settings = await setting_service.get_business_settings(db)
+        tz_name = client_tz_str or business_settings.timezone or "Asia/Dhaka"
+
+        try:
+            tz = zoneinfo.ZoneInfo(tz_name)
+        except Exception:
+            tz = timezone.utc
+            tz_name = "UTC"
+
+        # Determine target date boundaries
+        if start_date_str and end_date_str:
+            try:
+                start_d = datetime.strptime(start_date_str.strip(), "%Y-%m-%d").date()
+                end_d = datetime.strptime(end_date_str.strip(), "%Y-%m-%d").date()
+            except (ValueError, AttributeError):
+                raise BadRequestException("Invalid date range format. Expected YYYY-MM-DD.")
+        elif target_date_str:
+            try:
+                start_d = datetime.strptime(target_date_str.strip(), "%Y-%m-%d").date()
+                end_d = start_d
+            except (ValueError, AttributeError):
+                raise BadRequestException("Invalid date format. Expected YYYY-MM-DD.")
+        else:
+            # Default to today in business timezone
+            now_tz = datetime.now(tz)
+            start_d = now_tz.date()
+            end_d = start_d
+
+        if start_d > end_d:
+            raise BadRequestException("start_date cannot be after end_date.")
+
+        # Construct exact start and end of day in the configured timezone, converted to UTC
+        start_local = datetime.combine(start_d, time.min).replace(tzinfo=tz)
+        end_local = datetime.combine(end_d, time.max).replace(tzinfo=tz)
+        start_utc = start_local.astimezone(timezone.utc)
+        end_utc = end_local.astimezone(timezone.utc)
+
+        display_date = (
+            start_d.strftime("%Y-%m-%d")
+            if start_d == end_d
+            else f"{start_d.strftime('%Y-%m-%d')} to {end_d.strftime('%Y-%m-%d')}"
+        )
+
+        breakdown = CashReportBreakdown()
+
+        # 1. Cash Sales (paid_amount > 0)
+        q_sales = (
+            select(Sale)
+            .options(selectinload(Sale.customer))
+            .where(
+                Sale.sale_date >= start_utc,
+                Sale.sale_date <= end_utc,
+                Sale.paid_amount > 0,
+            )
+            .order_by(Sale.sale_date.asc(), Sale.invoice_no.asc())
+        )
+        sales_records = (await db.execute(q_sales)).scalars().all()
+        cash_sales_dec = Decimal("0.00")
+        for s in sales_records:
+            paid_dec = Decimal(str(s.paid_amount))
+            cash_sales_dec += paid_dec
+            cust_name = s.customer.name if s.customer else "Walk-in Customer"
+            cust_code = s.customer.customer_code if s.customer else None
+            breakdown.cash_sales.append(
+                CashSaleReportItem(
+                    id=str(s.id),
+                    invoice_no=s.invoice_no,
+                    sale_date=s.sale_date,
+                    customer_id=str(s.customer_id),
+                    customer_name=cust_name,
+                    customer_code=cust_code,
+                    grand_total=float(s.grand_total),
+                    paid_amount=float(s.paid_amount),
+                    due_amount=float(s.due_amount),
+                    payment_status=s.payment_status,
+                    notes=s.notes,
+                )
+            )
+
+        # 2. Customer Collections (amount > 0)
+        q_cols = (
+            select(CustomerCollection)
+            .options(selectinload(CustomerCollection.customer))
+            .where(
+                CustomerCollection.collection_date >= start_utc,
+                CustomerCollection.collection_date <= end_utc,
+                CustomerCollection.amount > 0,
+            )
+            .order_by(CustomerCollection.collection_date.asc(), CustomerCollection.collection_no.asc())
+        )
+        col_records = (await db.execute(q_cols)).scalars().all()
+        collections_dec = Decimal("0.00")
+        for c in col_records:
+            col_dec = Decimal(str(c.amount))
+            collections_dec += col_dec
+            cust_name = c.customer.name if c.customer else "Customer"
+            cust_code = c.customer.customer_code if c.customer else None
+            breakdown.customer_collections.append(
+                CustomerCollectionReportItem(
+                    id=str(c.id),
+                    collection_no=c.collection_no,
+                    collection_date=c.collection_date,
+                    customer_id=str(c.customer_id),
+                    customer_name=cust_name,
+                    customer_code=cust_code,
+                    amount=float(c.amount),
+                    payment_method=c.payment_method,
+                    reference_no=c.reference_no,
+                    notes=c.notes,
+                )
+            )
+
+        # 3. Cash Outs (physical cash withdrawal, amount > 0)
+        q_cash_outs = (
+            select(CashOut)
+            .options(selectinload(CashOut.created_by))
+            .where(
+                CashOut.cash_out_date >= start_utc,
+                CashOut.cash_out_date <= end_utc,
+                CashOut.amount > 0,
+            )
+            .order_by(CashOut.cash_out_date.asc(), CashOut.cash_out_no.asc())
+        )
+        cash_out_records = (await db.execute(q_cash_outs)).scalars().all()
+        cash_outs_dec = Decimal("0.00")
+        for co in cash_out_records:
+            co_dec = Decimal(str(co.amount))
+            cash_outs_dec += co_dec
+            creator_name = co.created_by.name if co.created_by else None
+            breakdown.cash_outs.append(
+                CashOutReportItem(
+                    id=str(co.id),
+                    cash_out_no=co.cash_out_no,
+                    cash_out_date=co.cash_out_date,
+                    amount=float(co.amount),
+                    reason=co.reason,
+                    notes=co.notes,
+                    created_by_name=creator_name,
+                )
+            )
+
+        # 4. Expenses (amount > 0)
+        q_expenses = (
+            select(Expense)
+            .options(selectinload(Expense.category), selectinload(Expense.created_by))
+            .where(
+                Expense.expense_date >= start_utc,
+                Expense.expense_date <= end_utc,
+                Expense.amount > 0,
+            )
+            .order_by(Expense.expense_date.asc(), Expense.voucher_no.asc())
+        )
+        expense_records = (await db.execute(q_expenses)).scalars().all()
+        expenses_dec = Decimal("0.00")
+        for exp in expense_records:
+            exp_dec = Decimal(str(exp.amount))
+            expenses_dec += exp_dec
+            cat_name = exp.category.name if exp.category else "Expense"
+            creator_name = exp.created_by.name if exp.created_by else None
+            breakdown.expenses.append(
+                ExpenseReportItem(
+                    id=str(exp.id),
+                    voucher_no=exp.voucher_no,
+                    expense_date=exp.expense_date,
+                    category_id=str(exp.category_id),
+                    category_name=cat_name,
+                    amount=float(exp.amount),
+                    payment_method=exp.payment_method,
+                    reference_no=exp.reference_no,
+                    description=exp.description,
+                    created_by_name=creator_name,
+                )
+            )
+
+        # 5. Totals & Net Remaining Cash
+        total_cash_in_dec = cash_sales_dec + collections_dec
+        total_cash_out_dec = cash_outs_dec + expenses_dec
+        remaining_cash_dec = total_cash_in_dec - total_cash_out_dec
+
+        return DailyCashReportResponse(
+            target_date=display_date,
+            start_date=start_d.strftime("%Y-%m-%d"),
+            end_date=end_d.strftime("%Y-%m-%d"),
+            timezone=tz_name,
+            cash_sales_amount=float(cash_sales_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            customer_collections_amount=float(collections_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_cash_in=float(total_cash_in_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            cash_out_amount=float(cash_outs_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            expenses_amount=float(expenses_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            total_cash_out=float(total_cash_out_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            remaining_cash=float(remaining_cash_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            company_name=business_settings.business_name,
+            company_address=business_settings.business_address,
+            company_phone=business_settings.business_phone,
+            company_logo=business_settings.business_logo,
+            breakdown=breakdown,
+        )
+
 
 report_service = ReportService()
+

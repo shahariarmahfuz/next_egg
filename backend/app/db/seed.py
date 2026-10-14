@@ -43,6 +43,12 @@ DEFAULT_PERMISSIONS = [
     # Reports Center module
     {"code": "reports.view", "name": "View Reports Center", "module": "reports", "description": "View centralized analytics & reporting hub"},
 
+    # Stock Report module
+    {"code": "stock_report.view", "name": "View Stock Report", "module": "stock_report", "description": "View daily product stock report and balance calculations"},
+
+    # Cash Report module
+    {"code": "cash_report.view", "name": "View Cash Report", "module": "cash_report", "description": "View daily cash report, cash inflow, outflow, and net balance"},
+
     # Accounts & Cash Book module
     {"code": "accounts.cash_book.view", "name": "View Cash Book", "module": "accounts", "description": "View daily cash statement and cash movements"},
 
@@ -271,11 +277,11 @@ async def seed_initial_data(db: AsyncSession) -> None:
             await role_repository.set_role_permissions(db, admin_role, admin_perms)
         else:
             existing_codes = {p.code for p in admin_role.permissions}
-            new_admin_perms = [p for p in admin_perms if p.code not in existing_codes and p.code in {"cash_out.view", "cash_out.edit", "cash_out.delete"}]
+            new_admin_perms = [p for p in admin_perms if p.code not in existing_codes and p.code in {"cash_out.view", "cash_out.edit", "cash_out.delete", "stock_report.view", "cash_report.view"}]
             if new_admin_perms:
                 combined = list(admin_role.permissions) + new_admin_perms
                 await role_repository.set_role_permissions(db, admin_role, combined)
-                logger.info(f"[SEED] Added {len(new_admin_perms)} new Cash Out permissions to existing Admin role.")
+                logger.info(f"[SEED] Added {len(new_admin_perms)} new permissions (Cash Out / Stock Report / Cash Report) to existing Admin role.")
             else:
                 logger.info(f"[SEED] Preserving {len(admin_role.permissions)} configured permissions for existing Admin role.")
 

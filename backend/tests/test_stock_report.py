@@ -169,3 +169,45 @@ async def test_stock_report_customer_setting_and_separation():
         )
         assert clear_res.status_code == 200
         assert clear_res.json()["data"]["customer_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_stock_report_rbac_permission():
+    from app.models.role import Role
+
+    async with AsyncSessionLocal() as session:
+        prod_res = await session.execute(select(Product))
+        product = prod_res.scalars().first()
+        assert product is not None
+
+        owner_res = await session.execute(
+            select(User).join(User.role).where(Role.code == "owner", User.status == "active")
+        )
+        owner_user = owner_res.scalars().first()
+        assert owner_user is not None
+
+        emp_res = await session.execute(
+            select(User).join(User.role).where(Role.code == "employee", User.status == "active")
+        )
+        emp_user = emp_res.scalars().first()
+
+    # 1. Owner has full access and succeeds (200)
+    owner_token = create_access_token(subject=owner_user.id)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        res = await client.get(
+            f"/api/v1/reports/stock?product_id={product.id}&target_date=2026-09-20",
+            headers={"Authorization": f"Bearer {owner_token}"},
+        )
+        assert res.status_code == 200
+
+        # 2. Employee without stock_report.view must be rejected with 403 Forbidden
+        if emp_user:
+            emp_token = create_access_token(subject=emp_user.id)
+            emp_res = await client.get(
+                f"/api/v1/reports/stock?product_id={product.id}&target_date=2026-09-20",
+                headers={"Authorization": f"Bearer {emp_token}"},
+            )
+            assert emp_res.status_code == 403, f"Expected 403 but got {emp_res.status_code}: {emp_res.text}"
+

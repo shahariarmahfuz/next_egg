@@ -357,39 +357,45 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
       />
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Tabs defaultValue={defaultTab} className="space-y-6">
-          <TabsList className="bg-accent/50 p-1 rounded-xl">
-            <TabsTrigger
-              value="business"
-              className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              <Building className="w-4 h-4 mr-2" /> Business Profile & Localization
-            </TabsTrigger>
-            {isOwner && (
+        <Tabs defaultValue={defaultTab} className="space-y-6 w-full max-w-full overflow-visible">
+          <div className="w-full max-w-full overflow-visible">
+            <TabsList className="h-auto w-full lg:w-auto grid grid-cols-1 sm:grid-cols-2 lg:inline-flex lg:flex-row gap-1.5 p-1.5 bg-accent/50 rounded-xl">
               <TabsTrigger
-                value="branding"
-                className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                value="business"
+                className="w-full lg:w-auto justify-start lg:justify-center px-3 py-2.5 text-xs sm:text-sm whitespace-normal sm:whitespace-nowrap text-left sm:text-center flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
-                <Palette className="w-4 h-4 mr-2" /> Business Branding (Owner)
+                <Building className="w-4 h-4 shrink-0" />
+                <span>Business Profile & Localization</span>
               </TabsTrigger>
-            )}
-            {isOwner && (
-              <TabsTrigger
-                value="supplier-print"
-                className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <Printer className="w-4 h-4 mr-2" /> Supplier Print (Owner)
-              </TabsTrigger>
-            )}
-            {canEdit && (
-              <TabsTrigger
-                value="stock-report"
-                className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <Boxes className="w-4 h-4 mr-2" /> Stock Report Customer
-              </TabsTrigger>
-            )}
-          </TabsList>
+              {isOwner && (
+                <TabsTrigger
+                  value="branding"
+                  className="w-full lg:w-auto justify-start lg:justify-center px-3 py-2.5 text-xs sm:text-sm whitespace-normal sm:whitespace-nowrap text-left sm:text-center flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Palette className="w-4 h-4 shrink-0" />
+                  <span>Business Branding (Owner)</span>
+                </TabsTrigger>
+              )}
+              {isOwner && (
+                <TabsTrigger
+                  value="supplier-print"
+                  className="w-full lg:w-auto justify-start lg:justify-center px-3 py-2.5 text-xs sm:text-sm whitespace-normal sm:whitespace-nowrap text-left sm:text-center flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Printer className="w-4 h-4 shrink-0" />
+                  <span>Supplier Print (Owner)</span>
+                </TabsTrigger>
+              )}
+              {canEdit && (
+                <TabsTrigger
+                  value="stock-report"
+                  className="w-full lg:w-auto justify-start lg:justify-center px-3 py-2.5 text-xs sm:text-sm whitespace-normal sm:whitespace-nowrap text-left sm:text-center flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Boxes className="w-4 h-4 shrink-0" />
+                  <span>Stock Report Customer</span>
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </div>
 
           {/* TAB 1: Business Settings */}
           <TabsContent value="business" className="space-y-6">
@@ -1114,14 +1120,19 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
 
         {/* Global Save Controls */}
         {canEdit && (
-          <div className="flex justify-end gap-4 pt-4 border-t border-border/40">
-            <Button type="button" variant="outline" onClick={() => form.reset()}>
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 w-full pt-4 border-t border-border/40">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => form.reset()}
+              className="w-full sm:w-auto justify-center"
+            >
               Discard Changes
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="min-w-[140px] shadow-lg shadow-primary/20"
+              className="w-full sm:w-auto justify-center min-w-[140px] shadow-lg shadow-primary/20"
             >
               {isSubmitting ? (
                 <>

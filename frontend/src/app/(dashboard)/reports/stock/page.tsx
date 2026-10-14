@@ -7,7 +7,6 @@ import {
   Boxes,
   Calendar,
   Search,
-  ArrowLeft,
   Printer,
   RotateCcw,
   Package,
@@ -120,7 +119,7 @@ export default function StockReportPage() {
 
   return (
     <HasPermission
-      code="reports.view"
+      code="stock_report.view"
       fallback={
         <div className="p-8 text-center text-destructive font-medium">
           Access Denied: You do not have permission to view Stock Reports.
@@ -134,13 +133,7 @@ export default function StockReportPage() {
             title="Daily Product Stock Report"
             description="Track daily inventory opening balances, purchases, sales breakdowns (cash & due), and closing stock."
             action={
-              <div className="flex items-center gap-2">
-                <Link href="/reports">
-                  <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Reports Center
-                  </Button>
-                </Link>
+              <div className="flex flex-wrap items-center gap-2">
                 <Link href="/settings/stock-report">
                   <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
                     <SettingsIcon className="h-3.5 w-3.5" />

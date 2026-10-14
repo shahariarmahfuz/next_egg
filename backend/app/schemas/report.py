@@ -63,3 +63,104 @@ class DailyStockReportResponse(BaseModel):
     remaining_stock: float
 
     movements: List[StockMovementItem] = Field(default_factory=list)
+
+
+# Cash Report Schemas
+
+class CashSaleReportItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    invoice_no: str
+    sale_date: datetime
+    customer_id: str
+    customer_name: str
+    customer_code: Optional[str] = None
+    grand_total: float
+    paid_amount: float
+    due_amount: float
+    payment_status: str
+    notes: Optional[str] = None
+
+
+class CustomerCollectionReportItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    collection_no: str
+    collection_date: datetime
+    customer_id: str
+    customer_name: str
+    customer_code: Optional[str] = None
+    amount: float
+    payment_method: str
+    reference_no: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CashOutReportItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    cash_out_no: str
+    cash_out_date: datetime
+    amount: float
+    reason: str
+    notes: Optional[str] = None
+    created_by_name: Optional[str] = None
+
+
+class ExpenseReportItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    voucher_no: str
+    expense_date: datetime
+    category_id: str
+    category_name: str
+    amount: float
+    payment_method: str
+    reference_no: Optional[str] = None
+    description: Optional[str] = None
+    created_by_name: Optional[str] = None
+
+
+class CashReportBreakdown(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    cash_sales: List[CashSaleReportItem] = Field(default_factory=list)
+    customer_collections: List[CustomerCollectionReportItem] = Field(default_factory=list)
+    cash_outs: List[CashOutReportItem] = Field(default_factory=list)
+    expenses: List[ExpenseReportItem] = Field(default_factory=list)
+
+
+class DailyCashReportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    target_date: str
+    start_date: str
+    end_date: str
+    timezone: str
+
+    # Cash Inflow (মোট প্রাপ্তি)
+    cash_sales_amount: float = 0.0
+    customer_collections_amount: float = 0.0
+    total_cash_in: float = 0.0
+
+    # Cash Outflow (মোট প্রদান)
+    cash_out_amount: float = 0.0
+    expenses_amount: float = 0.0
+    total_cash_out: float = 0.0
+
+    # Net Remaining Cash (অবশিষ্ট ব্যালেন্স)
+    remaining_cash: float = 0.0
+
+    # Business profile info for print / branding
+    company_name: Optional[str] = None
+    company_address: Optional[str] = None
+    company_phone: Optional[str] = None
+    company_logo: Optional[str] = None
+
+    # Detailed Itemized Lists
+    breakdown: CashReportBreakdown = Field(default_factory=CashReportBreakdown)
+

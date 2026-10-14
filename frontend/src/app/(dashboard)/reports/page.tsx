@@ -11,7 +11,6 @@ import {
   DollarSign,
   Receipt,
   Loader2,
-  Boxes,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -68,14 +67,6 @@ const SupplierPaymentReportPage = dynamic(
   }
 );
 
-const StockReportPage = dynamic(
-  () => import("@/app/(dashboard)/reports/stock/page"),
-  {
-    loading: () => <ReportLoadingSkeleton title="Stock Report" />,
-    ssr: false,
-  }
-);
-
 function ReportLoadingSkeleton({ title }: { title: string }) {
   return (
     <Card className="glass-card p-6 space-y-4">
@@ -96,7 +87,7 @@ function ReportLoadingSkeleton({ title }: { title: string }) {
 
 export default function ReportsHubPage() {
   const [activeTab, setActiveTab] = useState<
-    "sales" | "sale_return" | "purchase" | "product_return" | "customer_collection" | "supplier_payment" | "stock"
+    "sales" | "sale_return" | "purchase" | "product_return" | "customer_collection" | "supplier_payment"
   >("sales");
 
   return (
@@ -116,90 +107,78 @@ export default function ReportsHubPage() {
 
         {/* Navigation Tabs Bar */}
         <Card className="glass-card">
-          <CardContent className="p-2 overflow-x-auto">
-            <div className="flex items-center gap-1 min-w-max">
+          <CardContent className="p-2 w-full max-w-full overflow-visible">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:inline-flex lg:flex-row gap-1.5 w-full">
               <button
                 onClick={() => setActiveTab("sales")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "sales"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
-                <ShoppingCart className="h-4 w-4" />
+                <ShoppingCart className="h-4 w-4 shrink-0" />
                 <span>Sales Report</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("sale_return")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "sale_return"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
-                <RotateCcw className="h-4 w-4 text-amber-400" />
+                <RotateCcw className="h-4 w-4 shrink-0 text-amber-400" />
                 <span>Sale Return Report</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("purchase")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "purchase"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
-                <ShoppingBag className="h-4 w-4 text-blue-400" />
+                <ShoppingBag className="h-4 w-4 shrink-0 text-blue-400" />
                 <span>Purchase Report</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("product_return")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "product_return"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
-                <Truck className="h-4 w-4 text-purple-400" />
+                <Truck className="h-4 w-4 shrink-0 text-purple-400" />
                 <span>Product Return Report</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("customer_collection")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "customer_collection"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
-                <DollarSign className="h-4 w-4 text-emerald-400" />
+                <DollarSign className="h-4 w-4 shrink-0 text-emerald-400" />
                 <span>Customer Collection Report</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("supplier_payment")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`flex items-center justify-start lg:justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full lg:w-auto ${
                   activeTab === "supplier_payment"
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
                 }`}
               >
-                <Receipt className="h-4 w-4 text-teal-400" />
+                <Receipt className="h-4 w-4 shrink-0 text-teal-400" />
                 <span>Supplier Payment Report</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("stock")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === "stock"
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-                }`}
-              >
-                <Boxes className="h-4 w-4 text-indigo-400" />
-                <span>Stock Report</span>
               </button>
             </div>
           </CardContent>
@@ -213,7 +192,6 @@ export default function ReportsHubPage() {
           {activeTab === "product_return" && <ProductReturnReportPage />}
           {activeTab === "customer_collection" && <CustomerCollectionReportPage />}
           {activeTab === "supplier_payment" && <SupplierPaymentReportPage />}
-          {activeTab === "stock" && <StockReportPage />}
         </Suspense>
       </div>
     </HasPermission>

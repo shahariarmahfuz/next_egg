@@ -16,6 +16,7 @@ import {
   CustomerItem,
   CustomerLedgerResponse,
   CustomerUpdatePayload,
+  DailyCashReportData,
   DailyStockReportData,
   DashboardCardsSummary,
   Expense,
@@ -961,6 +962,9 @@ export const settingsService = {
 export const reportService = {
   getStockReport: async (params: { product_id: string; target_date: string; timezone?: string }) => {
     return http.get<DailyStockReportData>("/reports/stock", params);
+  },
+  getCashReport: async (params?: { target_date?: string; start_date?: string; end_date?: string; timezone?: string }) => {
+    return http.get<DailyCashReportData>("/reports/cash-report", params);
   },
 };
 

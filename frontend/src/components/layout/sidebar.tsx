@@ -357,7 +357,8 @@ export function SidebarContent({
   const isFilteredDashboardActive = pathname === "/dashboard/filtered";
   const isReportsCenterActive = pathname === "/reports";
   const isStockReportActive = pathname.startsWith("/reports/stock");
-  const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive || isStockReportActive;
+  const isCashReportActive = pathname.startsWith("/reports/cash");
+  const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive || isStockReportActive || isCashReportActive;
 
   const isUsersActive = pathname.startsWith("/users");
 
@@ -408,7 +409,7 @@ export function SidebarContent({
     "accounts.cash_out.view",
     "reports.view",
   ]);
-  const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view", "product.view"]);
+  const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view", "stock_report.view", "cash_report.view"]);
   const showUsers = hasPermission("user.view");
   const showRoles = hasPermission("role.view");
   const showArchitecture = user?.role?.code === "owner";
@@ -1214,7 +1215,7 @@ export function SidebarContent({
                 onNavigate={onNavigate}
               />
             )}
-            {(hasPermission("reports.view") || hasPermission("product.view")) && (
+            {hasPermission("stock_report.view") && (
               <SubNavItem
                 href="/reports/stock"
                 icon={Boxes}
@@ -1222,6 +1223,17 @@ export function SidebarContent({
                 activeColorClass={purpleActive}
                 label="Stock Report"
                 isActive={isStockReportActive}
+                onNavigate={onNavigate}
+              />
+            )}
+            {hasPermission("cash_report.view") && (
+              <SubNavItem
+                href="/reports/cash"
+                icon={Banknote}
+                iconColor="text-purple-500 dark:text-purple-400"
+                activeColorClass={purpleActive}
+                label="Cash Report"
+                isActive={isCashReportActive}
                 onNavigate={onNavigate}
               />
             )}
