@@ -175,6 +175,10 @@ export const roleService = {
   updateRolePermissions: async (id: string, payload: RolePermissionAssignPayload) => {
     return http.put<RoleItem>(`/roles/${id}/permissions`, payload);
   },
+
+  deleteRole: async (id: string) => {
+    return http.delete<{ id: string }>(`/roles/${id}`);
+  },
 };
 
 export const permissionService = {

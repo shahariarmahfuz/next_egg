@@ -76,5 +76,16 @@ class RoleService:
         setattr(role, "user_count", await role_repository.get_user_count_by_role(db, role.id))
         return role
 
+    async def delete_role(self, db: AsyncSession, role_id: str, current_user: User = None) -> bool:
+        role = await role_repository.get_by_id(db, role_id)
+        if not role:
+            raise NotFoundException(f"Role with ID '{role_id}' not found.")
+
+        # Strictly block deletion of built-in system roles
+        if role.is_system or (role.code and role.code.lower() in ["owner", "admin", "employee"]):
+            raise BadRequestException("System roles cannot be deleted.")
+
+        return await role_repository.delete_role(db, role)
+
 
 role_service = RoleService()

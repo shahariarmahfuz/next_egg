@@ -84,7 +84,6 @@ export default function CashOutReportPage() {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [search, setSearch] = useState("");
-  const [selectedReason, setSelectedReason] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -143,7 +142,6 @@ export default function CashOutReportPage() {
       startDate,
       endDate,
       search,
-      selectedReason,
       selectedUserId,
       page,
       pageSize,
@@ -153,7 +151,6 @@ export default function CashOutReportPage() {
         start_date: startDate || undefined,
         end_date: endDate || undefined,
         search: search.trim() || undefined,
-        reason: selectedReason || undefined,
         created_by_id: selectedUserId || undefined,
         page,
         page_size: pageSize,
@@ -170,7 +167,6 @@ export default function CashOutReportPage() {
     top_reason_amount: 0,
   };
   const items = report?.items || [];
-  const reasonsBreakdown = report?.reasons_breakdown || [];
   const totalCount = report?.total_count || 0;
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
@@ -304,10 +300,10 @@ export default function CashOutReportPage() {
         </div>
 
         {/* Summary Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {/* Total Cash Outs */}
           <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-rose-500/30 transition-all">
-            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-[11px] sm:text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider truncate">
                   Total Cash Outs
@@ -316,20 +312,15 @@ export default function CashOutReportPage() {
                   <ArrowUpRight className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                 </div>
               </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
-                  {isLoading ? <Skeleton className="h-8 w-24" /> : formatNumber(summary.total_cash_outs)}
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                  Recorded withdrawal vouchers
-                </p>
+              <div className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+                {isLoading ? <Skeleton className="h-9 w-24" /> : formatNumber(summary.total_cash_outs)}
               </div>
             </CardContent>
           </Card>
 
           {/* Total Amount Paid */}
           <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-rose-500/30 transition-all">
-            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-[11px] sm:text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider truncate">
                   Total Amount Paid
@@ -338,23 +329,18 @@ export default function CashOutReportPage() {
                   <DollarSign className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                 </div>
               </div>
-              <div>
-                <div
-                  className="text-xl sm:text-2xl font-black tracking-tight text-rose-600 dark:text-rose-400 truncate"
-                  title={formatCurrency(summary.total_amount)}
-                >
-                  {isLoading ? <Skeleton className="h-8 w-32" /> : formatCurrency(summary.total_amount)}
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                  Total physical cash out
-                </p>
+              <div
+                className="text-2xl sm:text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 truncate"
+                title={formatCurrency(summary.total_amount)}
+              >
+                {isLoading ? <Skeleton className="h-9 w-32" /> : formatCurrency(summary.total_amount)}
               </div>
             </CardContent>
           </Card>
 
           {/* Average Cash Out */}
           <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-amber-500/30 transition-all">
-            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider truncate">
                   Average Cash Out
@@ -363,89 +349,15 @@ export default function CashOutReportPage() {
                   <TrendingDown className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </div>
               </div>
-              <div>
-                <div
-                  className="text-xl sm:text-2xl font-black tracking-tight text-foreground truncate"
-                  title={formatCurrency(summary.average_amount)}
-                >
-                  {isLoading ? <Skeleton className="h-8 w-28" /> : formatCurrency(summary.average_amount)}
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                  Per voucher average
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Category / Reason */}
-          <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-purple-500/30 transition-all">
-            <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[11px] sm:text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider truncate">
-                  Top Category
-                </span>
-                <div className="h-7 w-7 rounded-lg bg-purple-500/10 dark:bg-purple-950/40 flex items-center justify-center shrink-0">
-                  <Layers className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                </div>
-              </div>
-              <div>
-                <div
-                  className="text-lg sm:text-xl font-black tracking-tight text-foreground truncate"
-                  title={summary.top_reason || "None"}
-                >
-                  {isLoading ? <Skeleton className="h-8 w-28" /> : summary.top_reason || "—"}
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                  {(summary.top_reason_amount ?? 0) > 0
-                    ? `${formatCurrency(summary.top_reason_amount ?? 0)} total`
-                    : "No transactions"}
-                </p>
+              <div
+                className="text-2xl sm:text-3xl font-black tracking-tight text-foreground truncate"
+                title={formatCurrency(summary.average_amount)}
+              >
+                {isLoading ? <Skeleton className="h-9 w-28" /> : formatCurrency(summary.average_amount)}
               </div>
             </CardContent>
           </Card>
         </div>
-
-        {/* Reason / Category Breakdown Quick Pills */}
-        {reasonsBreakdown.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mr-1">
-              <Layers className="h-3.5 w-3.5 text-primary" />
-              Categories:
-            </span>
-            <button
-              onClick={() => {
-                setSelectedReason("");
-                setPage(1);
-              }}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                selectedReason === ""
-                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                  : "bg-card/70 hover:bg-card border-border/70 text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              All ({summary.total_cash_outs})
-            </button>
-            {reasonsBreakdown.map((r, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  setSelectedReason(selectedReason === r.reason ? "" : r.reason);
-                  setPage(1);
-                }}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border flex items-center gap-1.5 ${
-                  selectedReason === r.reason
-                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                    : "bg-card/70 hover:bg-card border-border/70 text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span>{r.reason}</span>
-                <span className="opacity-80 text-[10px] font-mono">
-                  ({r.count} • {formatCurrency(r.total_amount)})
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Data Table Card with Integrated Search & Filter Controls */}
         <Card className="border-border/60 bg-card/50 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden flex flex-col">
@@ -467,23 +379,6 @@ export default function CashOutReportPage() {
 
             {/* Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-              {/* Category Dropdown */}
-              <select
-                value={selectedReason}
-                onChange={(e) => {
-                  setSelectedReason(e.target.value);
-                  setPage(1);
-                }}
-                className="flex h-9 w-full sm:w-44 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">All Categories</option>
-                {reasonsBreakdown.map((r, i) => (
-                  <option key={i} value={r.reason}>
-                    {r.reason} ({r.count})
-                  </option>
-                ))}
-              </select>
-
               {/* Creator / User Dropdown */}
               {canViewUsers && usersList.length > 0 && (
                 <select
@@ -492,7 +387,7 @@ export default function CashOutReportPage() {
                     setSelectedUserId(e.target.value);
                     setPage(1);
                   }}
-                  className="flex h-9 w-full sm:w-44 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="">All Creators</option>
                   {usersList.map((u) => (
@@ -504,13 +399,12 @@ export default function CashOutReportPage() {
               )}
 
               {/* Reset Filters */}
-              {(search || selectedReason || selectedUserId) && (
+              {(search || selectedUserId) && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     setSearch("");
-                    setSelectedReason("");
                     setSelectedUserId("");
                     setPage(1);
                   }}
@@ -532,7 +426,7 @@ export default function CashOutReportPage() {
                   <th className="px-3.5 py-3 align-middle whitespace-nowrap w-12">#</th>
                   <th className="px-3.5 py-3 align-middle whitespace-nowrap w-28">Date</th>
                   <th className="px-3.5 py-3 align-middle whitespace-nowrap w-36">Voucher No</th>
-                  <th className="px-3.5 py-3 align-middle whitespace-nowrap w-44">Category / Reason</th>
+                  <th className="px-3.5 py-3 align-middle whitespace-nowrap w-44">Reason</th>
                   <th className="px-3.5 py-3 align-middle whitespace-nowrap">Recipient / Memo</th>
                   <th className="px-3.5 py-3 align-middle whitespace-nowrap w-36">Created By</th>
                   <th className="px-3.5 py-3 align-middle whitespace-nowrap text-right w-36">Amount</th>
@@ -562,7 +456,7 @@ export default function CashOutReportPage() {
                         <FileText className="h-9 w-9 text-muted-foreground/30 stroke-1" />
                         <span className="font-semibold text-sm">No cash out records found</span>
                         <p className="text-xs text-muted-foreground/70 max-w-sm">
-                          Try adjusting your date range, search query, or category filter to view records.
+                          Try adjusting your date range, search query, or creator filter to view records.
                         </p>
                       </div>
                     </td>

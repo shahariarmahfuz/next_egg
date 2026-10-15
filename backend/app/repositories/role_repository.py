@@ -1,5 +1,5 @@
 from typing import Optional, Sequence
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -48,6 +48,41 @@ class RoleRepository(BaseRepository[Role, dict, dict]):
         query = select(func.count(User.id)).where(User.role_id == role_id)
         res = await db.execute(query)
         return res.scalar() or 0
+
+    async def delete_role(self, db: AsyncSession, role: Role) -> bool:
+        """
+        Safely delete a custom role:
+        1. Reassign any assigned users to the default employee role.
+        2. Remove user_roles and role_permissions association records.
+        3. Delete the role record.
+        """
+        from app.models.user import User
+        from app.models.role import user_roles, role_permissions
+
+        # Reassign any users whose primary role is this role to default 'employee'
+        fallback_role = await self.get_by_code(db, "employee")
+        if not fallback_role:
+            fallback_role = await self.get_by_code(db, "admin")
+
+        if fallback_role:
+            await db.execute(
+                update(User).where(User.role_id == role.id).values(role_id=fallback_role.id)
+            )
+
+        # Remove any user_roles associations
+        await db.execute(
+            delete(user_roles).where(user_roles.c.role_id == role.id)
+        )
+
+        # Remove any role_permissions associations
+        await db.execute(
+            delete(role_permissions).where(role_permissions.c.role_id == role.id)
+        )
+
+        # Delete the role itself
+        await db.delete(role)
+        await db.flush()
+        return True
 
 
 role_repository = RoleRepository()

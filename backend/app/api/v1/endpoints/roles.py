@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,4 +87,19 @@ async def update_role_permissions(
         success=True,
         message="Role permissions updated successfully",
         data=RoleResponse.model_validate(role),
+    )
+
+
+@router.delete("/{role_id}", response_model=ResponseModel[Dict[str, Any]])
+async def delete_role(
+    role_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("role.edit")),
+):
+    """Delete a custom role. Built-in system roles (owner, admin, employee) cannot be deleted."""
+    await role_service.delete_role(db, role_id, current_user)
+    return ResponseModel[Dict[str, Any]](
+        success=True,
+        message="Role deleted successfully",
+        data={"id": role_id},
     )
