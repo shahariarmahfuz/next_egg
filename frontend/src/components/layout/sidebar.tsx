@@ -462,9 +462,14 @@ export function SidebarContent({
     : "py-2.5 px-3 space-y-0.5";
 
   return (
-    <div className="flex flex-col h-full w-full bg-card text-card-foreground">
+    <div
+      className={cn(
+        "flex flex-col w-full h-full min-h-0 overflow-hidden bg-card text-card-foreground select-none",
+        isMobile ? "h-[100dvh] max-h-[100dvh]" : "max-h-full"
+      )}
+    >
       {/* Brand Header */}
-      <div className="h-14 flex items-center justify-between px-3.5 border-b border-border/70 shrink-0">
+      <div className={cn("h-14 flex items-center justify-between px-3.5 border-b border-border/70 shrink-0", isMobile && "pr-12")}>
         {!collapsed ? (
           <Link
             href="/"
@@ -514,7 +519,14 @@ export function SidebarContent({
 
       {/* Navigation Items */}
       <MenuDensityContext.Provider value={density}>
-        <div className={cn("flex-1 overflow-y-auto overscroll-contain", containerSpacing)}>
+        <nav
+          aria-label="Sidebar Navigation"
+          className={cn(
+            "flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y",
+            containerSpacing,
+            isMobile && "pb-8"
+          )}
+        >
         {/* Dashboard Home (Blue) */}
         {showDashboard && (
           <NavItem
@@ -1372,12 +1384,12 @@ export function SidebarContent({
             onNavigate={onNavigate}
           />
         )}
-        </div>
+        </nav>
       </MenuDensityContext.Provider>
 
       {/* Footer User Area & Logout */}
       {user && (
-        <div className="p-2 border-t border-border/70 shrink-0 bg-card">
+        <div className="p-2 border-t border-border/70 shrink-0 bg-card mt-auto">
           {!collapsed ? (
             <div className="group/user flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-all duration-150">
               <div className="flex items-center gap-2.5 min-w-0">

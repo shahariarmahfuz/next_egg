@@ -30,7 +30,7 @@ export function MobileNav() {
 
         <SheetContent
           side="left"
-          className="w-[280px] max-w-[calc(100vw-48px)] p-0 flex flex-col gap-0 border-r border-border bg-card text-card-foreground shadow-2xl z-50"
+          className="w-[280px] max-w-[calc(100vw-48px)] p-0 flex flex-col gap-0 border-r border-border bg-card text-card-foreground shadow-2xl z-50 h-full h-[100dvh] max-h-[100dvh] overflow-hidden"
         >
           <SidebarContent key={open ? "open" : "closed"} isMobile={true} onNavigate={close} />
         </SheetContent>
