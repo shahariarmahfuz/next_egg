@@ -17,3 +17,6 @@ export type CashReportPermission = typeof CASH_REPORT_PERMISSION;
 export const CASH_OUT_REPORT_PERMISSION = "cash_out_report.view" as const;
 export type CashOutReportPermission = typeof CASH_OUT_REPORT_PERMISSION;
 
+export const CALCULATOR_PERMISSION = "calculator.view" as const;
+export type CalculatorPermission = typeof CALCULATOR_PERMISSION;
+

@@ -50,6 +50,7 @@ const MODULE_DISPLAY_NAMES: Record<string, string> = {
   cash_out: "Cash Out Vouchers",
   accounts: "Accounts & Ledger",
   farm: "Farm Operations",
+  calculator: "Calculators",
   profile: "User Profile",
   settings: "System Settings",
 };
@@ -76,6 +77,7 @@ const MODULE_ORDER = [
   "cash_out",
   "accounts",
   "farm",
+  "calculator",
   "profile",
   "settings",
 ];

@@ -175,6 +175,9 @@ DEFAULT_PERMISSIONS = [
     # Settings module
     {"code": "settings.view", "name": "View Settings", "module": "settings", "description": "Access business and system settings"},
     {"code": "settings.edit", "name": "Edit Settings", "module": "settings", "description": "Modify business settings and preferences"},
+
+    # Calculator module
+    {"code": "calculator.view", "name": "View & Use Calculators", "module": "calculator", "description": "Access and use business product calculators"},
 ]
 
 DEFAULT_ROLES = [
@@ -259,6 +262,7 @@ async def seed_initial_data(db: AsyncSession) -> None:
         "supplier_payment.view", "supplier_payment.create",
         "expense.view", "expense.create",
         "farm.view", "farm.create", "farm.production.view", "farm.production.create", "farm.delivery.view", "farm.delivery.create", "farm.report",
+        "calculator.view",
         "profile.view", "profile.edit",
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
@@ -280,11 +284,11 @@ async def seed_initial_data(db: AsyncSession) -> None:
             await role_repository.set_role_permissions(db, admin_role, admin_perms)
         else:
             existing_codes = {p.code for p in admin_role.permissions}
-            new_admin_perms = [p for p in admin_perms if p.code not in existing_codes and p.code in {"cash_out.view", "cash_out.edit", "cash_out.delete", "stock_report.view", "cash_report.view", "cash_out_report.view"}]
+            new_admin_perms = [p for p in admin_perms if p.code not in existing_codes and p.code in {"cash_out.view", "cash_out.edit", "cash_out.delete", "stock_report.view", "cash_report.view", "cash_out_report.view", "calculator.view"}]
             if new_admin_perms:
                 combined = list(admin_role.permissions) + new_admin_perms
                 await role_repository.set_role_permissions(db, admin_role, combined)
-                logger.info(f"[SEED] Added {len(new_admin_perms)} new permissions (Cash Out / Stock Report / Cash Report / Cash Out Report) to existing Admin role.")
+                logger.info(f"[SEED] Added {len(new_admin_perms)} new permissions (Cash Out / Reports / Calculator) to existing Admin role.")
             else:
                 logger.info(f"[SEED] Preserving {len(admin_role.permissions)} configured permissions for existing Admin role.")
 
@@ -295,7 +299,14 @@ async def seed_initial_data(db: AsyncSession) -> None:
             logger.info("[SEED] Initializing default permissions for newly created Employee role...")
             await role_repository.set_role_permissions(db, employee_role, employee_perms)
         else:
-            logger.info(f"[SEED] Preserving {len(employee_role.permissions)} configured permissions for existing Employee role.")
+            existing_codes = {p.code for p in employee_role.permissions}
+            new_emp_perms = [p for p in employee_perms if p.code not in existing_codes and p.code == "calculator.view"]
+            if new_emp_perms:
+                combined = list(employee_role.permissions) + new_emp_perms
+                await role_repository.set_role_permissions(db, employee_role, combined)
+                logger.info("[SEED] Added calculator.view permission to existing Employee role.")
+            else:
+                logger.info(f"[SEED] Preserving {len(employee_role.permissions)} configured permissions for existing Employee role.")
 
     # 4. Seed Initial System Accounts (Owner, Admin) using Argon2id
     reset_passwords = os.getenv("RESET_DEFAULT_PASSWORDS", "").lower() in ("true", "1", "yes")

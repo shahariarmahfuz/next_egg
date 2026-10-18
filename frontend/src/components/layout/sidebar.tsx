@@ -41,6 +41,8 @@ import {
   ClipboardList,
   PackageCheck,
   Boxes,
+  Calculator,
+  Egg,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -277,6 +279,18 @@ function SubNavItem({
 }
 
 /* -------------------------------------------------------------------------
+   Calculators Configuration (Easily extensible for new product calculators)
+   ------------------------------------------------------------------------- */
+
+const CALCULATOR_ITEMS = [
+  {
+    href: "/calculators/egg",
+    label: "Egg Calculator",
+    icon: Egg,
+  },
+];
+
+/* -------------------------------------------------------------------------
    Helper: Determine Active Accordion Group Based on Route Path
    ------------------------------------------------------------------------- */
 
@@ -294,6 +308,7 @@ function getActiveGroup(path: string): string | null {
   if (path.startsWith("/farm")) return "farm";
   if (path.startsWith("/cash") || path === "/accounts/cash-book" || path === "/accounts/cash-out") return "cash";
   if (path === "/dashboard/filtered" || path.startsWith("/reports")) return "accounts";
+  if (path.startsWith("/calculators")) return "calculators";
   if (path.startsWith("/users")) return "users";
   return null;
 }
@@ -361,6 +376,7 @@ export function SidebarContent({
   const isCashReportActive = pathname === "/reports/cash";
   const isAccountsActive = isFilteredDashboardActive || isReportsCenterActive || isStockReportActive || isCashReportActive || isCashOutReportActive;
 
+  const isCalculatorsActive = pathname.startsWith("/calculators");
   const isUsersActive = pathname.startsWith("/users");
 
   // Semantic Active Color Classes
@@ -412,6 +428,7 @@ export function SidebarContent({
     "cash_out_report.view",
   ]);
   const showAccounts = hasPermission(["dashboard.filtered.view", "reports.view", "stock_report.view", "cash_report.view", "cash_out_report.view"]);
+  const showCalculators = hasPermission("calculator.view");
   const showUsers = hasPermission("user.view");
   const showRoles = hasPermission("role.view");
   const showArchitecture = user?.role?.code === "owner";
@@ -434,6 +451,7 @@ export function SidebarContent({
     showFarm,
     showCash,
     showAccounts,
+    showCalculators,
     showUsers,
     showRoles,
     showArchitecture,
@@ -1273,6 +1291,35 @@ export function SidebarContent({
                 onNavigate={onNavigate}
               />
             )}
+          </NavGroup>
+        )}
+
+        {/* Calculator Module (Teal / Emerald) */}
+        {showCalculators && (
+          <NavGroup
+            title="Calculator"
+            icon={Calculator}
+            iconColor="text-teal-500 dark:text-teal-400"
+            isOpen={isGroupOpen("calculators")}
+            isActive={isCalculatorsActive}
+            onToggle={() => toggleGroup("calculators")}
+            collapsed={collapsed}
+          >
+            {CALCULATOR_ITEMS.map((item) => {
+              const ItemIcon = item.icon;
+              return (
+                <SubNavItem
+                  key={item.href}
+                  href={item.href}
+                  icon={ItemIcon}
+                  iconColor="text-teal-500 dark:text-teal-400"
+                  activeColorClass={tealActive}
+                  label={item.label}
+                  isActive={pathname === item.href}
+                  onNavigate={onNavigate}
+                />
+              );
+            })}
           </NavGroup>
         )}
 
