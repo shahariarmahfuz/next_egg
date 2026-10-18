@@ -12,7 +12,6 @@ import {
   Loader2,
   FileText,
   DollarSign,
-  TrendingDown,
   Layers,
   User,
   ArrowUpRight,
@@ -300,7 +299,7 @@ export default function CashOutReportPage() {
         </div>
 
         {/* Summary Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           {/* Total Cash Outs */}
           <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-rose-500/30 transition-all">
             <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
@@ -334,26 +333,6 @@ export default function CashOutReportPage() {
                 title={formatCurrency(summary.total_amount)}
               >
                 {isLoading ? <Skeleton className="h-9 w-32" /> : formatCurrency(summary.total_amount)}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Average Cash Out */}
-          <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-amber-500/30 transition-all">
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider truncate">
-                  Average Cash Out
-                </span>
-                <div className="h-7 w-7 rounded-lg bg-amber-500/10 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
-                  <TrendingDown className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                </div>
-              </div>
-              <div
-                className="text-2xl sm:text-3xl font-black tracking-tight text-foreground truncate"
-                title={formatCurrency(summary.average_amount)}
-              >
-                {isLoading ? <Skeleton className="h-9 w-28" /> : formatCurrency(summary.average_amount)}
               </div>
             </CardContent>
           </Card>
