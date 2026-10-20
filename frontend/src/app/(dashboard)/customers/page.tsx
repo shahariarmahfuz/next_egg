@@ -56,20 +56,6 @@ export default function CustomersPage() {
   const customers: CustomerItem[] = customersData?.data?.items || [];
   const totalPages = customersData?.data?.pages || 1;
 
-  // Normal Delete Mutation
-  const deleteMutation = useMutation({
-    mutationFn: (customerId: string) => customerService.deleteCustomer(customerId),
-    onSuccess: () => {
-      toast.success("Customer profile deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete customer.";
-      toast.error(msg);
-    },
-  });
 
   // Hard Delete Mutation
   const hardDeleteMutation = useMutation({
@@ -87,9 +73,6 @@ export default function CustomersPage() {
     },
   });
 
-  const handleDelete = (customer: CustomerItem) => {
-    deleteMutation.mutate(customer.id);
-  };
 
   return (
     <div className="space-y-6 w-full">
@@ -288,19 +271,9 @@ export default function CustomersPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => handleDelete(customer)}
-                            title="Normal Delete (Blocked if transactions exist)"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
                             className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
                             onClick={() => setHardDeletingCustomer(customer)}
-                            title="Hard Delete (Permanently remove customer & all related transactions)"
+                            title="Delete Customer"
                           >
                             <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
                           </Button>

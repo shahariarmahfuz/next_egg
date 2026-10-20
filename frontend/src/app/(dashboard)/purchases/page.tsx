@@ -71,22 +71,6 @@ export default function PurchasesPage() {
   const totalPages = purchasesData?.data?.pages || 1;
   const pageSize = 10;
 
-  // Normal Delete Mutation
-  const deleteMutation = useMutation({
-    mutationFn: (purchaseId: string) => purchaseService.deletePurchase(purchaseId),
-    onSuccess: () => {
-      toast.success("Purchase order deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete purchase order.";
-      toast.error(msg);
-    },
-  });
 
   // Hard Delete Mutation
   const hardDeleteMutation = useMutation({
@@ -106,9 +90,6 @@ export default function PurchasesPage() {
     },
   });
 
-  const handleDelete = (purchase: PurchaseItem) => {
-    deleteMutation.mutate(purchase.id);
-  };
 
   return (
     <div className="space-y-6">
@@ -292,18 +273,8 @@ export default function PurchasesPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => deleteMutation.mutate(purchase.id)}
-                              title="Normal Delete (Reduces stock & adjusts supplier balance)"
-                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
                               onClick={() => setHardDeletingPurchase(purchase)}
-                              title="Hard Delete (Permanently remove purchase order & all dependent payments/returns)"
+                              title="Delete Purchase Order"
                               className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
                             >
                               <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />

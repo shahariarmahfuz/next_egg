@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   AlertCircle,
   HelpCircle,
+  CalendarDays,
+  BookmarkCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +67,7 @@ interface CalculatorState {
   eggsPerTray: number;
   stacks: StackRow[];
   looseEntries?: Record<LooseCategoryKey, number[]>;
+  nextDaySell?: number | "";
   // Legacy single-value compatibility
   looseGood?: number | "";
   looseCracked?: number | "";
@@ -86,6 +89,7 @@ const DEFAULT_STATE: CalculatorState = {
     broken: [],
     spoiled: [],
   },
+  nextDaySell: "",
 };
 
 export function EggCalculator() {
@@ -93,6 +97,9 @@ export function EggCalculator() {
   const [stacks, setStacks] = useState<StackRow[]>([
     { id: "1", traysPerStack: 20, stacksCount: "" },
   ]);
+
+  // Next Day Sell (Reserve / Carry-over Eggs)
+  const [nextDaySell, setNextDaySell] = useState<number | "">("");
 
   // Multi-entry state for Outside / Loose egg categories
   const [looseEntries, setLooseEntries] = useState<Record<LooseCategoryKey, number[]>>({
@@ -143,6 +150,11 @@ export function EggCalculator() {
             spoiled: migrateLegacy(parsed.looseSpoiled),
           });
         }
+
+        if (parsed.nextDaySell !== undefined) {
+          const nds = parsed.nextDaySell === "" ? "" : Number(parsed.nextDaySell);
+          setNextDaySell(!isNaN(Number(nds)) ? nds : "");
+        }
       }
     } catch (err) {
       console.warn("Failed to load calculator state from localStorage:", err);
@@ -156,12 +168,13 @@ export function EggCalculator() {
         eggsPerTray: EGGS_PER_TRAY,
         stacks,
         looseEntries,
+        nextDaySell,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
       console.warn("Failed to save calculator state to localStorage:", err);
     }
-  }, [stacks, looseEntries]);
+  }, [stacks, looseEntries, nextDaySell]);
 
   // Calculations
 
@@ -236,15 +249,20 @@ export function EggCalculator() {
     return numLooseGood + numLooseCracked + numLooseBroken + numLooseSpoiled;
   }, [numLooseGood, numLooseCracked, numLooseBroken, numLooseSpoiled]);
 
-  // Step 3: Grand Total Eggs
-  const grandTotalEggs = useMemo(() => {
-    return totalTrayEggs + totalLooseEggs;
-  }, [totalTrayEggs, totalLooseEggs]);
+  // Next Day Sell (পরের দিনের বিক্রি) - Added (+) to calculations
+  const nextDaySellEggs = useMemo(() => {
+    return Math.max(0, Number(nextDaySell) || 0);
+  }, [nextDaySell]);
 
-  // Step 4: Total Good Eggs
+  // Step 3: Grand Total Eggs (Tray Eggs + Loose Eggs + Next Day Sell)
+  const grandTotalEggs = useMemo(() => {
+    return totalTrayEggs + totalLooseEggs + nextDaySellEggs;
+  }, [totalTrayEggs, totalLooseEggs, nextDaySellEggs]);
+
+  // Step 4: Total Good Eggs (Tray Eggs + Good Loose + Next Day Sell)
   const totalGoodEggs = useMemo(() => {
-    return totalTrayEggs + numLooseGood;
-  }, [totalTrayEggs, numLooseGood]);
+    return totalTrayEggs + numLooseGood + nextDaySellEggs;
+  }, [totalTrayEggs, numLooseGood, nextDaySellEggs]);
 
   // Step 5: Total Eggs Excluding Spoiled (Usable Eggs)
   const totalUsableEggs = useMemo(() => {
@@ -274,6 +292,11 @@ export function EggCalculator() {
   const usableEggsConversion = useMemo(
     () => toTrayRemainder(totalUsableEggs),
     [toTrayRemainder, totalUsableEggs]
+  );
+
+  const nextDayConversion = useMemo(
+    () => toTrayRemainder(nextDaySellEggs),
+    [toTrayRemainder, nextDaySellEggs]
   );
 
   // Stack Row Management
@@ -330,6 +353,7 @@ export function EggCalculator() {
       broken: "",
       spoiled: "",
     });
+    setNextDaySell("");
     localStorage.removeItem(STORAGE_KEY);
     setIsResetModalOpen(false);
     toast.success("Calculator reset to initial defaults.");
@@ -372,12 +396,15 @@ ${formatCatLine("Cracked / Laga", "cracked")}
 ${formatCatLine("Broken / Fata", "broken")}
 ${formatCatLine("Spoiled / Nosto", "spoiled")}
 • Total Loose: ${totalLooseEggs.toLocaleString()} pcs
-
+${nextDaySellEggs > 0 ? `
+STEP 3: NEXT DAY SELL (পরের দিনের বিক্রি)
+• Next Day Sell: +${nextDaySellEggs.toLocaleString()} pcs (${nextDayConversion.fullTrays} Trays, ${nextDayConversion.remainderEggs} Eggs)
+` : ""}
 ----------------------------------------------
 FINAL SUMMARY & CONVERSIONS
 • Grand Total Eggs: ${grandTotalEggs.toLocaleString()} pcs (${grandTotalConversion.fullTrays} Trays, ${grandTotalConversion.remainderEggs} Eggs)
 • Total Good Eggs: ${totalGoodEggs.toLocaleString()} pcs (${goodEggsConversion.fullTrays} Trays, ${goodEggsConversion.remainderEggs} Eggs)
-• Total Usable (Excl. Spoiled): ${totalUsableEggs.toLocaleString()} pcs (${usableEggsConversion.fullTrays} Trays, ${usableEggsConversion.remainderEggs} Eggs)
+${nextDaySellEggs > 0 ? `• Next Day Sell Added: +${nextDaySellEggs.toLocaleString()} pcs (${nextDayConversion.fullTrays} Trays, ${nextDayConversion.remainderEggs} Eggs)\n` : ""}• Total Usable (Excl. Spoiled): ${totalUsableEggs.toLocaleString()} pcs (${usableEggsConversion.fullTrays} Trays, ${usableEggsConversion.remainderEggs} Eggs)
 ----------------------------------------------
 Generated by NextEgg Poultry ERP`;
 
@@ -658,6 +685,101 @@ Generated by NextEgg Poultry ERP`;
               </div>
             </CardContent>
           </Card>
+
+          {/* Next Day Sell (Reserved / Carry-over Eggs) Card */}
+          {/* Next Day Sell (পরের দিনের বিক্রি) Card */}
+          <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="p-3 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-row items-center justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+                <CardTitle className="text-sm font-bold text-foreground">
+                  Next Day Sell
+                </CardTitle>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  (পরের দিনের বিক্রি)
+                </span>
+              </div>
+
+              <Badge
+                variant="outline"
+                className="font-mono text-xs px-2 py-0.5 font-semibold text-purple-600 dark:text-purple-400 border-purple-500/30 bg-purple-500/10"
+              >
+                +{nextDaySellEggs.toLocaleString()} pcs
+              </Badge>
+            </CardHeader>
+
+            <CardContent className="p-3 sm:p-4 space-y-2.5">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    placeholder="0"
+                    value={nextDaySell}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNextDaySell(val === "" ? "" : Math.max(0, parseInt(val, 10) || 0));
+                    }}
+                    className="h-8.5 text-xs font-semibold bg-background border-border/80 rounded-lg pr-10"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted-foreground pointer-events-none">
+                    pcs
+                  </span>
+                </div>
+
+                {/* Preset Quick Buttons */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setNextDaySell((prev) => (Number(prev) || 0) + 10)}
+                    className="h-8.5 px-2 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
+                    title="Add 10 eggs"
+                  >
+                    +10
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNextDaySell((prev) => (Number(prev) || 0) + 30)}
+                    className="h-8.5 px-2 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
+                    title="Add 1 tray (30 eggs)"
+                  >
+                    +30 (1T)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNextDaySell((prev) => (Number(prev) || 0) + 60)}
+                    className="h-8.5 px-2 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
+                    title="Add 2 trays (60 eggs)"
+                  >
+                    +60 (2T)
+                  </button>
+                  {nextDaySell !== "" && Number(nextDaySell) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setNextDaySell("")}
+                      className="h-8.5 px-2 text-[11px] font-semibold rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors border border-border/40"
+                      title="Clear next day sell"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Tray equivalent indicator */}
+              {nextDaySellEggs > 0 && (
+                <div className="flex items-center justify-between text-[11px] font-mono px-2.5 py-1.5 rounded-lg bg-purple-500/10 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                  <span className="flex items-center gap-1">
+                    <BookmarkCheck className="h-3 w-3" />
+                    <span>Tray Conversion:</span>
+                  </span>
+                  <span className="font-bold">
+                    {nextDayConversion.fullTrays.toLocaleString()} Trays, {nextDayConversion.remainderEggs} Eggs
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right Column: Calculation Summary (5 cols) */}
@@ -705,6 +827,27 @@ Generated by NextEgg Poultry ERP`;
                 </div>
               </div>
 
+              {/* Next Day Sell (পরের দিনের বিক্রি) Card (When > 0) */}
+              {nextDaySellEggs > 0 && (
+                <div className="p-2.5 sm:p-3 rounded-lg border border-purple-500/30 bg-purple-500/10 dark:bg-purple-950/20 space-y-1">
+                  <div className="flex items-center justify-between text-xs font-semibold text-purple-700 dark:text-purple-300">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                      <span>Next Day Sell (পরের দিনের বিক্রি)</span>
+                    </div>
+                    <span className="font-mono text-sm font-black text-purple-600 dark:text-purple-400">
+                      +{nextDaySellEggs.toLocaleString()} pcs
+                    </span>
+                  </div>
+                  <div className="pt-1 border-t border-purple-500/20 text-xs font-mono font-bold text-foreground flex items-center justify-between">
+                    <span className="text-muted-foreground text-[11px]">Tray Conversion:</span>
+                    <span>
+                      {nextDayConversion.fullTrays.toLocaleString()} Trays, {nextDayConversion.remainderEggs} Eggs
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Total Usable Eggs (Excluding Spoiled) */}
               <div className="p-2.5 sm:p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 dark:bg-blue-950/20 space-y-1">
                 <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-400">
@@ -750,6 +893,12 @@ Generated by NextEgg Poultry ERP`;
                     <span className="text-muted-foreground">Spoiled / Nosto:</span>
                     <span className="font-semibold text-red-600 dark:text-red-400">+{numLooseSpoiled.toLocaleString()} pcs</span>
                   </div>
+                  {nextDaySellEggs > 0 && (
+                    <div className="px-3 py-1.5 flex items-center justify-between text-purple-600 dark:text-purple-400 font-bold">
+                      <span>Next Day Sell (পরের দিনের বিক্রি):</span>
+                      <span>+{nextDaySellEggs.toLocaleString()} pcs</span>
+                    </div>
+                  )}
                   <div className="px-3 py-1.5 flex items-center justify-between bg-muted/20 font-bold text-xs">
                     <span className="text-foreground">Grand Total:</span>
                     <span className="text-primary">{grandTotalEggs.toLocaleString()} pcs</span>

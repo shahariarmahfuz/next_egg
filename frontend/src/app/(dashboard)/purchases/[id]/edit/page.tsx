@@ -39,6 +39,7 @@ export default function EditPurchasePage({ params }: { params: Promise<{ id: str
       purchaseService.updatePurchase(id, {
         supplier_id: values.supplier_id,
         invoice_no: values.invoice_no || undefined,
+        purchase_date: values.purchase_date,
         discount_amount: values.discount_amount,
         tax_amount: values.tax_amount,
         paid_amount: values.paid_amount,

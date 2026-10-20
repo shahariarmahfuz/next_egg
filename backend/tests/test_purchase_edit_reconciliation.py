@@ -7,7 +7,7 @@ from app.models.product import Product
 from app.models.purchase import Purchase, PurchaseItem
 from app.models.inventory_batch import InventoryBatch
 from app.models.supplier import Supplier
-from app.schemas.purchase import PurchaseUpdate, PurchaseItemCreate
+from app.schemas.purchase import PurchaseCreate, PurchaseUpdate, PurchaseItemCreate
 from app.services.purchase_service import purchase_service
 from app.exceptions.custom import BadRequestException, NotFoundException
 
@@ -205,8 +205,31 @@ async def test_5_edit_multiple_purchase_items():
             LIMIT 1;
         """))
         row = res.fetchone()
-        assert row is not None, "No multi-item purchase found in test database"
-        purchase_id, item_count = row
+        created_temp = False
+        if row is None:
+            # Dynamically create a 2-item purchase for testing
+            res_supp = await session.execute(text("SELECT id FROM suppliers LIMIT 1;"))
+            supp_id = res_supp.scalar()
+            res_prods = await session.execute(text("SELECT id FROM products WHERE product_type = 'NORMAL' LIMIT 2;"))
+            p_rows = res_prods.fetchall()
+            assert len(p_rows) >= 2, "Need at least 2 products to test multi-item purchase edit"
+            prod1, prod2 = p_rows[0][0], p_rows[1][0]
+            res_user = await session.execute(text("SELECT id FROM users LIMIT 1;"))
+            user_id = res_user.scalar()
+
+            p_in = PurchaseCreate(
+                supplier_id=supp_id,
+                items=[
+                    PurchaseItemCreate(product_id=prod1, quantity=10.0, unit_price=5.0),
+                    PurchaseItemCreate(product_id=prod2, quantity=10.0, unit_price=6.0),
+                ],
+                paid_amount=110.0,
+            )
+            created_pu = await purchase_service.create_purchase(session, user_id=user_id, purchase_in=p_in)
+            purchase_id = created_pu.id
+            created_temp = True
+        else:
+            purchase_id, item_count = row
 
         res_items = await session.execute(text(f"""
             SELECT pi.product_id, p.current_stock, pi.quantity, pi.unit_price, ib.remaining_quantity
@@ -241,7 +264,11 @@ async def test_5_edit_multiple_purchase_items():
             actual_stock = res_stock.scalar()
             assert abs(actual_stock - exp_stock) < 1e-4
 
-        await session.rollback()
+        if created_temp:
+            await purchase_service.delete_purchase(session, purchase_id)
+            await session.commit()
+        else:
+            await session.rollback()
 
 
 @pytest.mark.asyncio
@@ -606,4 +633,176 @@ async def test_13_delete_purchase_negative_stock():
 
         # Always rollback in test
         await session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_14_total_price_mode_unit_cost_derivation():
+    """14. In total_price mode, unit cost must be derived from total_price / qty even if unit_price > 0."""
+    async with AsyncSessionLocal() as session:
+        # Find a purchase with an unconsumed batch
+        res = await session.execute(text("""
+            SELECT pu.id, pi.product_id, pi.quantity, pi.unit_price
+            FROM purchases pu
+            JOIN purchase_items pi ON pi.purchase_id = pu.id
+            JOIN inventory_batches ib ON ib.purchase_id = pu.id AND ib.product_id = pi.product_id
+            WHERE ib.remaining_quantity = ib.quantity
+            LIMIT 1;
+        """))
+        purchase_id, prod_id, old_qty, old_price = res.fetchone()
+
+        new_qty = 100.0
+        bulk_total = 800.0  # effective unit rate = 8.0
+        accidental_tray_price = 240.0  # e.g., 240/tray passed in unit_price field
+
+        update_data = PurchaseUpdate(
+            items=[
+                PurchaseItemCreate(
+                    product_id=prod_id,
+                    quantity=new_qty,
+                    unit_price=accidental_tray_price,
+                    total_price=bulk_total,
+                    pricing_mode="total_price",
+                )
+            ]
+        )
+        updated = await purchase_service.update_purchase(session, purchase_id, update_data)
+        assert updated is not None
+
+        # Verify batch unit_cost is 8.0, NOT overridden by 240.0
+        res_batch = await session.execute(text(f"""
+            SELECT unit_cost, quantity, remaining_quantity 
+            FROM inventory_batches 
+            WHERE purchase_id = '{purchase_id}' AND product_id = '{prod_id}';
+        """))
+        b_cost, b_qty, b_rem = res_batch.fetchone()
+        assert abs(b_cost - 8.0) < 1e-4, f"Expected unit_cost 8.0, got {b_cost}"
+
+        await session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_15_proportional_order_level_discount_batch_cost():
+    """15. Order-level discount must be distributed proportionally into batch unit_cost."""
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(text("""
+            SELECT pu.id, pi.product_id
+            FROM purchases pu
+            JOIN purchase_items pi ON pi.purchase_id = pu.id
+            JOIN inventory_batches ib ON ib.purchase_id = pu.id AND ib.product_id = pi.product_id
+            WHERE ib.remaining_quantity = ib.quantity
+            LIMIT 1;
+        """))
+        purchase_id, prod_id = res.fetchone()
+
+        # 100 units @ 10.0 = 1000.0 subtotal. Order discount = 200.0.
+        # Net landing cost = (1000 - 200) / 100 = 8.0 per unit.
+        update_data = PurchaseUpdate(
+            discount_amount=200.0,
+            items=[
+                PurchaseItemCreate(
+                    product_id=prod_id,
+                    quantity=100.0,
+                    unit_price=10.0,
+                    total_price=1000.0,
+                    pricing_mode="unit_price",
+                )
+            ]
+        )
+        updated = await purchase_service.update_purchase(session, purchase_id, update_data)
+        assert updated is not None
+        assert abs(updated.grand_total - 800.0) < 1e-4
+
+        res_batch = await session.execute(text(f"""
+            SELECT unit_cost FROM inventory_batches 
+            WHERE purchase_id = '{purchase_id}' AND product_id = '{prod_id}';
+        """))
+        b_cost = res_batch.scalar()
+        assert abs(b_cost - 8.0) < 1e-4, f"Expected effective batch unit_cost 8.0, got {b_cost}"
+
+        await session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_16_retroactive_cogs_update_on_purchase_edit():
+    """16. When purchase unit price is edited, already-consumed units must have SaleItem.cogs retroactively updated."""
+    import uuid
+    from app.schemas.sale import SaleCreate, SaleItemCreate
+    from app.services.sale_service import sale_service
+    from app.models.product import Product
+
+    async with AsyncSessionLocal() as session:
+        # Create a dedicated isolated product with 0 stock so FIFO starts strictly with our test batch
+        code = f"TEST-RETRO-{uuid.uuid4().hex[:6]}"
+        test_prod = Product(
+            product_code=code,
+            name=f"Retro Test Product {code}",
+            unit="pcs",
+            product_type="NORMAL",
+            current_stock=0.0,
+            opening_stock=0.0,
+            opening_stock_unit_cost=0.0,
+            selling_price=15.0,
+            status="active",
+        )
+        session.add(test_prod)
+        await session.commit()
+        await session.refresh(test_prod)
+        prod_id = test_prod.id
+
+        res_supp = await session.execute(text("SELECT id FROM suppliers LIMIT 1;"))
+        supp_id = res_supp.scalar()
+        res_cust = await session.execute(text("SELECT id FROM customers LIMIT 1;"))
+        cust_id = res_cust.scalar()
+        res_user = await session.execute(text("SELECT id FROM users LIMIT 1;"))
+        user_id = res_user.scalar()
+
+        try:
+            # 1. Create a fresh purchase: 50 units @ 10.0
+            p_in = PurchaseCreate(
+                supplier_id=supp_id,
+                items=[PurchaseItemCreate(product_id=prod_id, quantity=50.0, unit_price=10.0)],
+                paid_amount=500.0,
+            )
+            purchase = await purchase_service.create_purchase(session, user_id=user_id, purchase_in=p_in)
+
+            # 2. Sell 20 units @ 15.0 -> initial COGS should be 20 * 10 = 200.0
+            s_in = SaleCreate(
+                customer_id=cust_id,
+                items=[SaleItemCreate(product_id=prod_id, quantity=20.0, unit_price=15.0)],
+                paid_amount=300.0,
+            )
+            sale = await sale_service.create_sale(session, user_id=user_id, sale_in=s_in)
+            assert len(sale.items) == 1
+            sale_item_id = sale.items[0].id
+            initial_cogs = sale.items[0].cogs
+
+            # Check batch remaining is 30, consumed is 20
+            res_batch = await session.execute(text(f"SELECT quantity, remaining_quantity, unit_cost FROM inventory_batches WHERE purchase_id = '{purchase.id}';"))
+            b_qty, b_rem, b_cost = res_batch.fetchone()
+            assert abs(b_rem - 30.0) < 1e-4
+
+            # 3. Edit purchase: change unit_price from 10.0 to 7.0
+            # Expected new COGS for the 20 consumed units = 20 * 7.0 = 140.0 (reduction of 60.0)
+            p_up = PurchaseUpdate(
+                supplier_id=supp_id,
+                items=[PurchaseItemCreate(product_id=prod_id, quantity=50.0, unit_price=7.0)],
+                paid_amount=350.0,
+            )
+            updated_pu = await purchase_service.update_purchase(session, purchase.id, p_up)
+            assert updated_pu is not None
+
+            # Verify sale_item.cogs was retroactively updated to reflect 7.0/unit
+            res_si = await session.execute(text(f"SELECT cogs FROM sale_items WHERE id = '{sale_item_id}';"))
+            updated_cogs = res_si.scalar()
+            expected_cogs = initial_cogs - (20.0 * (10.0 - 7.0))
+            assert abs(updated_cogs - expected_cogs) < 1e-4, f"Expected retroactive COGS {expected_cogs}, got {updated_cogs}"
+
+            # Clean up created sale & purchase
+            await sale_service.delete_sale(session, sale.id)
+            await purchase_service.delete_purchase(session, purchase.id)
+            await session.commit()
+        finally:
+            await session.execute(text(f"DELETE FROM products WHERE id = '{prod_id}';"))
+            await session.commit()
+
 

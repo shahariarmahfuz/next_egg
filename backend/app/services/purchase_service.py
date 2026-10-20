@@ -9,6 +9,7 @@ from app.exceptions.custom import BadRequestException, ConflictException, NotFou
 from app.models.product import Product
 from app.models.purchase import Purchase, PurchaseItem
 from app.models.inventory_batch import InventoryBatch
+from app.models.sale import Sale, SaleItem
 from app.models.supplier import Supplier
 from app.models.user import User
 from app.repositories.product_repository import product_repository
@@ -60,10 +61,7 @@ class PurchaseService:
                 line_total_dec = Decimal(str(item_data.total_price))
                 if line_total_dec < Decimal("0.0"):
                     line_total_dec = Decimal("0.0")
-                if item_data.unit_price > 0:
-                    unit_price = item_data.unit_price
-                else:
-                    unit_price = float(((line_total_dec + discount_dec) / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) if qty_dec > 0 else 0.0
+                unit_price = float(((line_total_dec + discount_dec) / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) if qty_dec > 0 else 0.0
             else:
                 # Mode A: User entered Unit Price is AUTHORITATIVE.
                 mode = "unit_price"
@@ -146,12 +144,22 @@ class PurchaseService:
         await db.flush()
 
         for p_item in purchase_items:
+            qty_dec = Decimal(str(p_item.quantity))
+            line_net_dec = Decimal(str(p_item.total_price))
+            if subtotal_dec > Decimal("0.0") and discount_amount_dec > Decimal("0.0") and qty_dec > Decimal("0.0"):
+                line_share = line_net_dec / subtotal_dec
+                prop_discount_dec = discount_amount_dec * line_share
+                effective_line_net = max(Decimal("0.0"), line_net_dec - prop_discount_dec)
+                effective_unit_cost = float((effective_line_net / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
+            else:
+                effective_unit_cost = p_item.unit_price
+
             batch = InventoryBatch(
                 product_id=p_item.product_id,
                 purchase_id=purchase.id,
                 quantity=p_item.quantity,
                 remaining_quantity=p_item.quantity,
-                unit_cost=p_item.unit_price,
+                unit_cost=effective_unit_cost,
                 purchase_date=purchase.purchase_date,
             )
             db.add(batch)
@@ -160,6 +168,70 @@ class PurchaseService:
             
         await db.flush()
         return await purchase_repository.get_by_id_loaded(db, purchase.id) or purchase
+
+    async def _reconcile_consumed_sales_for_batch_cost_update(
+        self,
+        db: AsyncSession,
+        batch: InventoryBatch,
+        old_unit_cost: float,
+        new_unit_cost: float,
+        consumed_qty: float,
+    ) -> None:
+        """
+        Retroactively updates SaleItem.cogs for sales that consumed units from this batch
+        when the batch's unit_cost is edited.
+        """
+        if consumed_qty <= 0 or abs(new_unit_cost - old_unit_cost) < 1e-6:
+            return
+
+        cost_delta = new_unit_cost - old_unit_cost
+
+        # 1. Determine total units consumed from batches of this product that appear BEFORE this batch in FIFO order
+        batches_q = (
+            select(InventoryBatch)
+            .where(InventoryBatch.product_id == batch.product_id)
+            .order_by(InventoryBatch.purchase_date.asc(), InventoryBatch.created_at.asc())
+        )
+        all_batches = (await db.execute(batches_q)).scalars().all()
+
+        q_prior = 0.0
+        for b in all_batches:
+            if b.id == batch.id:
+                break
+            b_consumed = max(0.0, b.quantity - b.remaining_quantity)
+            q_prior += b_consumed
+
+        batch_start = q_prior
+        batch_end = q_prior + consumed_qty
+
+        # 2. Query all sale items of this product in FIFO order
+        sales_q = (
+            select(SaleItem)
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .where(SaleItem.product_id == batch.product_id)
+            .order_by(Sale.sale_date.asc(), SaleItem.created_at.asc())
+        )
+        sale_items = (await db.execute(sales_q)).scalars().all()
+
+        cum_sales = 0.0
+        for item in sale_items:
+            sale_start = cum_sales
+            sale_end = cum_sales + item.quantity
+            cum_sales = sale_end
+
+            overlap_start = max(sale_start, batch_start)
+            overlap_end = min(sale_end, batch_end)
+            overlap_qty = max(0.0, overlap_end - overlap_start)
+
+            if overlap_qty > 0:
+                cogs_adj = overlap_qty * cost_delta
+                item.cogs = max(0.0, round(item.cogs + cogs_adj, 4))
+                db.add(item)
+
+            if cum_sales >= batch_end:
+                break
+
+        await db.flush()
 
     async def update_purchase(
         self, db: AsyncSession, purchase_id: str, purchase_in: PurchaseUpdate
@@ -298,10 +370,7 @@ class PurchaseService:
                 line_total_dec = Decimal(str(item_data.total_price))
                 if line_total_dec < Decimal("0.0"):
                     line_total_dec = Decimal("0.0")
-                if item_data.unit_price > 0:
-                    unit_price = item_data.unit_price
-                else:
-                    unit_price = float(((line_total_dec + discount_dec) / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) if qty_dec > 0 else 0.0
+                unit_price = float(((line_total_dec + discount_dec) / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) if qty_dec > 0 else 0.0
             else:
                 # Mode A: User entered Unit Price is AUTHORITATIVE.
                 mode = "unit_price"
@@ -324,7 +393,25 @@ class PurchaseService:
                     pricing_mode=mode,
                 )
             )
-            item_pricing_info.append((item_data.product_id, item_data.quantity, unit_price))
+            item_pricing_info.append((item_data.product_id, item_data.quantity, unit_price, line_total_dec))
+
+        # Calculate proportional order-level discount for batches
+        order_discount_val = purchase_in.discount_amount if purchase_in.discount_amount is not None else purchase.discount_amount
+        order_discount_dec = Decimal(str(order_discount_val or 0.0))
+        if order_discount_dec < Decimal("0.0"):
+            order_discount_dec = Decimal("0.0")
+
+        batch_pricing_info: list[tuple[str, float, float]] = []
+        for prod_id, item_qty, u_price, line_net_dec in item_pricing_info:
+            qty_dec = Decimal(str(item_qty))
+            if subtotal_dec > Decimal("0.0") and order_discount_dec > Decimal("0.0") and qty_dec > Decimal("0.0"):
+                line_share = line_net_dec / subtotal_dec
+                prop_discount_dec = order_discount_dec * line_share
+                effective_line_net = max(Decimal("0.0"), line_net_dec - prop_discount_dec)
+                effective_unit_cost = float((effective_line_net / qty_dec).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
+            else:
+                effective_unit_cost = u_price
+            batch_pricing_info.append((prod_id, item_qty, effective_unit_cost))
 
         # 5. Reconcile inventory batches
         existing_batches_by_prod: dict[str, list[InventoryBatch]] = defaultdict(list)
@@ -333,14 +420,16 @@ class PurchaseService:
 
         remaining_consumed_tracker = dict(consumed_map)
 
-        for prod_id, item_qty, unit_cost in item_pricing_info:
+        for prod_id, item_qty, unit_cost in batch_pricing_info:
             consumed_total = remaining_consumed_tracker.get(prod_id, 0.0)
             allocated_consumed = min(item_qty, consumed_total)
             remaining_batch_qty = max(0.0, round(item_qty - allocated_consumed, 4))
             remaining_consumed_tracker[prod_id] = max(0.0, round(consumed_total - allocated_consumed, 4))
 
+            old_batch_cost = None
             if existing_batches_by_prod[prod_id]:
                 batch = existing_batches_by_prod[prod_id].pop(0)
+                old_batch_cost = batch.unit_cost
                 batch.quantity = item_qty
                 batch.remaining_quantity = remaining_batch_qty
                 batch.unit_cost = unit_cost
@@ -358,6 +447,17 @@ class PurchaseService:
                 db.add(batch)
 
             await db.flush()
+
+            # Retroactively update COGS for already-consumed units if unit_cost changed
+            if (
+                old_batch_cost is not None
+                and allocated_consumed > 0
+                and abs(unit_cost - old_batch_cost) > 1e-6
+            ):
+                await self._reconcile_consumed_sales_for_batch_cost_update(
+                    db, batch, old_batch_cost, unit_cost, allocated_consumed
+                )
+
             if remaining_batch_qty > 0:
                 await reconcile_uncovered_sales_for_batch(db, batch)
 

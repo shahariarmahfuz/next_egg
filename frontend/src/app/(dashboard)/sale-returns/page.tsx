@@ -14,9 +14,6 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-  Loader2,
-  AlertTriangle,
-  X,
   Undo2,
 } from "lucide-react";
 
@@ -57,9 +54,7 @@ export default function ManageSaleReturnsPage() {
   // Modals state
   const [selectedViewReturn, setSelectedViewReturn] = useState<SaleReturnItem | null>(null);
   const [selectedEditReturn, setSelectedEditReturn] = useState<SaleReturnItem | null>(null);
-  const [selectedDeleteReturn, setSelectedDeleteReturn] = useState<SaleReturnItem | null>(null);
   const [hardDeletingReturn, setHardDeletingReturn] = useState<SaleReturnItem | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -96,26 +91,6 @@ export default function ManageSaleReturnsPage() {
   const totalItems = returnsData?.data?.total || 0;
   const totalPages = returnsData?.data?.pages || 1;
 
-  // Normal Delete Mutation
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => saleReturnService.deleteSaleReturn(id),
-    onSuccess: () => {
-      toast.success("Sale return voucher deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["sale-returns-list"] });
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
-      setSelectedDeleteReturn(null);
-      setIsDeleting(false);
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete return voucher.";
-      toast.error(msg);
-      setIsDeleting(false);
-    },
-  });
-
   // Hard Delete Mutation
   const hardDeleteMutation = useMutation({
     mutationFn: (id: string) => saleReturnService.hardDeleteSaleReturn(id),
@@ -133,12 +108,6 @@ export default function ManageSaleReturnsPage() {
       toast.error(msg);
     },
   });
-
-  const handleDeleteConfirm = () => {
-    if (!selectedDeleteReturn) return;
-    setIsDeleting(true);
-    deleteMutation.mutate(selectedDeleteReturn.id);
-  };
 
   return (
     <HasPermission code="sale_return.view">
@@ -346,18 +315,8 @@ export default function ManageSaleReturnsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                              title="Normal Delete Return"
-                              onClick={() => setSelectedDeleteReturn(ret)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
                               className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
-                              title="Hard Delete Return"
+                              title="Delete Return"
                               onClick={() => setHardDeletingReturn(ret)}
                             >
                               <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
@@ -421,45 +380,6 @@ export default function ManageSaleReturnsPage() {
             queryClient.invalidateQueries({ queryKey: ["sale-returns-list"] });
           }}
         />
-
-        {/* Delete Confirmation Modal */}
-        {selectedDeleteReturn && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="fixed inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in-0"
-              onClick={() => setSelectedDeleteReturn(null)}
-            />
-            <div className="relative w-full max-w-md bg-card border rounded-2xl p-6 shadow-2xl z-50 animate-in zoom-in-95 duration-200 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b">
-                <h3 className="text-lg font-bold text-destructive flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" /> Delete Sale Return Voucher?
-                </h3>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedDeleteReturn(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Deleting return voucher <span className="font-bold text-foreground ">{selectedDeleteReturn.return_no}</span> (${selectedDeleteReturn.grand_total.toFixed(2)}) will automatically decrease inventory stock back and restore the customer's original due balance.
-              </p>
-
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <Button variant="outline" size="sm" onClick={() => setSelectedDeleteReturn(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={isDeleting}
-                  onClick={handleDeleteConfirm}
-                >
-                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                  Confirm & Revert Return
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Controlled Hard Delete Confirmation Modal */}
         <HardDeleteModal

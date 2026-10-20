@@ -100,23 +100,6 @@ export default function ManageSalesPage() {
   const totalPages = salesData?.data?.pages || 1;
   const pageSize = 15;
 
-  // Normal Delete Mutation
-  const deleteMutation = useMutation({
-    mutationFn: (saleId: string) => saleService.deleteSale(saleId),
-    onSuccess: () => {
-      toast.success("Sale invoice deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["sales-reports"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete sale invoice.";
-      toast.error(msg);
-    },
-  });
 
   // Hard Delete Mutation
   const hardDeleteMutation = useMutation({
@@ -137,11 +120,6 @@ export default function ManageSalesPage() {
     },
   });
 
-  const handleDelete = (sale: SaleItem) => {
-    if (confirm("Are you sure you want to delete this sale?")) {
-      deleteMutation.mutate(sale.id);
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -351,18 +329,8 @@ export default function ManageSalesPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => deleteMutation.mutate(sale.id)}
-                              title="Normal Delete (Restores stock & customer balance)"
-                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
                               onClick={() => setHardDeletingSale(sale)}
-                              title="Hard Delete (Permanently remove invoice & all dependent returns/collections)"
+                              title="Delete Sale Invoice"
                               className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
                             >
                               <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />

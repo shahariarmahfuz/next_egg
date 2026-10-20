@@ -14,9 +14,6 @@ import {
   Receipt,
   ChevronLeft,
   ChevronRight,
-  Loader2,
-  AlertTriangle,
-  X,
   PlusCircle,
 } from "lucide-react";
 
@@ -58,9 +55,7 @@ export default function ManageSupplierPaymentsPage() {
   // Modals state
   const [selectedViewPayment, setSelectedViewPayment] = useState<SupplierPaymentItem | null>(null);
   const [selectedEditPayment, setSelectedEditPayment] = useState<SupplierPaymentItem | null>(null);
-  const [selectedDeletePayment, setSelectedDeletePayment] = useState<SupplierPaymentItem | null>(null);
   const [hardDeletingPayment, setHardDeletingPayment] = useState<SupplierPaymentItem | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -99,26 +94,6 @@ export default function ManageSupplierPaymentsPage() {
   const totalItems = paymentsData?.data?.total || 0;
   const totalPages = paymentsData?.data?.pages || 1;
 
-  // Normal Delete Mutation
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => supplierPaymentService.deleteSupplierPayment(id),
-    onSuccess: () => {
-      toast.success("Supplier payment voucher deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["supplier-payments-list"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
-      setSelectedDeletePayment(null);
-      setIsDeleting(false);
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete payment voucher.";
-      toast.error(msg);
-      setIsDeleting(false);
-    },
-  });
-
   // Hard Delete Mutation
   const hardDeleteMutation = useMutation({
     mutationFn: (id: string) => supplierPaymentService.hardDeleteSupplierPayment(id),
@@ -136,12 +111,6 @@ export default function ManageSupplierPaymentsPage() {
       toast.error(msg);
     },
   });
-
-  const handleDeleteConfirm = () => {
-    if (!selectedDeletePayment) return;
-    setIsDeleting(true);
-    deleteMutation.mutate(selectedDeletePayment.id);
-  };
 
   return (
     <HasPermission code="supplier_payment.view">
@@ -361,18 +330,8 @@ export default function ManageSupplierPaymentsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                              title="Normal Delete Voucher"
-                              onClick={() => setSelectedDeletePayment(pay)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="icon"
                               className="h-7 w-7 text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
-                              title="Hard Delete Voucher"
+                              title="Delete Voucher"
                               onClick={() => setHardDeletingPayment(pay)}
                             >
                               <Trash2 className="h-3.5 w-3.5 fill-rose-600/20" />
@@ -436,45 +395,6 @@ export default function ManageSupplierPaymentsPage() {
             queryClient.invalidateQueries({ queryKey: ["supplier-payments-list"] });
           }}
         />
-
-        {/* Delete Confirmation Modal */}
-        {selectedDeletePayment && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="fixed inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in-0"
-              onClick={() => setSelectedDeletePayment(null)}
-            />
-            <div className="relative w-full max-w-md bg-card border rounded-2xl p-6 shadow-2xl z-50 animate-in zoom-in-95 duration-200 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b">
-                <h3 className="text-lg font-bold text-destructive flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" /> Delete Supplier Payment Voucher?
-                </h3>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedDeletePayment(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Deleting payment voucher <span className="font-bold text-foreground ">{selectedDeletePayment.payment_no}</span> (${selectedDeletePayment.amount.toFixed(2)}) will automatically restore the supplier's due balance by ${selectedDeletePayment.amount.toFixed(2)}.
-              </p>
-
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <Button variant="outline" size="sm" onClick={() => setSelectedDeletePayment(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={isDeleting}
-                  onClick={handleDeleteConfirm}
-                >
-                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                  Confirm & Restore Due
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Controlled Hard Delete Confirmation Modal */}
         <HardDeleteModal
