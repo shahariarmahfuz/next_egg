@@ -86,10 +86,13 @@ export default function StockReportPage() {
     queryKey: ["daily-stock-report", selectedProduct?.id, targetDate],
     queryFn: () => {
       if (!selectedProduct?.id) return null;
+      const tz = (settings?.timezone && settings.timezone !== "UTC")
+        ? settings.timezone
+        : (typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC");
       return reportService.getStockReport({
         product_id: selectedProduct.id,
         target_date: targetDate,
-        timezone: settings.timezone || "UTC",
+        timezone: tz,
       });
     },
     enabled: !!selectedProduct?.id && !!targetDate,

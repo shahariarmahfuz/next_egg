@@ -56,9 +56,12 @@ class ReportService:
 
         # Determine timezone (client param -> business setting -> UTC)
         tz_name = client_tz_str
-        if not tz_name:
+        if not tz_name or tz_name == "UTC":
             setting = await setting_repository.get_by_key(db, "timezone")
-            tz_name = setting.value if setting and setting.value else "UTC"
+            if setting and setting.value and setting.value != "UTC":
+                tz_name = setting.value
+            elif not tz_name:
+                tz_name = "UTC"
 
         try:
             tz = zoneinfo.ZoneInfo(tz_name)

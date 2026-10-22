@@ -118,12 +118,18 @@ class PurchaseService:
         paid = float(paid_dec)
         due = float(due_dec)
 
+        p_date = purchase_in.purchase_date or datetime.now(timezone.utc)
+        if p_date.tzinfo is None:
+            p_date = p_date.replace(tzinfo=timezone.utc)
+        else:
+            p_date = p_date.astimezone(timezone.utc)
+
         purchase = Purchase(
             purchase_no=code,
             invoice_no=purchase_in.invoice_no,
             supplier_id=supplier.id,
             user_id=user_id,
-            purchase_date=purchase_in.purchase_date or datetime.now(timezone.utc),
+            purchase_date=p_date,
             subtotal=subtotal,
             discount_amount=float(discount_amount_dec),
             tax_amount=float(tax_amount_dec),
@@ -246,7 +252,12 @@ class PurchaseService:
 
         # Update purchase date if provided
         if purchase_in.purchase_date is not None:
-            purchase.purchase_date = purchase_in.purchase_date
+            p_date = purchase_in.purchase_date
+            if p_date.tzinfo is None:
+                p_date = p_date.replace(tzinfo=timezone.utc)
+            else:
+                p_date = p_date.astimezone(timezone.utc)
+            purchase.purchase_date = p_date
 
         if purchase_in.invoice_no is not None:
             purchase.invoice_no = purchase_in.invoice_no
@@ -352,7 +363,7 @@ class PurchaseService:
             new_q = new_qty_by_prod.get(prod_id, 0.0)
             net_delta = new_q - old_q
             if net_delta != 0.0:
-                prod.current_stock += net_delta
+                prod.current_stock = round(float(prod.current_stock) + net_delta, 4)
                 db.add(prod)
 
         # 4. Prepare new line items and calculate pricing
@@ -465,6 +476,13 @@ class PurchaseService:
         for old_batches_list in existing_batches_by_prod.values():
             for old_batch in old_batches_list:
                 await db.delete(old_batch)
+
+        # Ensure all batches for this purchase remain 100% in sync with purchase.purchase_date
+        await db.execute(
+            update(InventoryBatch)
+            .where(InventoryBatch.purchase_id == purchase.id)
+            .values(purchase_date=purchase.purchase_date)
+        )
 
         # 6. Replace purchase items
         purchase.items.clear()

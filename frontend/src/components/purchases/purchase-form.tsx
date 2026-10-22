@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/command";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
+import { formatInTimeZone } from "date-fns-tz";
+import { useSettingsStore } from "@/store/settings";
 import {
   calculateDueAmount,
   calculateGrandTotal,
@@ -79,6 +81,37 @@ interface PurchaseFormProps {
   onCancel: () => void;
 }
 
+export function extractCalendarDate(dateVal?: string | Date | null): string {
+  if (!dateVal) return "";
+  if (typeof dateVal === "string") {
+    const trimmed = dateVal.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) {
+      // If shifted backward by UTC conversion (e.g. 18:00:00 UTC in Bangladesh UTC+6)
+      if (trimmed.includes("T18:00:00") || trimmed.includes("18:00:00+00") || trimmed.includes("18:00:00Z")) {
+        try {
+          const d = new Date(trimmed);
+          if (!isNaN(d.getTime())) {
+            const { settings } = useSettingsStore.getState();
+            const tz = (settings?.timezone && settings.timezone !== "UTC")
+              ? settings.timezone
+              : (typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC");
+            return formatInTimeZone(d, tz, "yyyy-MM-dd");
+          }
+        } catch {}
+      }
+      return match[1];
+    }
+  }
+  if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+    return dateVal.toLocaleDateString("en-CA");
+  }
+  return "";
+}
+
 export function PurchaseForm({
   initialData,
   suppliers = [],
@@ -101,9 +134,9 @@ export function PurchaseForm({
   // Form Fields State
   const [purchaseDate, setPurchaseDate] = useState<string>(() => {
     if (initialData?.purchase_date) {
-      return new Date(initialData.purchase_date).toISOString().split("T")[0];
+      return extractCalendarDate(initialData.purchase_date);
     }
-    return new Date().toISOString().split("T")[0];
+    return new Date().toLocaleDateString("en-CA");
   });
   const [customInvoiceNo, setCustomInvoiceNo] = useState<string>(
     initialData?.invoice_no || ""
@@ -189,6 +222,70 @@ export function PurchaseForm({
       setSelectedSupplier(suppliers[0]);
     }
   }, [suppliers, selectedSupplier]);
+
+  // Synchronize form fields whenever initialData loads or changes in edit mode
+  useEffect(() => {
+    if (!initialData) return;
+
+    if (initialData.purchase_date) {
+      setPurchaseDate(extractCalendarDate(initialData.purchase_date));
+    }
+    if (initialData.invoice_no !== undefined) {
+      setCustomInvoiceNo(initialData.invoice_no || "");
+    }
+    if (initialData.discount_amount !== undefined) {
+      setDiscountAmount(initialData.discount_amount);
+    }
+    if (initialData.tax_amount !== undefined) {
+      setTaxAmount(initialData.tax_amount);
+    }
+    if (initialData.paid_amount !== undefined) {
+      setPaidAmount(initialData.paid_amount);
+    }
+    if (initialData.notes !== undefined || (initialData as any)?.note !== undefined) {
+      setNotes(initialData.notes || (initialData as any)?.note || "");
+    }
+    if (initialData.supplier) {
+      setSelectedSupplier(initialData.supplier);
+    } else if (initialData.supplier_id && suppliers.length > 0) {
+      const found = suppliers.find((s) => s.id === initialData.supplier_id);
+      if (found) setSelectedSupplier(found);
+    }
+    if (initialData.items && initialData.items.length > 0) {
+      setLineItems(
+        initialData.items.map((item) => {
+          const prod = item.product || products.find((p) => p.id === item.product_id) || {
+            id: item.product_id,
+            name: "Unknown Product",
+            product_code: "",
+            category_id: "",
+            unit: "pcs",
+            opening_stock_unit_cost: item.unit_price,
+            selling_price: item.unit_price,
+            current_stock: 0,
+            status: "active",
+            created_at: "",
+            updated_at: "",
+          };
+          const qty = item.quantity || 1;
+          const price = item.unit_price || 0;
+          const total = item.total_price !== undefined ? roundToPrecision(item.total_price, 4) : calculateLineTotal(qty, price);
+          const mode: "unit_price" | "total_price" = item.pricing_mode || (
+            item.total_price !== undefined && Math.abs(qty * price - item.total_price) > 0.001
+              ? "total_price"
+              : "unit_price"
+          );
+          return {
+            product: prod as ProductItem,
+            quantity: qty,
+            unit_price: roundToPrecision(price, 4),
+            total_price: total,
+            pricing_mode: mode,
+          };
+        })
+      );
+    }
+  }, [initialData, suppliers, products]);
 
   // Add Product to Purchase Line Items
   const handleSelectProduct = (product: ProductItem) => {
@@ -319,11 +416,25 @@ export function PurchaseForm({
       return;
     }
 
+    let payloadPurchaseDate: string;
+    if (isEdit && initialData?.purchase_date) {
+      const origCal = extractCalendarDate(initialData.purchase_date);
+      // Preserve original purchase_date timestamp if user didn't change the calendar day
+      // and it didn't have the shifted 18:00 UTC bug
+      if (purchaseDate === origCal && !initialData.purchase_date.includes("18:00:00")) {
+        payloadPurchaseDate = initialData.purchase_date;
+      } else {
+        payloadPurchaseDate = `${purchaseDate}T12:00:00.000Z`;
+      }
+    } else {
+      payloadPurchaseDate = purchaseDate ? `${purchaseDate}T12:00:00.000Z` : new Date().toISOString();
+    }
+
     const payloadValues: PurchaseFormValues = {
       supplier_id: selectedSupplier.id,
       purchase_no: isEdit ? initialData?.purchase_no : undefined,
       invoice_no: customInvoiceNo.trim() || undefined,
-      purchase_date: purchaseDate ? new Date(purchaseDate).toISOString() : new Date().toISOString(),
+      purchase_date: payloadPurchaseDate,
       discount_amount: roundToPrecision(discountAmount, 4),
       tax_amount: roundToPrecision(taxAmount, 4),
       paid_amount: roundToPrecision(paidAmount, 4),

@@ -42,6 +42,8 @@ export default function NewPurchasePage() {
       queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-stock-report"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-report"] });
       toast.success("Purchase added successfully.");
       router.push("/purchases");
     },

@@ -54,6 +54,8 @@ export default function EditPurchasePage({ params }: { params: Promise<{ id: str
       queryClient.invalidateQueries({ queryKey: ["supplier-financial-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-stock-report"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-report"] });
       toast.success("Purchase order updated successfully.");
       router.push("/purchases");
     },
