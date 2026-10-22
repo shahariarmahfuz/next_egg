@@ -40,14 +40,17 @@ export interface DailyStockReportData {
   opening_stock: number;
   previous_stock?: number;
   purchases: number;
+  total_stock?: number;
   sales: number;
   cash_sales: number;
   due_sales: number;
   customer_sales?: number;
+  tracked_customer_qty?: number;
   configured_customer?: ConfiguredCustomerInfo | null;
   purchase_returns: number;
   sale_returns: number;
   remaining_stock: number;
+  final_remaining_stock?: number;
   movements?: StockMovementItem[];
 }
 

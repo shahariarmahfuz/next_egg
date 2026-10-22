@@ -54,14 +54,17 @@ class DailyStockReportResponse(BaseModel):
     opening_stock: float
     previous_stock: float = 0.0
     purchases: float
+    total_stock: float = 0.0
     sales: float
     cash_sales: float
     due_sales: float
     customer_sales: float = 0.0
+    tracked_customer_qty: float = 0.0
     configured_customer: Optional[ConfiguredCustomerInfo] = None
     purchase_returns: float
     sale_returns: float
     remaining_stock: float
+    final_remaining_stock: float = 0.0
 
     movements: List[StockMovementItem] = Field(default_factory=list)
 

@@ -204,7 +204,6 @@ class ReportService:
 
         for si, s in sales_res:
             qty = float(si.quantity)
-            day_sales += qty
 
             # Check if this sale belongs to the configured dedicated customer
             if configured_customer_id and s.customer_id == configured_customer_id:
@@ -212,6 +211,7 @@ class ReportService:
                 c_qty = 0.0
                 d_qty = 0.0
             else:
+                day_sales += qty
                 if s.grand_total > 0:
                     cash_ratio = min(1.0, max(0.0, float(s.paid_amount) / float(s.grand_total)))
                 else:
@@ -311,21 +311,37 @@ class ReportService:
 
             after_net_inflow = (float(after_purchases) - float(after_purch_returns)) + float(after_sale_returns)
             after_net_outflow = float(after_sales)
-            remaining_stock = live_current_stock - after_net_inflow + after_net_outflow
+            end_of_day_stock = live_current_stock - after_net_inflow + after_net_outflow
         else:
             # Target date is Today (or future): remaining stock at end of target date matches live current stock
-            remaining_stock = live_current_stock
+            end_of_day_stock = live_current_stock
 
-        # Derive Previous Stock (start of day balance) using the day's balancing equation:
-        # Previous Stock + Today's Inflows - Today's Outflows = Remaining Stock
+        if abs(end_of_day_stock) < 1e-6:
+            end_of_day_stock = 0.0
+
+        # Physical remaining stock after all sales (regular sales + tracked customer sales)
+        final_remaining_stock = end_of_day_stock
+
+        # Remaining stock after regular sales (before tracked customer deduction)
+        remaining_stock = round(final_remaining_stock + day_customer_sales, 4)
+
+        # Day's net inflow from purchases and returns
         day_net_inflow = (day_purchases - day_purch_returns) + day_sale_returns
-        day_net_outflow = day_sales
-        previous_stock = remaining_stock - day_net_inflow + day_net_outflow
+
+        # Previous Stock (start of day balance):
+        # Previous Stock + Day Net Inflow - Day Regular Sales = Remaining Stock
+        previous_stock = round(remaining_stock - day_net_inflow + day_sales, 4)
 
         if abs(remaining_stock) < 1e-6:
             remaining_stock = 0.0
         if abs(previous_stock) < 1e-6:
             previous_stock = 0.0
+        if abs(final_remaining_stock) < 1e-6:
+            final_remaining_stock = 0.0
+
+        total_stock = round(previous_stock + day_purchases, 4)
+        if abs(total_stock) < 1e-6:
+            total_stock = 0.0
 
         # Sort movements chronologically
         raw_movements.sort(key=lambda m: (m["timestamp"], m["id"]))
@@ -360,14 +376,17 @@ class ReportService:
             opening_stock=round(previous_stock, 4),
             previous_stock=round(previous_stock, 4),
             purchases=round(day_purchases, 4),
+            total_stock=round(total_stock, 4),
             sales=round(day_sales, 4),
             cash_sales=round(day_cash_sales, 4),
             due_sales=round(day_due_sales, 4),
             customer_sales=round(day_customer_sales, 4),
+            tracked_customer_qty=round(day_customer_sales, 4),
             configured_customer=configured_customer_info,
             purchase_returns=round(day_purch_returns, 4),
             sale_returns=round(day_sale_returns, 4),
             remaining_stock=round(remaining_stock, 4),
+            final_remaining_stock=round(final_remaining_stock, 4),
             movements=movements,
         )
 

@@ -442,167 +442,252 @@ export default function StockReportPage() {
               </CardContent>
             </Card>
 
-            {/* Daily Product Stock Summary - Clean, Modern Minimal Cards */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Boxes className="h-4 w-4 text-primary" />
-                  Daily Stock Summary ({formatDate(report.target_date)})
-                </h3>
-              </div>
+            {/* Daily Product Stock Summary - Step-by-Step Row-Based Calculation Ledger */}
+            {(() => {
+              const previousStock = report.previous_stock ?? report.opening_stock ?? 0;
+              const purchases = report.purchases ?? 0;
+              const totalStock = report.total_stock ?? (previousStock + purchases);
+              const cashSales = report.cash_sales ?? 0;
+              const dueSales = report.due_sales ?? 0;
+              const totalSales = report.sales ?? (cashSales + dueSales);
+              const remainingStock = report.remaining_stock ?? (totalStock - totalSales);
+              const trackedCustomerQty = report.tracked_customer_qty ?? report.customer_sales ?? 0;
+              const finalRemainingStock = report.final_remaining_stock ?? (remainingStock - trackedCustomerQty);
+              const trackedCustomerName = report.configured_customer?.name || "Tracked Customer";
 
-              <div
-                className={`grid grid-cols-2 sm:grid-cols-3 ${
-                  report.configured_customer ? "lg:grid-cols-4 xl:grid-cols-7" : "lg:grid-cols-3 xl:grid-cols-6"
-                } gap-3 sm:gap-4`}
-              >
-                {/* Previous Stock */}
-                <Card className="border border-l-4 border-l-blue-500 shadow-2xs hover:shadow-xs transition-all">
-                  <CardContent className="p-3.5 sm:p-4 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-                        Previous Stock
-                      </span>
-                      <div className="h-6 w-6 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                        <Package className="h-3.5 w-3.5" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
-                      {formatNumber(report.previous_stock ?? report.opening_stock)}
-                    </div>
-                  </CardContent>
-                </Card>
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 print:text-black">
+                      <Boxes className="h-4 w-4 text-primary print:hidden" />
+                      Daily Stock Summary ({formatDate(report.target_date)})
+                    </h3>
+                  </div>
 
-                {/* Purchases */}
-                <Card className="border border-l-4 border-l-sky-500 shadow-2xs hover:shadow-xs transition-all">
-                  <CardContent className="p-3.5 sm:p-4 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-sky-600 dark:text-sky-400">
-                        Purchases
-                      </span>
-                      <div className="h-6 w-6 rounded-md bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                        <TrendingUp className="h-3.5 w-3.5" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono pt-1">
-                      +{formatNumber(report.purchases)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Total Sales */}
-                <Card className="border border-l-4 border-l-purple-500 shadow-2xs hover:shadow-xs transition-all">
-                  <CardContent className="p-3.5 sm:p-4 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
-                        Total Sales
-                      </span>
-                      <div className="h-6 w-6 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                        <TrendingDown className="h-3.5 w-3.5" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 font-mono pt-1">
-                      -{formatNumber(report.sales)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Cash Sales */}
-                <Card className="border border-l-4 border-l-emerald-500 shadow-2xs hover:shadow-xs transition-all">
-                  <CardContent className="p-3.5 sm:p-4 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        Cash Sales
-                      </span>
-                      <div className="h-6 w-6 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                        <DollarSign className="h-3.5 w-3.5" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
-                      {formatNumber(report.cash_sales)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Due Sales */}
-                <Card className="border border-l-4 border-l-amber-500 shadow-2xs hover:shadow-xs transition-all">
-                  <CardContent className="p-3.5 sm:p-4 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                        Due Sales
-                      </span>
-                      <div className="h-6 w-6 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                        <CreditCard className="h-3.5 w-3.5" />
-                      </div>
-                    </div>
-                    <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
-                      {formatNumber(report.due_sales)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Special Tracked Customer Sales (if configured) */}
-                {report.configured_customer && (
-                  <Card className="border border-l-4 border-l-cyan-500 shadow-2xs hover:shadow-xs transition-all">
-                    <CardContent className="p-3.5 sm:p-4 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span
-                          className="text-xs font-semibold text-cyan-700 dark:text-cyan-300 truncate max-w-[120px]"
-                          title={report.configured_customer.name}
-                        >
-                          {report.configured_customer.name}
-                        </span>
-                        <div className="h-6 w-6 rounded-md bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
-                          <UserCheck className="h-3.5 w-3.5" />
+                  {/* 3 Step-by-Step Ledger Panels */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 print:grid-cols-3 print:gap-4">
+                    {/* Group 1: Stock Addition */}
+                    <Card className="border border-slate-200 dark:border-slate-800 shadow-2xs print:border-slate-400 print:shadow-none print:bg-white overflow-hidden">
+                      <div className="bg-blue-50/70 dark:bg-blue-950/30 px-4 py-3 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between print:bg-slate-100 print:border-slate-300">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs print:bg-transparent print:border print:border-blue-500">
+                            1
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-foreground print:text-black">Stock Addition</h4>
+                            <p className="text-[10px] text-muted-foreground print:text-slate-600">Previous Stock + Purchases</p>
+                          </div>
                         </div>
+                        <Package className="h-4 w-4 text-blue-500/70 print:hidden" />
                       </div>
-                      <div className="text-xl sm:text-2xl font-black text-foreground font-mono pt-1">
-                        {formatNumber(report.customer_sales)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                      <CardContent className="p-4 space-y-3 text-xs">
+                        {/* Row 1: Previous Stock */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground print:text-slate-700 font-medium">Previous Stock</span>
+                          <span className="font-mono font-bold text-foreground print:text-black text-sm">
+                            {formatNumber(previousStock)}
+                          </span>
+                        </div>
 
-                {/* Remaining Stock */}
-                <Card className="border border-l-4 border-l-indigo-600 dark:border-l-indigo-400 shadow-2xs hover:shadow-xs transition-all">
-                  <CardContent className="p-3.5 sm:p-4 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                        Remaining Stock
+                        {/* Row 2: + Purchases */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 mr-1.5 print:bg-emerald-50 shrink-0">
+                              +
+                            </span>
+                            Purchases
+                          </span>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                            + {formatNumber(purchases)}
+                          </span>
+                        </div>
+
+                        <div className="border-t border-slate-200 dark:border-slate-800 print:border-slate-300 my-1" />
+
+                        {/* Subtotal Row: Total Stock */}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="font-bold text-blue-600 dark:text-blue-400 print:text-black flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 mr-1.5 print:bg-blue-50 shrink-0">
+                              =
+                            </span>
+                            Total Stock
+                          </span>
+                          <span className="font-mono font-black text-blue-600 dark:text-blue-400 print:text-black text-base">
+                            = {formatNumber(totalStock)}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Group 2: Regular Sales Breakdown */}
+                    <Card className="border border-slate-200 dark:border-slate-800 shadow-2xs print:border-slate-400 print:shadow-none print:bg-white overflow-hidden">
+                      <div className="bg-purple-50/70 dark:bg-purple-950/30 px-4 py-3 border-b border-purple-100 dark:border-purple-900/40 flex items-center justify-between print:bg-slate-100 print:border-slate-300">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs print:bg-transparent print:border print:border-purple-500">
+                            2
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-foreground print:text-black">Regular Sales</h4>
+                            <p className="text-[10px] text-muted-foreground print:text-slate-600">
+                              {report.configured_customer ? `Excludes ${report.configured_customer.name}` : "Cash Sales + Due Sales"}
+                            </p>
+                          </div>
+                        </div>
+                        <TrendingDown className="h-4 w-4 text-purple-500/70 print:hidden" />
+                      </div>
+                      <CardContent className="p-4 space-y-3 text-xs">
+                        {/* Row 1: Cash Sales */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground print:text-slate-700 font-medium">Cash Sales</span>
+                          <span className="font-mono font-bold text-foreground print:text-black text-sm">
+                            {formatNumber(cashSales)}
+                          </span>
+                        </div>
+
+                        {/* Row 2: + Due Sales */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 mr-1.5 print:bg-amber-50 shrink-0">
+                              +
+                            </span>
+                            Due Sales
+                          </span>
+                          <span className="font-mono font-bold text-amber-600 dark:text-amber-400 text-sm">
+                            + {formatNumber(dueSales)}
+                          </span>
+                        </div>
+
+                        <div className="border-t border-slate-200 dark:border-slate-800 print:border-slate-300 my-1" />
+
+                        {/* Subtotal Row: Total Sales */}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="font-bold text-purple-600 dark:text-purple-400 print:text-black flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400 mr-1.5 print:bg-purple-50 shrink-0">
+                              =
+                            </span>
+                            Total Sales
+                          </span>
+                          <span className="font-mono font-black text-purple-600 dark:text-purple-400 print:text-black text-base">
+                            = {formatNumber(totalSales)}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Group 3: Final Stock Reconciliation */}
+                    <Card className="border border-slate-200 dark:border-slate-800 shadow-2xs print:border-slate-400 print:shadow-none print:bg-white overflow-hidden">
+                      <div className="bg-indigo-50/70 dark:bg-indigo-950/30 px-4 py-3 border-b border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between print:bg-slate-100 print:border-slate-300">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs print:bg-transparent print:border print:border-indigo-500">
+                            3
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-foreground print:text-black">Stock Reconciliation</h4>
+                            <p className="text-[10px] text-muted-foreground print:text-slate-600">
+                              Total Stock - Sales - {report.configured_customer ? report.configured_customer.name : "Tracked"}
+                            </p>
+                          </div>
+                        </div>
+                        <Boxes className="h-4 w-4 text-indigo-500/70 print:hidden" />
+                      </div>
+                      <CardContent className="p-4 space-y-2.5 text-xs">
+                        {/* Row 1: Total Stock */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground print:text-slate-700 font-medium">Total Stock</span>
+                          <span className="font-mono font-bold text-foreground print:text-black text-sm">
+                            {formatNumber(totalStock)}
+                          </span>
+                        </div>
+
+                        {/* Row 2: - Total Sales */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 mr-1.5 print:bg-rose-50 shrink-0">
+                              -
+                            </span>
+                            Total Sales
+                          </span>
+                          <span className="font-mono font-bold text-rose-600 dark:text-rose-400 text-sm">
+                            - {formatNumber(totalSales)}
+                          </span>
+                        </div>
+
+                        <div className="border-t border-slate-200 dark:border-slate-800 print:border-slate-300" />
+
+                        {/* Subtotal Row: Remaining Stock */}
+                        <div className="flex items-center justify-between py-0.5">
+                          <span className="font-bold text-foreground print:text-black flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 mr-1.5 print:bg-slate-100 shrink-0">
+                              =
+                            </span>
+                            Remaining Stock
+                          </span>
+                          <span className="font-mono font-bold text-foreground print:text-black text-sm">
+                            = {formatNumber(remainingStock)}
+                          </span>
+                        </div>
+
+                        {/* Row 3: - Tracked Customer */}
+                        <div className="flex items-center justify-between">
+                          <span
+                            className="text-cyan-700 dark:text-cyan-400 font-semibold flex items-center truncate max-w-[200px]"
+                            title={trackedCustomerName}
+                          >
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-400 mr-1.5 print:bg-cyan-50 shrink-0">
+                              -
+                            </span>
+                            <span className="truncate">
+                              {report.configured_customer ? report.configured_customer.name : "Tracked Customer (None)"}
+                            </span>
+                          </span>
+                          <span className="font-mono font-bold text-cyan-700 dark:text-cyan-400 text-sm">
+                            - {formatNumber(trackedCustomerQty)}
+                          </span>
+                        </div>
+
+                        {/* Double / Bold Divider */}
+                        <div className="border-t-2 border-primary/30 dark:border-primary/40 print:border-slate-400 my-1" />
+
+                        {/* Final Highlighted Row: Final Remaining Stock */}
+                        <div className="bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg p-2.5 flex items-center justify-between print:border print:border-black print:bg-slate-50">
+                          <span className="font-extrabold text-primary print:text-black text-xs sm:text-sm flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-primary text-primary-foreground mr-1.5 shrink-0">
+                              =
+                            </span>
+                            Final Remaining Stock
+                          </span>
+                          <span className="font-mono font-black text-primary print:text-black text-base sm:text-lg">
+                            = {formatNumber(finalRemainingStock)}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Returns Notice (if any occurred on that day) */}
+                  {(report.purchase_returns > 0 || report.sale_returns > 0) && (
+                    <div className="mt-3 flex items-center gap-2 text-xs bg-accent/40 rounded-lg p-2.5 text-muted-foreground print:border print:p-2 print:text-black">
+                      <AlertCircle className="h-4 w-4 text-primary shrink-0 print:hidden" />
+                      <span>
+                        Note: Day includes{" "}
+                        {report.purchase_returns > 0 && (
+                          <strong className="text-foreground">
+                            {formatNumber(report.purchase_returns)} {report.product.unit} Purchase Returns (deducted){" "}
+                          </strong>
+                        )}
+                        {report.purchase_returns > 0 && report.sale_returns > 0 && "and "}
+                        {report.sale_returns > 0 && (
+                          <strong className="text-foreground">
+                            {formatNumber(report.sale_returns)} {report.product.unit} Sale Returns (restocked)
+                          </strong>
+                        )}
+                        . These are factored directly into Remaining Stock.
                       </span>
-                      <div className="h-6 w-6 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                        <Boxes className="h-3.5 w-3.5" />
-                      </div>
                     </div>
-                    <div className="text-xl sm:text-2xl font-black text-primary font-mono pt-1">
-                      {formatNumber(report.remaining_stock)}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Returns Notice (if any occurred on that day) */}
-              {(report.purchase_returns > 0 || report.sale_returns > 0) && (
-                <div className="mt-3 flex items-center gap-2 text-xs bg-accent/40 rounded-lg p-2.5 text-muted-foreground">
-                  <AlertCircle className="h-4 w-4 text-primary shrink-0" />
-                  <span>
-                    Note: Day includes{" "}
-                    {report.purchase_returns > 0 && (
-                      <strong className="text-foreground">
-                        {formatNumber(report.purchase_returns)} {report.product.unit} Purchase Returns (deducted){" "}
-                      </strong>
-                    )}
-                    {report.purchase_returns > 0 && report.sale_returns > 0 && "and "}
-                    {report.sale_returns > 0 && (
-                      <strong className="text-foreground">
-                        {formatNumber(report.sale_returns)} {report.product.unit} Sale Returns (restocked)
-                      </strong>
-                    )}
-                    . These are factored directly into Remaining Stock.
-                  </span>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         )}
       </div>

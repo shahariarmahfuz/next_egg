@@ -141,8 +141,12 @@ async def test_purchase_edit_daily_stock_report_complete_scenario():
         # 4. Verify Purchases on 2026-10-20 shows +600 (NOT +0)
         assert report_utc["purchases"] == 600.0, f"Expected 600.0, got {report_utc['purchases']}"
         assert report_utc["previous_stock"] == 0.0
+        assert report_utc["total_stock"] == 600.0
         assert report_utc["remaining_stock"] == 600.0
-        assert abs(report_utc["previous_stock"] + report_utc["purchases"] - report_utc["remaining_stock"]) < 0.001
+        assert report_utc["final_remaining_stock"] == 600.0
+        assert abs(report_utc["total_stock"] - (report_utc["previous_stock"] + report_utc["purchases"])) < 0.001
+        assert abs(report_utc["remaining_stock"] - (report_utc["total_stock"] - report_utc["sales"])) < 0.001
+        assert abs(report_utc["final_remaining_stock"] - (report_utc["remaining_stock"] - report_utc["tracked_customer_qty"])) < 0.001
 
         # Also query with Asia/Dhaka timezone to ensure timezone preservation works across boundaries
         report_res_dhaka = await client.get(
@@ -153,7 +157,9 @@ async def test_purchase_edit_daily_stock_report_complete_scenario():
         report_dhaka = report_res_dhaka.json()["data"]
         assert report_dhaka["purchases"] == 600.0, f"Expected 600.0 in Asia/Dhaka, got {report_dhaka['purchases']}"
         assert report_dhaka["previous_stock"] == 0.0
+        assert report_dhaka["total_stock"] == 600.0
         assert report_dhaka["remaining_stock"] == 600.0
+        assert report_dhaka["final_remaining_stock"] == 600.0
 
         # Verify product current_stock in database is 600
         async with AsyncSessionLocal() as session:

@@ -65,6 +65,11 @@ async def test_stock_report_endpoint():
         # Check cash + due sales equals total sales
         assert abs((report["cash_sales"] + report["due_sales"]) - report["sales"]) < 0.001
 
+        # Check step-by-step stock flow identities
+        assert abs(report["total_stock"] - (report["previous_stock"] + report["purchases"])) < 0.001
+        assert abs(report["remaining_stock"] - (report["total_stock"] - report["sales"])) < 0.001
+        assert abs(report["final_remaining_stock"] - (report["remaining_stock"] - report["tracked_customer_qty"])) < 0.001
+
         # Check closing stock identity
         expected_remaining = (
             report["opening_stock"]
@@ -151,16 +156,24 @@ async def test_stock_report_customer_setting_and_separation():
 
         # Customer sales must reflect customer's purchase quantity (1989.0)
         assert report["customer_sales"] == 1989.0
+        assert report["tracked_customer_qty"] == 1989.0
 
         # Customer sales must NOT be included in cash_sales or due_sales
         assert report["cash_sales"] == 0.0
         assert report["due_sales"] == 0.0
 
-        # Total sales must equal customer_sales + cash_sales + due_sales
-        assert abs(report["sales"] - (report["customer_sales"] + report["cash_sales"] + report["due_sales"])) < 0.001
+        # Total sales equals regular cash + due sales (tracked customer is completely excluded)
+        assert abs(report["sales"] - (report["cash_sales"] + report["due_sales"])) < 0.001
+        assert report["sales"] == 0.0
 
-        # Remaining stock must be correctly reduced (10000 - 1989 = 8011)
-        assert report["remaining_stock"] == 8011.0
+        # Step-by-step stock flow identities
+        assert abs(report["total_stock"] - (report["previous_stock"] + report["purchases"])) < 0.001
+        assert abs(report["remaining_stock"] - (report["total_stock"] - report["sales"])) < 0.001
+        assert abs(report["final_remaining_stock"] - (report["remaining_stock"] - report["tracked_customer_qty"])) < 0.001
+
+        # Remaining stock before tracked customer is 10000; Final remaining stock is 10000 - 1989 = 8011
+        assert report["remaining_stock"] == 10000.0
+        assert report["final_remaining_stock"] == 8011.0
 
         # 4. Clean up / clear customer configuration
         clear_res = await client.put(
