@@ -39,19 +39,42 @@ import { formatCurrency } from "@/utils/formatters";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 
-const collectionFormSchema = z.object({
-  customer_id: z.string().min(1, "Customer selection is required"),
-  collection_date: z.string().min(1, "Collection date is required"),
-  amount: z
-    .number({ invalid_type_error: "Collection amount must be a valid number" })
-    .positive("Collection amount must be greater than zero"),
-  payment_method: z.string().min(1, "Payment method is required"),
-  reference_no: z.string().optional(),
-  sale_id: z.string().optional(),
-  notes: z.string().optional(),
-});
+const collectionFormSchema = z
+  .object({
+    customer_id: z.string().min(1, "Customer selection is required"),
+    collection_date: z.string().min(1, "Collection date is required"),
+    amount: z.preprocess(
+      (val) => (val === "" || val === null || val === undefined || Number.isNaN(Number(val)) ? 0 : Number(val)),
+      z
+        .number({ invalid_type_error: "Collection amount must be a valid number" })
+        .min(0, "Collection amount cannot be negative")
+    ),
+    discount_amount: z.preprocess(
+      (val) => (val === "" || val === null || val === undefined || Number.isNaN(Number(val)) ? 0 : Number(val)),
+      z
+        .number({ invalid_type_error: "Discount amount must be a valid number" })
+        .min(0, "Discount amount cannot be negative")
+    ),
+    payment_method: z.string().min(1, "Payment method is required"),
+    reference_no: z.string().optional(),
+    sale_id: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .refine((data) => (data.amount || 0) + (data.discount_amount || 0) > 0, {
+    message: "Collection amount or discount amount must be greater than zero",
+    path: ["amount"],
+  });
 
-export type CollectionFormValues = z.infer<typeof collectionFormSchema>;
+export type CollectionFormValues = {
+  customer_id: string;
+  collection_date: string;
+  amount: number;
+  discount_amount: number;
+  payment_method: string;
+  reference_no?: string;
+  sale_id?: string;
+  notes?: string;
+};
 
 interface CollectionFormProps {
   initialData?: CustomerCollectionItem;
@@ -95,11 +118,12 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
     clearErrors,
     formState: { errors, isSubmitted },
   } = useForm<CollectionFormValues>({
-    resolver: zodResolver(collectionFormSchema),
+    resolver: zodResolver(collectionFormSchema) as any,
     defaultValues: {
       customer_id: initialData?.customer_id || "",
       collection_date: defaultDate,
-      amount: initialData?.amount || 0,
+      amount: initialData?.amount ?? 0,
+      discount_amount: initialData?.discount_amount ?? 0,
       payment_method: initialData?.payment_method || "cash",
       reference_no: initialData?.reference_no || "",
       sale_id: initialData?.sale_id || "",
@@ -107,13 +131,34 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
     },
   });
 
-  const watchedAmount = watch("amount") || 0;
-  const currentBalance = financialSummary?.current_due ?? selectedCustomer?.current_balance ?? (initialData?.customer?.current_balance || 0);
-  // Using signed balance: if currentBalance is positive, we collect up to that as due.
-  // The new balance after collection will be: currentBalance - watchedAmount.
-  // If resulting balance is negative, it represents an advance.
-  const resultingBalance = currentBalance - watchedAmount;
-  const advanceCreated = resultingBalance < 0 ? Math.abs(resultingBalance) : 0;
+  const watchedAmount = watch("amount");
+  const watchedDiscount = watch("discount_amount");
+
+  const safeAmount = Number.isFinite(Number(watchedAmount)) ? Math.max(0, Number(watchedAmount)) : 0;
+  const safeDiscount = Number.isFinite(Number(watchedDiscount)) ? Math.max(0, Number(watchedDiscount)) : 0;
+
+  const liveBalance =
+    financialSummary?.current_due ??
+    selectedCustomer?.current_balance ??
+    (initialData?.customer?.current_balance || 0);
+
+  // Customer's outstanding balance before this transaction
+  const currentBalance =
+    initialData && selectedCustomer?.id === initialData.customer_id
+      ? Number(
+          (
+            liveBalance +
+            (initialData.amount || 0) +
+            (initialData.discount_amount || 0)
+          ).toFixed(2)
+        )
+      : Number(liveBalance.toFixed(2));
+
+  // Remaining Balance = Current Balance - Collection Amount - Discount Amount
+  const totalReduction = Number((safeAmount + safeDiscount).toFixed(2));
+  const availableDue = Math.max(0, currentBalance);
+  const remainingBalance = Number((currentBalance - safeAmount - safeDiscount).toFixed(2));
+  const isExceedingBalance = selectedCustomer ? totalReduction > availableDue + 1e-6 : false;
 
   useEffect(() => {
     // Clear all stale validation errors when customer changes
@@ -123,7 +168,41 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
   }, [selectedCustomer?.id, clearErrors]);
 
   const handleFormSubmit = async (values: CollectionFormValues) => {
-    await onSubmit(values);
+    const cleanAmount = Number.isFinite(Number(values.amount)) ? Math.max(0, Number(values.amount)) : 0;
+    const cleanDiscount = Number.isFinite(Number(values.discount_amount)) ? Math.max(0, Number(values.discount_amount)) : 0;
+    const combined = Number((cleanAmount + cleanDiscount).toFixed(2));
+
+    if (combined <= 0) {
+      setError("amount", {
+        type: "manual",
+        message: "Collection amount or discount amount must be greater than zero",
+      });
+      return;
+    }
+
+    if (selectedCustomer && combined > availableDue + 1e-6) {
+      setError("amount", {
+        type: "manual",
+        message: `Combined collection (${formatCurrency(cleanAmount)}) and discount (${formatCurrency(cleanDiscount)}) cannot exceed outstanding balance (${formatCurrency(availableDue)}).`,
+      });
+      return;
+    }
+
+    try {
+      await onSubmit({
+        ...values,
+        amount: cleanAmount,
+        discount_amount: cleanDiscount,
+      });
+      if (!initialData) {
+        setValue("amount", 0);
+        setValue("discount_amount", 0);
+        setValue("notes", "");
+        clearErrors();
+      }
+    } catch {
+      // Handled by parent onSubmit
+    }
   };
 
   return (
@@ -333,15 +412,15 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
               </div>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-emerald-500" /> Collection Amount ($)
+                <DollarSign className="h-3.5 w-3.5 text-emerald-500" /> Collection Amount (৳)
               </label>
               <Input
                 type="number"
                 step="0.01"
-                min="0.01"
+                min="0"
                 placeholder="0.00"
                 {...register("amount", { valueAsNumber: true })}
                 className="h-10 text-lg font-bold text-emerald-500 bg-background/50"
@@ -349,10 +428,22 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
               {errors.amount && (
                 <p className="text-xs text-destructive">{errors.amount.message}</p>
               )}
-              {!errors.amount && advanceCreated > 0 && (
-                <p className="text-xs text-blue-500 font-medium mt-1">
-                  The resulting customer balance will be -{formatCurrency(advanceCreated)} (Advance).
-                </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5 text-amber-500" /> Discount Amount (৳)
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                {...register("discount_amount", { valueAsNumber: true })}
+                className="h-10 text-lg font-bold text-amber-500 bg-background/50"
+              />
+              {errors.discount_amount && (
+                <p className="text-xs text-destructive">{errors.discount_amount.message}</p>
               )}
             </div>
 
@@ -375,6 +466,61 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
               )}
             </div>
           </div>
+
+          {/* Remaining Balance Calculation Breakdown */}
+          {selectedCustomer && (
+            <div
+              className={cn(
+                "py-2.5 px-3.5 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-colors text-xs",
+                isExceedingBalance
+                  ? "bg-destructive/10 border-destructive/30 text-destructive"
+                  : "bg-muted/30 border-border/60"
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+                <span>
+                  Current Balance:{" "}
+                  <strong className="text-foreground">{formatCurrency(currentBalance)}</strong>
+                </span>
+                <span>
+                  Collection:{" "}
+                  <strong className="text-emerald-600 dark:text-emerald-400">
+                    -{formatCurrency(safeAmount)}
+                  </strong>
+                </span>
+                <span>
+                  Discount:{" "}
+                  <strong className="text-amber-600 dark:text-amber-400">
+                    -{formatCurrency(safeDiscount)}
+                  </strong>
+                </span>
+              </div>
+              <div className="flex items-center justify-between sm:justify-end gap-2 border-t sm:border-t-0 pt-1.5 sm:pt-0">
+                <span className="font-semibold text-foreground">Remaining Balance:</span>
+                <span
+                  className={cn(
+                    "text-sm font-bold",
+                    isExceedingBalance
+                      ? "text-destructive"
+                      : remainingBalance > 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  )}
+                >
+                  {formatCurrency(Math.max(0, remainingBalance))}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isExceedingBalance && (
+            <div className="flex items-center gap-2 text-xs text-destructive font-medium">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                Combined collection ({formatCurrency(safeAmount)}) and discount ({formatCurrency(safeDiscount)}) cannot exceed the customer&apos;s outstanding balance ({formatCurrency(availableDue)}).
+              </span>
+            </div>
+          )}
           
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -391,7 +537,7 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
           <div className="pt-4 flex justify-end gap-3 border-t">
             <Button
               type="submit"
-              disabled={isSubmitting || !selectedCustomer || !!errors.amount}
+              disabled={isSubmitting || !selectedCustomer || isExceedingBalance || totalReduction <= 0}
               className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm px-6 font-semibold h-9 text-xs"
             >
               {isSubmitting ? (

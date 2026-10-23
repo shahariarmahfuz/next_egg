@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +21,8 @@ class CustomerCollectionService:
     ) -> CustomerCollection:
         """
         Creates a new Customer Collection voucher inside a single database transaction.
-        Updates customer's current due balance and writes an ActivityLog entry.
+        Updates customer's current due balance (by both collection amount and discount amount)
+        and writes an ActivityLog entry.
         Rolls back all changes if any error occurs.
         """
         try:
@@ -32,9 +33,28 @@ class CustomerCollectionService:
             if customer.status != "active":
                 raise BadRequestException(f"Customer '{customer.name}' is inactive.")
 
-            # 2. Validate Amount > 0
-            if collection_in.amount <= 0:
-                raise BadRequestException("Collection amount must be greater than zero.")
+            # 2. Validate Amounts
+            amount = round(float(collection_in.amount or 0.0), 2)
+            discount_amount = round(float(getattr(collection_in, "discount_amount", 0.0) or 0.0), 2)
+
+            if amount < 0:
+                raise BadRequestException("Collection amount cannot be negative.")
+            if discount_amount < 0:
+                raise BadRequestException("Discount amount cannot be negative.")
+
+            total_reduction = round(amount + discount_amount, 2)
+            if total_reduction <= 0:
+                raise BadRequestException("Collection amount or discount amount must be greater than zero.")
+
+            # 3. Prevent combined collection and discount from exceeding customer's outstanding balance
+            current_due = round(float(customer.current_balance or 0.0), 2)
+            if current_due > 0 or discount_amount > 0:
+                available_due = max(0.0, current_due)
+                if total_reduction > round(available_due + 1e-6, 2):
+                    raise BadRequestException(
+                        f"Combined collection ({amount:.2f}) and discount ({discount_amount:.2f}) "
+                        f"cannot exceed customer's outstanding balance ({available_due:.2f})."
+                    )
 
             # 4. Generate Collection Number
             collection_no = await customer_collection_repository.generate_collection_no(db)
@@ -47,7 +67,8 @@ class CustomerCollectionService:
                 customer_id=customer.id,
                 sale_id=collection_in.sale_id,
                 user_id=user_id,
-                amount=collection_in.amount,
+                amount=amount,
+                discount_amount=discount_amount,
                 payment_method=collection_in.payment_method,
                 reference_no=collection_in.reference_no,
                 collection_date=col_date,
@@ -56,9 +77,8 @@ class CustomerCollectionService:
             db.add(collection)
             await db.flush()
 
-            # 6. Update Customer Current Due Balance
-            received_amount = collection_in.amount
-            customer.current_balance -= received_amount
+            # 6. Update Customer Current Due Balance by both actual collection and waived discount
+            customer.current_balance = round(float(customer.current_balance or 0.0) - total_reduction, 2)
             
             db.add(customer)
 
@@ -67,7 +87,8 @@ class CustomerCollectionService:
                 "collection_no": collection_no,
                 "customer_id": customer.id,
                 "customer_name": customer.name,
-                "amount": collection_in.amount,
+                "amount": amount,
+                "discount_amount": discount_amount,
                 "payment_method": collection_in.payment_method,
                 "new_due_balance": customer.current_balance,
             })
@@ -107,21 +128,44 @@ class CustomerCollectionService:
             if not customer:
                 raise NotFoundException(f"Associated customer with ID '{collection.customer_id}' not found.")
 
-            old_amount = collection.amount
-            new_amount = collection_in.amount if collection_in.amount is not None else old_amount
+            old_amount = round(float(collection.amount or 0.0), 2)
+            old_discount = round(float(getattr(collection, "discount_amount", 0.0) or 0.0), 2)
+            old_total = round(old_amount + old_discount, 2)
 
-            if new_amount <= 0:
-                raise BadRequestException("Collection amount must be greater than zero.")
+            new_amount = round(float(collection_in.amount if collection_in.amount is not None else old_amount), 2)
+            new_discount = round(
+                float(collection_in.discount_amount if collection_in.discount_amount is not None else old_discount), 2
+            )
 
-            # Net balance adjustment (Reverse old amount, Apply new amount)
-            customer.current_balance += old_amount
-            customer.current_balance -= new_amount
+            if new_amount < 0:
+                raise BadRequestException("Collection amount cannot be negative.")
+            if new_discount < 0:
+                raise BadRequestException("Discount amount cannot be negative.")
+
+            new_total = round(new_amount + new_discount, 2)
+            if new_total <= 0:
+                raise BadRequestException("Collection amount or discount amount must be greater than zero.")
+
+            # Customer's balance before this collection was applied
+            balance_before = round(float(customer.current_balance or 0.0) + old_total, 2)
+            if balance_before > 0 or new_discount > 0:
+                available_due = max(0.0, balance_before)
+                if new_total > round(available_due + 1e-6, 2):
+                    raise BadRequestException(
+                        f"Combined collection ({new_amount:.2f}) and discount ({new_discount:.2f}) "
+                        f"cannot exceed customer's outstanding balance ({available_due:.2f})."
+                    )
+
+            # Net balance adjustment (Reverse old total, Apply new total)
+            customer.current_balance = round(balance_before - new_total, 2)
             
             db.add(customer)
 
             # Update collection attributes
             if collection_in.amount is not None:
-                collection.amount = collection_in.amount
+                collection.amount = new_amount
+            if collection_in.discount_amount is not None:
+                collection.discount_amount = new_discount
             if collection_in.payment_method is not None:
                 collection.payment_method = collection_in.payment_method
             if collection_in.reference_no is not None:
@@ -142,6 +186,8 @@ class CustomerCollectionService:
                 "customer_id": customer.id,
                 "old_amount": old_amount,
                 "new_amount": new_amount,
+                "old_discount_amount": old_discount,
+                "new_discount_amount": new_discount,
                 "recalculated_due": customer.current_balance,
             })
             log_entry = ActivityLog(
@@ -172,10 +218,13 @@ class CustomerCollectionService:
             if not collection:
                 raise NotFoundException(f"Collection voucher with ID '{collection_id}' not found.")
 
+            restored_total = round(
+                float(collection.amount or 0.0) + float(getattr(collection, "discount_amount", 0.0) or 0.0), 2
+            )
             customer = await customer_repository.get_by_id(db, id=collection.customer_id)
             if customer:
-                # Restore customer due/advance (Revert the collection)
-                customer.current_balance += collection.amount
+                # Restore customer due/advance (Revert both collection amount and waived discount)
+                customer.current_balance = round(float(customer.current_balance or 0.0) + restored_total, 2)
                 db.add(customer)
 
             # Audit Log
@@ -183,6 +232,7 @@ class CustomerCollectionService:
                 "collection_no": collection.collection_no,
                 "customer_id": collection.customer_id,
                 "restored_amount": collection.amount,
+                "restored_discount_amount": getattr(collection, "discount_amount", 0.0),
                 "updated_due": customer.current_balance if customer else None,
             })
             log_entry = ActivityLog(

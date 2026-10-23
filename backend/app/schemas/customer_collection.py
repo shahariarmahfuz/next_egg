@@ -25,7 +25,8 @@ class SaleNestedResponse(BaseModel):
 
 class CustomerCollectionCreate(BaseModel):
     customer_id: str = Field(..., description="Target Customer UUID")
-    amount: float = Field(..., gt=0.0, description="Collection Amount ($ > 0)")
+    amount: float = Field(0.0, ge=0.0, description="Collection Amount (actual money received, >= 0)")
+    discount_amount: float = Field(0.0, ge=0.0, description="Discount Amount waived (>= 0)")
     payment_method: str = Field(..., min_length=1, max_length=50, description="Payment method: cash, bank_transfer, cheque, card, etc.")
     collection_date: Optional[datetime] = Field(None, description="Collection Date (Defaults to current time)")
     reference_no: Optional[str] = Field(None, max_length=100, description="Optional payment reference number")
@@ -34,18 +35,29 @@ class CustomerCollectionCreate(BaseModel):
     note: Optional[str] = Field(None, description="Optional collection note alias")
 
     @model_validator(mode="after")
-    def sync_notes(self):
+    def sync_notes_and_validate_totals(self):
         if self.notes is None and self.note is not None:
             self.notes = self.note
         elif self.note is None and self.notes is not None:
             self.note = self.notes
+        if round((self.amount or 0.0) + (self.discount_amount or 0.0), 2) <= 0:
+            raise ValueError("Collection amount or discount amount must be greater than zero")
         return self
 
     @field_validator("amount")
     def validate_amount(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("Collection amount must be greater than zero")
+        if v < 0:
+            raise ValueError("Collection amount cannot be negative")
         return round(v, 2)
+
+    @field_validator("discount_amount", mode="before")
+    def validate_discount_amount(cls, v: Optional[float]) -> float:
+        if v is None:
+            return 0.0
+        val = float(v)
+        if val < 0:
+            raise ValueError("Discount amount cannot be negative")
+        return round(val, 2)
 
     @field_validator("payment_method")
     def validate_payment_method(cls, v: str) -> str:
@@ -55,7 +67,8 @@ class CustomerCollectionCreate(BaseModel):
 
 
 class CustomerCollectionUpdate(BaseModel):
-    amount: Optional[float] = Field(None, gt=0.0)
+    amount: Optional[float] = Field(None, ge=0.0)
+    discount_amount: Optional[float] = Field(None, ge=0.0)
     payment_method: Optional[str] = Field(None, min_length=1, max_length=50)
     collection_date: Optional[datetime] = None
     reference_no: Optional[str] = Field(None, max_length=100)
@@ -73,8 +86,14 @@ class CustomerCollectionUpdate(BaseModel):
 
     @field_validator("amount")
     def validate_amount(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v <= 0:
-            raise ValueError("Collection amount must be greater than zero")
+        if v is not None and v < 0:
+            raise ValueError("Collection amount cannot be negative")
+        return round(v, 2) if v is not None else None
+
+    @field_validator("discount_amount")
+    def validate_discount_amount(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("Discount amount cannot be negative")
         return round(v, 2) if v is not None else None
 
 
@@ -87,6 +106,7 @@ class CustomerCollectionResponse(BaseModel):
     sale_id: Optional[str] = None
     user_id: str
     amount: float
+    discount_amount: float = 0.0
     payment_method: str
     reference_no: Optional[str] = None
     collection_date: datetime

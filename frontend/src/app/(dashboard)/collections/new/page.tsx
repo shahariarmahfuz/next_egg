@@ -28,6 +28,7 @@ export default function NewCollectionPage() {
       const payload: CustomerCollectionCreatePayload = {
         customer_id: values.customer_id,
         amount: values.amount,
+        discount_amount: values.discount_amount || 0,
         payment_method: values.payment_method,
         collection_date: new Date(values.collection_date).toISOString(),
         reference_no: values.reference_no || null,
@@ -39,6 +40,11 @@ export default function NewCollectionPage() {
       await collectionService.createCollection(payload);
       queryClient.invalidateQueries({ queryKey: ["collections-list"] });
       queryClient.invalidateQueries({ queryKey: ["customer-financial-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-search"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-dues"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-dues-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
       toast.success("Collection added successfully.");
       // router.push("/collections");
     } catch (err: any) {
@@ -48,6 +54,7 @@ export default function NewCollectionPage() {
         "An unexpected error occurred while creating collection.";
       setErrorMessage(msg);
       toast.error(msg);
+      throw err;
     } finally {
       setIsSubmitting(false);
     }

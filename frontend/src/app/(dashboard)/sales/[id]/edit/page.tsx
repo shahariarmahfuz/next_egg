@@ -313,8 +313,8 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
 
   return (
     <HasPermission code="sales.edit">
-      <div className="space-y-6 max-w-7xl mx-auto pb-12">
-        <div className="flex justify-between items-center">
+      <div className="space-y-6 max-w-full w-full pb-12">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <ShoppingCart className="h-6 w-6 text-primary" />
@@ -337,8 +337,8 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
+          <div className="lg:col-span-2 space-y-6 w-full">
             {/* Customer Picker */}
             <Card className="glass-card">
               <CardHeader className="pb-3">
@@ -498,11 +498,12 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
             </Card>
 
             {/* Items Table */}
-            <Card className="glass-card overflow-hidden">
+            <Card className="glass-card overflow-hidden w-full">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-sm font-semibold">Line Items ({lineItems.length})</CardTitle>
               </CardHeader>
-              <div className="overflow-x-auto">
+              {/* Desktop Table (hidden on mobile, visible on sm and up) */}
+              <div className="hidden sm:block overflow-x-auto w-full">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-muted/50 border-b font-semibold text-muted-foreground uppercase">
                     <tr>
@@ -573,11 +574,118 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile Card Layout (visible on mobile <sm, hidden on sm and up) */}
+              <div className="sm:hidden w-full">
+                {lineItems.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-muted-foreground">
+                    No items added to invoice yet. Search and select products above to populate order.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {lineItems.map((item, idx) => (
+                      <div key={`mobile-${item.product.id}-${idx}`} className="p-3 space-y-2.5">
+                        {/* Product Name & Delete Action */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-foreground text-xs leading-snug break-words">
+                              {item.product.name}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5 break-words">
+                              Code: {item.product.product_code || "N/A"}
+                              {item.product.current_stock !== undefined && (
+                                <span> · Stock: {item.product.current_stock} {item.product.unit || "pcs"}</span>
+                              )}
+                            </div>
+                            {item.error && (
+                              <div className="text-[10px] font-bold text-destructive mt-1 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                <span className="break-words">{item.error}</span>
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                            onClick={() => handleRemoveItem(idx)}
+                            title="Remove item"
+                            aria-label={`Remove ${item.product.name}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        {/* Quantity & Price side-by-side */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1 min-w-0">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                              Quantity
+                            </label>
+                            <Input
+                              type="number"
+                              step="any"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateItem(idx, "quantity", parseFloat(e.target.value) || 0)}
+                              className="h-8 text-xs font-bold w-full"
+                            />
+                          </div>
+                          <div className="space-y-1 min-w-0">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                              Price ($)
+                            </label>
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={item.unit_price}
+                              onChange={(e) => handleUpdateItem(idx, "unit_price", parseFloat(e.target.value) || 0)}
+                              className="h-8 text-xs font-bold w-full"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Discount & Total Price side-by-side */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1 min-w-0">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                              Discount ($)
+                            </label>
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={item.discount}
+                              onChange={(e) => handleUpdateItem(idx, "discount", parseFloat(e.target.value) || 0)}
+                              className="h-8 text-xs font-bold w-full text-amber-500"
+                            />
+                          </div>
+                          <div className="space-y-1 min-w-0">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                              Total ($)
+                            </label>
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={item.total_price}
+                              onChange={(e) => handleUpdateItem(idx, "total_price", parseFloat(e.target.value) || 0)}
+                              className="h-8 text-xs font-bold w-full"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Card>
           </div>
 
           {/* Right Summary */}
-          <div className="space-y-6">
+          <div className="space-y-6 w-full">
             <Card className="glass-card border-primary/20 shadow-xl">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">

@@ -72,6 +72,11 @@ export function CollectionViewModal({ collection, isOpen, onClose }: CollectionV
             <span className="text-3xl font-extrabold text-emerald-500">
               {formatCurrency(collection.amount)}
             </span>
+            {(collection.discount_amount ?? 0) > 0 && (
+              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 block pt-1">
+                Discount Waived: {formatCurrency(collection.discount_amount || 0)}
+              </span>
+            )}
           </div>
 
           {/* Transaction Details Grid */}

@@ -39,6 +39,11 @@ export const PrintableCollectionVoucher = React.forwardRef<HTMLDivElement, Print
             <span className="text-2xl font-black text-emerald-950 block mt-1">
               {formatCurrency(collection.amount)}
             </span>
+            {(collection.discount_amount ?? 0) > 0 && (
+              <span className="text-xs font-bold text-amber-800 block mt-1">
+                Discount Waived: {formatCurrency(collection.discount_amount || 0)}
+              </span>
+            )}
           </div>
 
           {/* Details Table */}

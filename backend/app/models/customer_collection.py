@@ -22,6 +22,7 @@ class CustomerCollection(TimestampedBaseModel):
     )
 
     amount: Mapped[float] = mapped_column(Float, nullable=False)
+    discount_amount: Mapped[float] = mapped_column(Float, default=0.0, server_default="0", nullable=False)
     payment_method: Mapped[str] = mapped_column(String(50), nullable=False)  # cash, bank_transfer, cheque, card
     reference_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
     collection_date: Mapped[datetime] = mapped_column(
@@ -43,7 +44,7 @@ class CustomerCollection(TimestampedBaseModel):
         self.notes = value
 
     __table_args__ = (
-        CheckConstraint("amount > 0", name="chk_col_amount_positive"),
+        CheckConstraint("amount >= 0 AND discount_amount >= 0 AND (amount + discount_amount) > 0", name="chk_col_amount_positive"),
         Index("idx_col_no", "collection_no"),
         Index("idx_col_customer", "customer_id"),
         Index("idx_col_sale", "sale_id"),

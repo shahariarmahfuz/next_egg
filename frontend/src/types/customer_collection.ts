@@ -16,6 +16,7 @@ export interface CustomerCollectionItem {
   sale_id?: string | null;
   user_id: string;
   amount: number;
+  discount_amount?: number;
   payment_method: string;
   reference_no?: string | null;
   collection_date: string;
@@ -32,6 +33,7 @@ export interface CustomerCollectionItem {
 export interface CustomerCollectionCreatePayload {
   customer_id: string;
   amount: number;
+  discount_amount?: number;
   payment_method: string;
   collection_date?: string | null;
   reference_no?: string | null;
@@ -42,6 +44,7 @@ export interface CustomerCollectionCreatePayload {
 
 export interface CustomerCollectionUpdatePayload {
   amount?: number;
+  discount_amount?: number;
   payment_method?: string;
   collection_date?: string | null;
   reference_no?: string | null;

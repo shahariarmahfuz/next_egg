@@ -104,7 +104,13 @@ class DashboardService:
             .subquery()
         )
         q_cust_after_cols = (
-            select(CustomerCollection.customer_id, func.coalesce(func.sum(CustomerCollection.amount), 0.0).label("total_collected"))
+            select(
+                CustomerCollection.customer_id,
+                func.coalesce(
+                    func.sum(CustomerCollection.amount + func.coalesce(CustomerCollection.discount_amount, 0.0)),
+                    0.0,
+                ).label("total_collected"),
+            )
             .where(CustomerCollection.collection_date > end_date)
             .group_by(CustomerCollection.customer_id)
             .subquery()

@@ -234,17 +234,31 @@ class CustomerService:
         # Collection events
         for col in collections:
             pm = col.payment_method.replace("_", " ").title()
-            raw_events.append({
-                "id": f"col-{col.id}",
-                "date": col.collection_date,
-                "voucher_no": col.collection_no,
-                "type": "Collection",
-                "description": f"Payment Collection ({pm}){f' - {col.notes}' if col.notes else ''}",
-                "debit": 0.0,
-                "credit": col.amount,
-                "reference_id": col.id,
-                "reference_type": "collection",
-            })
+            disc = float(getattr(col, "discount_amount", 0.0) or 0.0)
+            if col.amount > 0 or disc == 0:
+                raw_events.append({
+                    "id": f"col-{col.id}",
+                    "date": col.collection_date,
+                    "voucher_no": col.collection_no,
+                    "type": "Collection",
+                    "description": f"Payment Collection ({pm}){f' - {col.notes}' if col.notes else ''}",
+                    "debit": 0.0,
+                    "credit": col.amount,
+                    "reference_id": col.id,
+                    "reference_type": "collection",
+                })
+            if disc > 0:
+                raw_events.append({
+                    "id": f"col-disc-{col.id}",
+                    "date": col.collection_date,
+                    "voucher_no": col.collection_no,
+                    "type": "Discount",
+                    "description": f"Collection Discount ({col.collection_no}){f' - {col.notes}' if col.notes else ''}",
+                    "debit": 0.0,
+                    "credit": disc,
+                    "reference_id": col.id,
+                    "reference_type": "collection",
+                })
 
         # Return events
         for ret in returns:
@@ -307,7 +321,7 @@ class CustomerService:
                 total_collections += ev["credit"]
             elif ev["type"] == "Sale Return":
                 total_returns += ev["credit"]
-            elif ev["type"] == "Balance Adjustment":
+            elif ev["type"] in ("Balance Adjustment", "Discount"):
                 manual_adjustments += (ev["debit"] - ev["credit"])
 
             ev_date_utc = _to_utc(ev["date"])
