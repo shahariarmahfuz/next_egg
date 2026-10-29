@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     # Database Configuration (Neon PostgreSQL)
-    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_ZMtnKuWAoY37@ep-wild-unit-b3vg9qqz-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require"
+    DATABASE_URL: str = Field(
+        ...,
+        description="PostgreSQL async connection URL (must be set via DATABASE_URL environment variable or .env)",
+    )
 
     @field_validator("DATABASE_URL", mode="before")
     def assemble_db_connection(cls, v: str) -> str:
