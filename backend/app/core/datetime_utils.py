@@ -2,11 +2,27 @@ from datetime import datetime, timezone
 from typing import Optional, Tuple
 import zoneinfo
 
+FALLBACK_TZ = "Asia/Dhaka"
+
+
+def get_business_tz(tz_str: Optional[str] = None) -> zoneinfo.ZoneInfo:
+    """
+    Returns ZoneInfo for the given timezone string.
+    If tz_str is None, empty, 'UTC' (unconfigured default), or invalid,
+    falls back to 'Asia/Dhaka'.
+    """
+    if tz_str and tz_str != "UTC":
+        try:
+            return zoneinfo.ZoneInfo(tz_str)
+        except Exception:
+            pass
+    return zoneinfo.ZoneInfo(FALLBACK_TZ)
+
 
 def normalize_date_range(
     start_date: Optional[datetime],
     end_date: Optional[datetime],
-    tz_str: str = "UTC",
+    tz_str: str = FALLBACK_TZ,
     default_to_today: bool = False,
 ) -> Tuple[Optional[datetime], Optional[datetime]]:
     """
@@ -23,10 +39,7 @@ def normalize_date_range(
       expands to 23:59:59.999999 in business timezone so the entire end date is inclusive,
       then converts to UTC.
     """
-    try:
-        tz = zoneinfo.ZoneInfo(tz_str)
-    except Exception:
-        tz = timezone.utc
+    tz = get_business_tz(tz_str)
 
     now_tz = datetime.now(tz)
 

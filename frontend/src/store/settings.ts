@@ -40,7 +40,7 @@ const defaultSettings: BusinessSettings = {
   business_phone: "",
   business_email: "",
   website: "",
-  timezone: "UTC",
+  timezone: "Asia/Dhaka",
   date_format: "MMM dd, yyyy",
   time_format: "hh:mm a",
   thousand_separator: ",",

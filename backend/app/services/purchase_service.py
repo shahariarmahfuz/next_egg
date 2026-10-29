@@ -608,42 +608,56 @@ class PurchaseService:
         month: Optional[int] = None,
         year: Optional[int] = None,
     ) -> PurchaseReportSummary:
-        now = datetime.now(timezone.utc)
+        from app.core.datetime_utils import get_business_tz
+        from app.services.setting_service import setting_service
+
+        settings = await setting_service.get_business_settings(db)
+        tz = get_business_tz(settings.timezone if settings else None)
+        now_tz = datetime.now(tz)
 
         if report_type == "today":
-            start = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=timezone.utc)
-            end = datetime(now.year, now.month, now.day, 23, 59, 59, tzinfo=timezone.utc)
-            period_label = f"Today ({now.strftime('%Y-%m-%d')})"
+            start_tz = datetime(now_tz.year, now_tz.month, now_tz.day, 0, 0, 0, 0, tzinfo=tz)
+            end_tz = datetime(now_tz.year, now_tz.month, now_tz.day, 23, 59, 59, 999999, tzinfo=tz)
+            start = start_tz.astimezone(timezone.utc)
+            end = end_tz.astimezone(timezone.utc)
+            period_label = f"Today ({now_tz.strftime('%Y-%m-%d')})"
 
         elif report_type == "date_wise" and target_date:
-            dt = datetime.strptime(target_date, "%Y-%m-%d")
-            start = datetime(dt.year, dt.month, dt.day, 0, 0, 0, tzinfo=timezone.utc)
-            end = datetime(dt.year, dt.month, dt.day, 23, 59, 59, tzinfo=timezone.utc)
-            period_label = f"Date: {target_date}"
+            dt = datetime.strptime(target_date.strip(), "%Y-%m-%d")
+            start_tz = datetime(dt.year, dt.month, dt.day, 0, 0, 0, 0, tzinfo=tz)
+            end_tz = datetime(dt.year, dt.month, dt.day, 23, 59, 59, 999999, tzinfo=tz)
+            start = start_tz.astimezone(timezone.utc)
+            end = end_tz.astimezone(timezone.utc)
+            period_label = f"Date: {target_date.strip()}"
 
         elif report_type == "date_range" and start_date_str and end_date_str:
-            s_dt = datetime.strptime(start_date_str, "%Y-%m-%d")
-            e_dt = datetime.strptime(end_date_str, "%Y-%m-%d")
-            start = datetime(s_dt.year, s_dt.month, s_dt.day, 0, 0, 0, tzinfo=timezone.utc)
-            end = datetime(e_dt.year, e_dt.month, e_dt.day, 23, 59, 59, tzinfo=timezone.utc)
-            period_label = f"Period: {start_date_str} to {end_date_str}"
+            s_dt = datetime.strptime(start_date_str.strip(), "%Y-%m-%d")
+            e_dt = datetime.strptime(end_date_str.strip(), "%Y-%m-%d")
+            start_tz = datetime(s_dt.year, s_dt.month, s_dt.day, 0, 0, 0, 0, tzinfo=tz)
+            end_tz = datetime(e_dt.year, e_dt.month, e_dt.day, 23, 59, 59, 999999, tzinfo=tz)
+            start = start_tz.astimezone(timezone.utc)
+            end = end_tz.astimezone(timezone.utc)
+            period_label = f"Period: {start_date_str.strip()} to {end_date_str.strip()}"
 
         elif report_type == "monthly":
-            m = month or now.month
-            y = year or now.year
-            start = datetime(y, m, 1, 0, 0, 0, tzinfo=timezone.utc)
+            m = month or now_tz.month
+            y = year or now_tz.year
+            start_tz = datetime(y, m, 1, 0, 0, 0, 0, tzinfo=tz)
             # End of month calculation
             if m == 12:
-                end = datetime(y + 1, 1, 1, 0, 0, 0, tzinfo=timezone.utc) - timedelta(seconds=1)
+                end_tz = datetime(y + 1, 1, 1, 0, 0, 0, 0, tzinfo=tz) - timedelta(microseconds=1)
             else:
-                end = datetime(y, m + 1, 1, 0, 0, 0, tzinfo=timezone.utc) - timedelta(seconds=1)
+                end_tz = datetime(y, m + 1, 1, 0, 0, 0, 0, tzinfo=tz) - timedelta(microseconds=1)
+            start = start_tz.astimezone(timezone.utc)
+            end = end_tz.astimezone(timezone.utc)
             period_label = f"Month: {y}-{m:02d}"
 
         else:
             # Default to current month
-            start = datetime(now.year, now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
-            end = now
-            period_label = f"Current Month ({now.strftime('%Y-%m')})"
+            start_tz = datetime(now_tz.year, now_tz.month, 1, 0, 0, 0, 0, tzinfo=tz)
+            start = start_tz.astimezone(timezone.utc)
+            end = datetime.now(timezone.utc)
+            period_label = f"Current Month ({now_tz.strftime('%Y-%m')})"
 
         purchases, total = await purchase_repository.get_filtered(
             db, skip=0, limit=1000, start_date=start, end_date=end

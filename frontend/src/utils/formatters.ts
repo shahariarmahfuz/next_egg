@@ -84,12 +84,12 @@ export function normalizeTimeFormat(fmt?: string): string {
  * Safely validate timezone, fallback to UTC.
  */
 function getValidTimezone(tz?: string): string {
-  if (!tz) return "UTC";
+  if (!tz || tz === "UTC") return "Asia/Dhaka";
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
     return tz;
   } catch {
-    return "UTC";
+    return "Asia/Dhaka";
   }
 }
 

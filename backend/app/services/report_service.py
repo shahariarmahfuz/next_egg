@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions.custom import BadRequestException, NotFoundException
+from app.core.datetime_utils import get_business_tz
 from app.models.product import Product
 from app.models.product_return import ProductReturn, ProductReturnItem
 from app.models.purchase import Purchase, PurchaseItem
@@ -54,20 +55,17 @@ class ReportService:
         if not product:
             raise NotFoundException(f"Product with ID '{product_id}' not found.")
 
-        # Determine timezone (client param -> business setting -> UTC)
+        # Determine timezone (client param -> business setting -> Asia/Dhaka)
         tz_name = client_tz_str
         if not tz_name or tz_name == "UTC":
             setting = await setting_repository.get_by_key(db, "timezone")
             if setting and setting.value and setting.value != "UTC":
                 tz_name = setting.value
-            elif not tz_name:
-                tz_name = "UTC"
+            else:
+                tz_name = "Asia/Dhaka"
 
-        try:
-            tz = zoneinfo.ZoneInfo(tz_name)
-        except Exception:
-            tz = timezone.utc
-            tz_name = "UTC"
+        tz = get_business_tz(tz_name)
+        tz_name = str(tz)
 
         # Parse target date
         try:
@@ -260,61 +258,60 @@ class ReportService:
             })
 
         # 2. Determine End-of-Day Remaining Stock (Anchored to authoritative product.current_stock)
-        now_utc = datetime.now(timezone.utc)
         live_current_stock = float(product.current_stock)
 
-        if end_utc < now_utc:
-            # Target date is in the past: reverse all transactions after end_utc
-            after_purchases = (
-                await db.execute(
-                    select(func.coalesce(func.sum(PurchaseItem.quantity), 0.0))
-                    .join(Purchase, PurchaseItem.purchase_id == Purchase.id)
-                    .where(
-                        PurchaseItem.product_id == product_id,
-                        Purchase.purchase_date > end_utc,
-                    )
+        # Reverse all transactions recorded strictly after end_utc.
+        # When viewing the current day with no advance/future-dated transactions, after_net_inflow
+        # and after_net_outflow evaluate cleanly to 0.0 (end_of_day_stock = live_current_stock).
+        # When future-dated transactions exist (e.g. advance entries created at night before midnight),
+        # they are correctly factored out so current day closing stock remains 100% accurate 24/7.
+        after_purchases = (
+            await db.execute(
+                select(func.coalesce(func.sum(PurchaseItem.quantity), 0.0))
+                .join(Purchase, PurchaseItem.purchase_id == Purchase.id)
+                .where(
+                    PurchaseItem.product_id == product_id,
+                    Purchase.purchase_date > end_utc,
                 )
-            ).scalar_one()
+            )
+        ).scalar_one()
 
-            after_purch_returns = (
-                await db.execute(
-                    select(func.coalesce(func.sum(ProductReturnItem.quantity), 0.0))
-                    .join(ProductReturn, ProductReturnItem.product_return_id == ProductReturn.id)
-                    .where(
-                        ProductReturnItem.product_id == product_id,
-                        ProductReturn.return_date > end_utc,
-                    )
+        after_purch_returns = (
+            await db.execute(
+                select(func.coalesce(func.sum(ProductReturnItem.quantity), 0.0))
+                .join(ProductReturn, ProductReturnItem.product_return_id == ProductReturn.id)
+                .where(
+                    ProductReturnItem.product_id == product_id,
+                    ProductReturn.return_date > end_utc,
                 )
-            ).scalar_one()
+            )
+        ).scalar_one()
 
-            after_sales = (
-                await db.execute(
-                    select(func.coalesce(func.sum(SaleItem.quantity), 0.0))
-                    .join(Sale, SaleItem.sale_id == Sale.id)
-                    .where(
-                        SaleItem.product_id == product_id,
-                        Sale.sale_date > end_utc,
-                    )
+        after_sales = (
+            await db.execute(
+                select(func.coalesce(func.sum(SaleItem.quantity), 0.0))
+                .join(Sale, SaleItem.sale_id == Sale.id)
+                .where(
+                    SaleItem.product_id == product_id,
+                    Sale.sale_date > end_utc,
                 )
-            ).scalar_one()
+            )
+        ).scalar_one()
 
-            after_sale_returns = (
-                await db.execute(
-                    select(func.coalesce(func.sum(SaleReturnItem.quantity), 0.0))
-                    .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
-                    .where(
-                        SaleReturnItem.product_id == product_id,
-                        SaleReturn.return_date > end_utc,
-                    )
+        after_sale_returns = (
+            await db.execute(
+                select(func.coalesce(func.sum(SaleReturnItem.quantity), 0.0))
+                .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
+                .where(
+                    SaleReturnItem.product_id == product_id,
+                    SaleReturn.return_date > end_utc,
                 )
-            ).scalar_one()
+            )
+        ).scalar_one()
 
-            after_net_inflow = (float(after_purchases) - float(after_purch_returns)) + float(after_sale_returns)
-            after_net_outflow = float(after_sales)
-            end_of_day_stock = live_current_stock - after_net_inflow + after_net_outflow
-        else:
-            # Target date is Today (or future): remaining stock at end of target date matches live current stock
-            end_of_day_stock = live_current_stock
+        after_net_inflow = (float(after_purchases) - float(after_purch_returns)) + float(after_sale_returns)
+        after_net_outflow = float(after_sales)
+        end_of_day_stock = live_current_stock - after_net_inflow + after_net_outflow
 
         if abs(end_of_day_stock) < 1e-6:
             end_of_day_stock = 0.0
@@ -406,13 +403,8 @@ class ReportService:
         """
         # Fetch business configuration (Timezone, Business Profile)
         business_settings = await setting_service.get_business_settings(db)
-        tz_name = client_tz_str or business_settings.timezone or "Asia/Dhaka"
-
-        try:
-            tz = zoneinfo.ZoneInfo(tz_name)
-        except Exception:
-            tz = timezone.utc
-            tz_name = "UTC"
+        tz = get_business_tz(client_tz_str or business_settings.timezone)
+        tz_name = str(tz)
 
         # Determine target date boundaries
         if start_date_str and end_date_str:
@@ -635,13 +627,8 @@ class ReportService:
         - Paginated or itemized records with creator name
         """
         business_settings = await setting_service.get_business_settings(db)
-        tz_name = client_tz_str or business_settings.timezone or "Asia/Dhaka"
-
-        try:
-            tz = zoneinfo.ZoneInfo(tz_name)
-        except Exception:
-            tz = timezone.utc
-            tz_name = "UTC"
+        tz = get_business_tz(client_tz_str or business_settings.timezone)
+        tz_name = str(tz)
 
         now_tz = datetime.now(tz)
         if start_date_str and end_date_str:
