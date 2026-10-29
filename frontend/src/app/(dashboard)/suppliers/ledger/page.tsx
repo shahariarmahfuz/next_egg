@@ -48,6 +48,7 @@ import { SupplierPaymentViewModal } from "@/components/supplier-payments/supplie
 import { ProductReturnViewModal } from "@/components/product-returns/product-return-view-modal";
 import { HasPermission } from "@/providers/auth-provider";
 import { usePrint } from "@/lib/print-service";
+import { getTodayDateStr } from "@/utils/business-date";
 import { PrintableSupplierStatement } from "@/components/suppliers/printable-supplier-statement";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -152,23 +153,27 @@ export default function SupplierLedgerPage() {
 
   // Quick Date Filter Presets
   const handleQuickDateFilter = (preset: "all" | "this_month" | "last_30" | "this_year") => {
-    const today = new Date();
+    const todayStr = getTodayDateStr();
     if (preset === "all") {
       setStartDate("");
       setEndDate("");
     } else if (preset === "this_month") {
-      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      setStartDate(firstDay.toISOString().split("T")[0]);
-      setEndDate(today.toISOString().split("T")[0]);
+      const firstDayStr = `${todayStr.slice(0, 7)}-01`;
+      setStartDate(firstDayStr);
+      setEndDate(todayStr);
     } else if (preset === "last_30") {
-      const past30 = new Date();
-      past30.setDate(today.getDate() - 30);
-      setStartDate(past30.toISOString().split("T")[0]);
-      setEndDate(today.toISOString().split("T")[0]);
+      const [y, m, d] = todayStr.split("-").map(Number);
+      const past30 = new Date(y, m - 1, d);
+      past30.setDate(past30.getDate() - 30);
+      const y30 = past30.getFullYear();
+      const m30 = String(past30.getMonth() + 1).padStart(2, "0");
+      const day30 = String(past30.getDate()).padStart(2, "0");
+      setStartDate(`${y30}-${m30}-${day30}`);
+      setEndDate(todayStr);
     } else if (preset === "this_year") {
-      const firstDay = new Date(today.getFullYear(), 0, 1);
-      setStartDate(firstDay.toISOString().split("T")[0]);
-      setEndDate(today.toISOString().split("T")[0]);
+      const firstDayStr = `${todayStr.slice(0, 4)}-01-01`;
+      setStartDate(firstDayStr);
+      setEndDate(todayStr);
     }
     setPage(1);
   };

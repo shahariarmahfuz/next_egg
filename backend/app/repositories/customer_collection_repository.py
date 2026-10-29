@@ -4,6 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.datetime_utils import get_preset_date_ranges
 from app.models.customer import Customer
 from app.models.customer_collection import CustomerCollection
 from app.models.sale import Sale
@@ -186,13 +187,11 @@ class CustomerCollectionRepository(
         customer_id: Optional[str] = None,
         payment_method: Optional[str] = None,
     ) -> dict:
-        now_utc = datetime.now(timezone.utc)
-        today_start = datetime.combine(now_utc.date(), time.min, tzinfo=timezone.utc)
-        today_end = datetime.combine(now_utc.date(), time.max, tzinfo=timezone.utc)
-        yesterday_start = today_start - timedelta(days=1)
-        yesterday_end = today_start - timedelta(microseconds=1)
-        week_start = today_start - timedelta(days=now_utc.weekday())
-        month_start = today_start.replace(day=1)
+        preset_bounds = get_preset_date_ranges()
+        today_start, today_end = preset_bounds["today"]
+        yesterday_start, yesterday_end = preset_bounds["yesterday"]
+        week_start, _ = preset_bounds["this_week"]
+        month_start, _ = preset_bounds["this_month"]
 
         # Base filtered query
         base_query = select(CustomerCollection).join(

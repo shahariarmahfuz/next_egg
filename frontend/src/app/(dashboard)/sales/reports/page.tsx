@@ -16,9 +16,10 @@ import { SaleViewModal } from "@/components/sales/sale-view-modal";
 import { printSaleInvoice } from "@/components/sales/sale-export-utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate, formatNumber } from "@/utils/formatters";
+import { getTodayDateStr } from "@/utils/business-date";
 
 export default function SalesReportPage() {
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = getTodayDateStr();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<string>("");
@@ -31,7 +32,7 @@ export default function SalesReportPage() {
 
   const shiftDays = (days: number) => {
     const parseAndShift = (dateStr: string) => {
-      if (!dateStr) return new Date().toLocaleDateString('en-CA');
+      if (!dateStr) return getTodayDateStr();
       const [y, m, d] = dateStr.split("-").map(Number);
       const date = new Date(y, m - 1, d);
       date.setDate(date.getDate() + days);
@@ -44,7 +45,7 @@ export default function SalesReportPage() {
   };
 
   const goToToday = () => {
-    const todayStr = new Date().toLocaleDateString('en-CA');
+    const todayStr = getTodayDateStr();
     setStartDate(todayStr);
     setEndDate(todayStr);
     setPage(1);

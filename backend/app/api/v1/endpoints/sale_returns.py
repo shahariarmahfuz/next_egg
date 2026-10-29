@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.datetime_utils import normalize_date_range
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
 from app.models.user import User
@@ -34,6 +35,7 @@ async def list_sale_returns(
     current_user: User = Depends(RequirePermission("sale_return.view")),
 ):
     """Server-side paginated customer sale return directory with search and date range filtering."""
+    start_date, end_date = normalize_date_range(start_date, end_date, default_to_today=False)
     skip = (page - 1) * size
     returns, total = await sale_return_service.get_sale_returns_paginated(
         db,

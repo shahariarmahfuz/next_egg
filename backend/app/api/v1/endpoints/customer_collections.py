@@ -7,6 +7,7 @@ from sqlalchemy import func, select, or_
 from app.models.customer_collection import CustomerCollection
 from app.models.customer import Customer
 
+from app.core.datetime_utils import normalize_date_range
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
 from app.models.user import User
@@ -37,6 +38,7 @@ async def list_collections(
     current_user: User = Depends(RequirePermission("collection.view")),
 ):
     """Server-side paginated customer collection voucher history with search and filtering."""
+    start_date, end_date = normalize_date_range(start_date, end_date, default_to_today=False)
     skip = (page - 1) * size
     collections, total = await customer_collection_service.get_collections_paginated(
         db,

@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from typing import Optional, Tuple
+from datetime import datetime, time, timedelta, timezone
+from typing import Dict, Optional, Tuple
 import zoneinfo
 
 FALLBACK_TZ = "Asia/Dhaka"
@@ -79,3 +79,34 @@ def normalize_date_range(
         end_utc = end_tz.astimezone(timezone.utc)
 
     return start_utc, end_utc
+
+
+def get_preset_date_ranges(tz_str: Optional[str] = None) -> Dict[str, Tuple[datetime, datetime]]:
+    """
+    Returns UTC start and end bounds for standard presets ('today', 'yesterday',
+    'this_week', 'this_month', 'this_year') computed strictly in the business timezone.
+    """
+    tz = get_business_tz(tz_str)
+    now_tz = datetime.now(tz)
+    today_d = now_tz.date()
+
+    today_start_tz = datetime(today_d.year, today_d.month, today_d.day, 0, 0, 0, 0, tzinfo=tz)
+    today_end_tz = datetime(today_d.year, today_d.month, today_d.day, 23, 59, 59, 999999, tzinfo=tz)
+
+    yesterday_d = today_d - timedelta(days=1)
+    yesterday_start_tz = datetime(yesterday_d.year, yesterday_d.month, yesterday_d.day, 0, 0, 0, 0, tzinfo=tz)
+    yesterday_end_tz = datetime(yesterday_d.year, yesterday_d.month, yesterday_d.day, 23, 59, 59, 999999, tzinfo=tz)
+
+    week_start_d = today_d - timedelta(days=now_tz.weekday())
+    week_start_tz = datetime(week_start_d.year, week_start_d.month, week_start_d.day, 0, 0, 0, 0, tzinfo=tz)
+
+    month_start_tz = datetime(today_d.year, today_d.month, 1, 0, 0, 0, 0, tzinfo=tz)
+    year_start_tz = datetime(today_d.year, 1, 1, 0, 0, 0, 0, tzinfo=tz)
+
+    return {
+        "today": (today_start_tz.astimezone(timezone.utc), today_end_tz.astimezone(timezone.utc)),
+        "yesterday": (yesterday_start_tz.astimezone(timezone.utc), yesterday_end_tz.astimezone(timezone.utc)),
+        "this_week": (week_start_tz.astimezone(timezone.utc), today_end_tz.astimezone(timezone.utc)),
+        "this_month": (month_start_tz.astimezone(timezone.utc), today_end_tz.astimezone(timezone.utc)),
+        "this_year": (year_start_tz.astimezone(timezone.utc), today_end_tz.astimezone(timezone.utc)),
+    }

@@ -6,6 +6,7 @@ from sqlalchemy import func, select, or_, and_, extract, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.datetime_utils import get_preset_date_ranges
 from app.models.expense import Expense, ExpenseCategory
 from app.models.activity_log import ActivityLog
 from app.schemas.expense import (
@@ -589,10 +590,10 @@ class ExpenseService:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> ExpenseReportSummary:
-        now = datetime.now(timezone.utc)
-        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-        year_start = datetime(now.year, 1, 1, tzinfo=timezone.utc)
+        preset_bounds = get_preset_date_ranges()
+        today_start, _ = preset_bounds["today"]
+        month_start, _ = preset_bounds["this_month"]
+        year_start, _ = preset_bounds["this_year"]
 
         base_query = select(Expense)
         if category_id:

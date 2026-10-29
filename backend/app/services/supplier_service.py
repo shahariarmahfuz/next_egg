@@ -409,8 +409,10 @@ class SupplierService:
         total_returns = 0.0
         manual_adjustments = 0.0
 
-        start_utc = _to_utc(start_date)
-        end_utc = _to_utc(end_date)
+        if start_date is not None or end_date is not None:
+            start_utc, end_utc = normalize_date_range(start_date, end_date, tz_str=tz_str, default_to_today=False)
+        else:
+            start_utc, end_utc = None, None
         calculated_events = []
 
         for ev in all_events:

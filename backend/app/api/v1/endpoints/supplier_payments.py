@@ -7,6 +7,7 @@ from sqlalchemy import func, select, or_
 from app.models.supplier_payment import SupplierPayment
 from app.models.supplier import Supplier
 
+from app.core.datetime_utils import normalize_date_range
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
 from app.models.user import User
@@ -37,6 +38,7 @@ async def list_supplier_payments(
     current_user: User = Depends(RequirePermission("supplier_payment.view")),
 ):
     """Server-side paginated supplier payment directory with multi-field search and date range filtering."""
+    start_date, end_date = normalize_date_range(start_date, end_date, default_to_today=False)
     skip = (page - 1) * size
     payments, total = await supplier_payment_service.get_supplier_payments_paginated(
         db,

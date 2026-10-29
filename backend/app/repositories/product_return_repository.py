@@ -4,6 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.datetime_utils import get_preset_date_ranges
 from app.models.product import Product
 from app.models.product_return import ProductReturn, ProductReturnItem
 from app.models.purchase import Purchase, PurchaseItem
@@ -135,13 +136,11 @@ class ProductReturnRepository(BaseRepository[ProductReturn, ProductReturnCreate,
         search: Optional[str] = None,
         supplier_id: Optional[str] = None,
     ) -> dict:
-        now_utc = datetime.now(timezone.utc)
-        today_start = datetime.combine(now_utc.date(), time.min, tzinfo=timezone.utc)
-        today_end = datetime.combine(now_utc.date(), time.max, tzinfo=timezone.utc)
-        yesterday_start = today_start - timedelta(days=1)
-        yesterday_end = today_start - timedelta(microseconds=1)
-        week_start = today_start - timedelta(days=now_utc.weekday())
-        month_start = today_start.replace(day=1)
+        preset_bounds = get_preset_date_ranges()
+        today_start, today_end = preset_bounds["today"]
+        yesterday_start, yesterday_end = preset_bounds["yesterday"]
+        week_start, _ = preset_bounds["this_week"]
+        month_start, _ = preset_bounds["this_month"]
 
         base_query = select(ProductReturn).join(Supplier, ProductReturn.supplier_id == Supplier.id)
 

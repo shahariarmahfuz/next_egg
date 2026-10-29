@@ -23,10 +23,11 @@ import { dashboardService } from "@/services/api";
 import { useSettingsStore } from "@/store/settings";
 import { DashboardCardsSummary } from "@/types";
 import { formatCurrency } from "@/utils/formatters";
+import { getTodayDateStr } from "@/utils/business-date";
 
 export default function FilteredDashboardPage() {
   const { user, hasPermission } = useAuth();
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = getTodayDateStr();
   
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);

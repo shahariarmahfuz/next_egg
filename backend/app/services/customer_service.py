@@ -4,6 +4,7 @@ from typing import Optional, Sequence
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.datetime_utils import normalize_date_range
 from app.exceptions.custom import BadRequestException, ConflictException, NotFoundException
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem
@@ -308,8 +309,10 @@ class CustomerService:
         total_returns = 0.0
         manual_adjustments = 0.0
 
-        start_utc = _to_utc(start_date)
-        end_utc = _to_utc(end_date)
+        if start_date is not None or end_date is not None:
+            start_utc, end_utc = normalize_date_range(start_date, end_date, default_to_today=False)
+        else:
+            start_utc, end_utc = None, None
 
         for ev in raw_events:
             running_bal = running_bal + ev["debit"] - ev["credit"]

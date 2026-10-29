@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.datetime_utils import normalize_date_range
 from app.dependencies.auth import get_current_user
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
@@ -54,6 +55,7 @@ async def list_supplier_other_transactions(
     current_user: User = Depends(RequirePermission("supplier.view")),
 ):
     """Paginated list of supplier other transactions."""
+    start_date, end_date = normalize_date_range(start_date, end_date, default_to_today=False)
     skip = (page - 1) * size
     items, total = await supplier_other_transaction_service.get_transactions_paginated(
         db,

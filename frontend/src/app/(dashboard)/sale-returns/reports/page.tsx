@@ -14,9 +14,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/formatters";
+import { getTodayDateStr } from "@/utils/business-date";
 
 export default function SaleReturnsReportPage() {
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = getTodayDateStr();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [startDate, setStartDate] = useState(today);

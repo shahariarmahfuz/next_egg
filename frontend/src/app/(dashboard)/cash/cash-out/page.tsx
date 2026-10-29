@@ -24,6 +24,7 @@ import { HasPermission, useAuth } from "@/providers/auth-provider";
 import { useSettingsStore } from "@/store/settings";
 import { cashOutService } from "@/services/api";
 import { sanitizeNumericInput } from "@/utils/numeric-sanitizer";
+import { getTodayDateStr, businessDateToISO } from "@/utils/business-date";
 
 // Quick suggestion chips for common withdrawal reasons
 const QUICK_REASONS = [
@@ -40,19 +41,7 @@ export default function CashOutPage() {
   const queryClient = useQueryClient();
 
   // Helper to get today's date in YYYY-MM-DD
-  const getTodayISO = () => {
-    try {
-      const tz = settings.timezone || "UTC";
-      return new Intl.DateTimeFormat("en-CA", {
-        timeZone: tz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date());
-    } catch {
-      return new Date().toISOString().split("T")[0];
-    }
-  };
+  const getTodayISO = () => getTodayDateStr();
 
   const [date, setDate] = useState<string>(getTodayISO());
   const [amount, setAmount] = useState<string>("");
@@ -113,7 +102,7 @@ export default function CashOutPage() {
     }
 
     // Prepare ISO datetime for the selected date
-    const isoDateTime = new Date(`${date}T12:00:00Z`).toISOString();
+    const isoDateTime = businessDateToISO(date);
 
     createMutation.mutate({
       amount: numAmount,

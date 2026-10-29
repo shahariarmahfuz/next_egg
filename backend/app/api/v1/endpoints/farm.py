@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.datetime_utils import get_business_tz
 from app.dependencies.auth import get_current_user
 from app.dependencies.permissions import RequirePermission
 from app.dependencies.db import get_db
@@ -38,11 +39,11 @@ router = APIRouter()
 async def get_business_today(db: AsyncSession) -> date:
     try:
         settings = await setting_service.get_business_settings(db)
-        tz_str = settings.timezone or "UTC"
-        tz = zoneinfo.ZoneInfo(tz_str)
+        tz = get_business_tz(settings.timezone if settings else None)
         return datetime.now(tz).date()
     except Exception:
-        return datetime.now(timezone.utc).date()
+        tz = get_business_tz()
+        return datetime.now(tz).date()
 
 
 # ==========================================

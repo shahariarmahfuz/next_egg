@@ -15,9 +15,10 @@ import { Label } from "@/components/ui/label";
 import { CollectionViewModal } from "@/components/collections/collection-view-modal";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency, formatDate } from "@/utils/formatters";
+import { getTodayDateStr } from "@/utils/business-date";
 
 export default function CollectionsReportPage() {
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = getTodayDateStr();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<string>("all");
@@ -35,8 +36,8 @@ export default function CollectionsReportPage() {
         size: 15,
         search: debouncedSearch || undefined,
         payment_method: paymentMethod !== "all" ? paymentMethod : undefined,
-        start_date: startDate ? new Date(startDate).toISOString() : undefined,
-        end_date: endDate ? new Date(endDate).toISOString() : undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
       }),
   });
 

@@ -4,6 +4,7 @@ from typing import Optional, Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.datetime_utils import get_preset_date_ranges, normalize_date_range
 from app.core.logging import logger
 from app.exceptions.custom import BadRequestException, NotFoundException
 from app.models.activity_log import ActivityLog
@@ -527,6 +528,8 @@ class SaleReturnService:
         end_date: Optional[datetime] = None,
         sort_by: Optional[str] = "newest",
     ) -> tuple[Sequence[SaleReturn], int]:
+        if start_date is not None or end_date is not None:
+            start_date, end_date = normalize_date_range(start_date, end_date, default_to_today=False)
         return await sale_return_repository.get_filtered(
             db,
             skip=skip,
@@ -549,22 +552,11 @@ class SaleReturnService:
         search: Optional[str] = None,
         customer_id: Optional[str] = None,
     ) -> dict:
-        now_utc = datetime.now(timezone.utc)
-        if preset_range == "today":
-            start_date = datetime.combine(now_utc.date(), datetime.min.time(), tzinfo=timezone.utc)
-            end_date = datetime.combine(now_utc.date(), datetime.max.time(), tzinfo=timezone.utc)
-        elif preset_range == "yesterday":
-            y_date = now_utc.date() - timedelta(days=1)
-            start_date = datetime.combine(y_date, datetime.min.time(), tzinfo=timezone.utc)
-            end_date = datetime.combine(y_date, datetime.max.time(), tzinfo=timezone.utc)
-        elif preset_range == "this_week":
-            w_start = now_utc.date() - timedelta(days=now_utc.weekday())
-            start_date = datetime.combine(w_start, datetime.min.time(), tzinfo=timezone.utc)
-            end_date = datetime.combine(now_utc.date(), datetime.max.time(), tzinfo=timezone.utc)
-        elif preset_range == "this_month":
-            m_start = now_utc.date().replace(day=1)
-            start_date = datetime.combine(m_start, datetime.min.time(), tzinfo=timezone.utc)
-            end_date = datetime.combine(now_utc.date(), datetime.max.time(), tzinfo=timezone.utc)
+        if preset_range in ("today", "yesterday", "this_week", "this_month", "this_year"):
+            presets = get_preset_date_ranges()
+            start_date, end_date = presets[preset_range]
+        elif start_date is not None or end_date is not None:
+            start_date, end_date = normalize_date_range(start_date, end_date, default_to_today=False)
 
         return await sale_return_repository.get_report_data(
             db,
