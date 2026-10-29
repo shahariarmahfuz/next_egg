@@ -52,6 +52,7 @@ import { cashOutService } from "@/services/api";
 import { CashOutItem, CashOutUpdateInput } from "@/types";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { sanitizeNumericInput } from "@/utils/numeric-sanitizer";
+import { toBusinessDateStr, businessDateToISO } from "@/utils/business-date";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
 
@@ -112,7 +113,7 @@ export default function CashOutManagePage() {
     setEditReason(item.reason);
     setEditNote(item.notes || item.note || "");
     const d = new Date(item.cash_out_date);
-    const dateStr = isNaN(d.getTime()) ? item.cash_out_date.split("T")[0] : d.toISOString().split("T")[0];
+    const dateStr = isNaN(d.getTime()) ? item.cash_out_date.split("T")[0] : toBusinessDateStr(d);
     setEditDate(dateStr);
     setEditError("");
   };
@@ -169,7 +170,7 @@ export default function CashOutManagePage() {
       return;
     }
 
-    const isoDateTime = editDate ? new Date(`${editDate}T12:00:00Z`).toISOString() : undefined;
+    const isoDateTime = editDate ? businessDateToISO(editDate, editingItem.cash_out_date) : undefined;
 
     updateMutation.mutate({
       id: editingItem.id,

@@ -47,6 +47,7 @@ import {
   calculateUnitPrice,
   roundToPrecision,
 } from "@/utils/price";
+import { toBusinessDateStr, businessDateToISO } from "@/utils/business-date";
 
 interface LineItemState {
   product: ProductItem;
@@ -103,7 +104,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       setPaidAmount(sale.paid_amount);
       setNotes(sale.notes || sale.note || "");
       if (sale.sale_date) {
-        setSaleDate(new Date(sale.sale_date).toISOString().split("T")[0]);
+        setSaleDate(toBusinessDateStr(sale.sale_date));
       }
 
       if (sale.items) {
@@ -270,7 +271,7 @@ export default function EditSalePage({ params }: { params: Promise<{ id: string 
       setIsSubmitting(true);
       const payload: SaleUpdatePayload = {
         customer_id: selectedCustomer?.id || sale?.customer_id,
-        sale_date: saleDate ? new Date(saleDate).toISOString() : undefined,
+        sale_date: saleDate ? businessDateToISO(saleDate, sale?.sale_date) : undefined,
         discount_amount: roundToPrecision(orderDiscount, 4),
         tax_amount: roundToPrecision(taxAmount, 4),
         paid_amount: roundToPrecision(paidAmount, 4),

@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCurrency, formatDate } from "@/utils/formatters";
+import { getTodayDateStr, businessDateToISO } from "@/utils/business-date";
 
 interface BalanceAdjustmentModalProps {
   entityType: "customer" | "supplier";
@@ -77,7 +78,7 @@ export function BalanceAdjustmentModal({
   const [newBalance, setNewBalance] = useState<string>(currentBalance.toString());
   const [balanceType, setBalanceType] = useState<string>(defaultBalanceType);
   const [effectiveDate, setEffectiveDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
+    getTodayDateStr()
   );
   const [reason, setReason] = useState<string>(REASON_OPTIONS[0]);
   const [customReason, setCustomReason] = useState<string>("");
@@ -157,7 +158,7 @@ export function BalanceAdjustmentModal({
     adjustMutation.mutate({
       new_balance: parsedVal,
       balance_type: balanceType,
-      effective_date: effectiveDate ? new Date(effectiveDate).toISOString() : undefined,
+      effective_date: effectiveDate ? businessDateToISO(effectiveDate) : undefined,
       reason: finalReason,
       notes: notes.trim() || undefined,
     });

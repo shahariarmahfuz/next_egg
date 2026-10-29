@@ -46,6 +46,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/providers/auth-provider";
 import { formatCurrency } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
+import { toDateTimeLocalStr } from "@/utils/business-date";
 
 const supplierOtherTransactionSchema = z.object({
   supplier_id: z.string().min(1, "Supplier selection is required"),
@@ -107,7 +108,7 @@ export function SupplierOtherTransactionForm({
       supplier_id: "",
       transaction_type: "other_payable",
       amount: undefined,
-      transaction_date: new Date().toISOString().slice(0, 16),
+      transaction_date: toDateTimeLocalStr(),
       reference_no: "",
       notes: "",
     },
@@ -136,7 +137,7 @@ export function SupplierOtherTransactionForm({
       supplier_id: "",
       transaction_type: "other_payable",
       amount: undefined,
-      transaction_date: new Date().toISOString().slice(0, 16),
+      transaction_date: toDateTimeLocalStr(),
       reference_no: "",
       notes: "",
     });

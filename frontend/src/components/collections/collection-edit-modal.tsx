@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { CollectionForm, CollectionFormValues } from "./collection-form";
 import { CustomerCollectionItem, CustomerCollectionUpdatePayload } from "@/types";
 import { collectionService } from "@/services/api";
+import { businessDateToISO } from "@/utils/business-date";
 
 interface CollectionEditModalProps {
   collection: CustomerCollectionItem | null;
@@ -28,7 +29,7 @@ export function CollectionEditModal({ collection, isOpen, onClose, onSuccess }: 
         amount: values.amount,
         discount_amount: values.discount_amount || 0,
         payment_method: values.payment_method,
-        collection_date: new Date(values.collection_date).toISOString(),
+        collection_date: businessDateToISO(values.collection_date, collection.collection_date),
         reference_no: values.reference_no || null,
         notes: values.notes?.trim() ? values.notes.trim() : null,
         note: values.notes?.trim() ? values.notes.trim() : null,

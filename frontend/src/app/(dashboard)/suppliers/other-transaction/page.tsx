@@ -15,6 +15,7 @@ import {
 } from "@/components/suppliers/supplier-other-transaction-form";
 import { supplierOtherTransactionService } from "@/services/api";
 import { SupplierOtherTransactionCreatePayload } from "@/types";
+import { dateTimeLocalToISO } from "@/utils/business-date";
 
 export default function SupplierOtherTransactionPage() {
   const queryClient = useQueryClient();
@@ -30,7 +31,7 @@ export default function SupplierOtherTransactionPage() {
         supplier_id: values.supplier_id,
         transaction_type: values.transaction_type,
         amount: values.amount,
-        transaction_date: new Date(values.transaction_date).toISOString(),
+        transaction_date: dateTimeLocalToISO(values.transaction_date),
         reference_no: values.reference_no?.trim() ? values.reference_no.trim() : null,
         notes: values.notes?.trim() ? values.notes.trim() : null,
       };

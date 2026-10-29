@@ -48,6 +48,7 @@ import {
 } from "@/utils/price";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { getTodayDateStr, businessDateToISO } from "@/utils/business-date";
 
 interface LineItemState {
   product: ProductItem;
@@ -70,7 +71,7 @@ export function SaleForm() {
 
   // Form Fields State
   const [saleDate, setSaleDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
+    getTodayDateStr()
   );
   const [customInvoiceNo, setCustomInvoiceNo] = useState<string>("");
 
@@ -262,7 +263,7 @@ export function SaleForm() {
       const payload: SaleCreatePayload = {
         customer_id: selectedCustomer?.id || "",
         invoice_no: customInvoiceNo.trim() || undefined,
-        sale_date: saleDate ? new Date(saleDate).toISOString() : new Date().toISOString(),
+        sale_date: businessDateToISO(saleDate),
         items: lineItems.map((item) => ({
           product_id: item.product.id,
           quantity: item.quantity,

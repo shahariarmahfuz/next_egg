@@ -45,6 +45,7 @@ import { SupplierItem, SupplierFinancialSummary, SupplierPaymentItem } from "@/t
 import { formatCurrency } from "./supplier-payment-export-utils";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
+import { toDateTimeLocalStr } from "@/utils/business-date";
 
 const supplierPaymentFormSchema = z.object({
   supplier_id: z.string().min(1, "Supplier selection is required"),
@@ -104,8 +105,8 @@ export function SupplierPaymentForm({ initialData, onSubmit, isSubmitting }: Sup
       payment_method: initialData?.payment_method || "cash",
       reference_no: initialData?.reference_no || "",
       payment_date: initialData?.payment_date
-        ? new Date(initialData.payment_date).toISOString().slice(0, 16)
-        : new Date().toISOString().slice(0, 16),
+        ? toDateTimeLocalStr(initialData.payment_date)
+        : toDateTimeLocalStr(),
       notes: initialData?.notes || (initialData as any)?.note || "",
     },
   });

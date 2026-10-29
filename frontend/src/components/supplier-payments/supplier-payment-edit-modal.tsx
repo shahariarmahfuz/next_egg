@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SupplierPaymentForm, SupplierPaymentFormValues } from "./supplier-payment-form";
 import { SupplierPaymentItem, SupplierPaymentUpdatePayload } from "@/types";
 import { supplierPaymentService } from "@/services/api";
+import { dateTimeLocalToISO } from "@/utils/business-date";
 
 interface SupplierPaymentEditModalProps {
   payment: SupplierPaymentItem | null;
@@ -28,7 +29,7 @@ export function SupplierPaymentEditModal({ payment, isOpen, onClose, onSuccess }
         amount: values.amount,
         payment_method: values.payment_method,
         reference_no: values.reference_no || null,
-        payment_date: new Date(values.payment_date).toISOString(),
+        payment_date: dateTimeLocalToISO(values.payment_date),
         notes: values.notes?.trim() ? values.notes.trim() : null,
         note: values.notes?.trim() ? values.notes.trim() : null,
       };

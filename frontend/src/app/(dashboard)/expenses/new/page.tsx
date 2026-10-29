@@ -45,13 +45,14 @@ import {
 import { HasPermission, useAuth } from "@/providers/auth-provider";
 import { expenseService } from "@/services/api";
 import { ExpenseCategory, ExpenseInput } from "@/types";
+import { getTodayDateStr, businessDateToISO } from "@/utils/business-date";
 
 export default function AddExpensePage() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayDateStr();
 
   const [categoryId, setCategoryId] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
@@ -163,7 +164,7 @@ export default function AddExpensePage() {
     createMutation.mutate({
       category_id: categoryId,
       amount: numericAmount,
-      expense_date: new Date(expenseDate).toISOString(),
+      expense_date: businessDateToISO(expenseDate),
       payment_method: paymentMethod,
       reference_no: referenceNo.trim() || undefined,
       description: description.trim() || undefined,

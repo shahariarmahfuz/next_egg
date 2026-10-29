@@ -13,6 +13,7 @@ import { HasPermission } from "@/providers/auth-provider";
 import { SupplierPaymentForm, SupplierPaymentFormValues } from "@/components/supplier-payments/supplier-payment-form";
 import { supplierPaymentService } from "@/services/api";
 import { SupplierPaymentCreatePayload } from "@/types";
+import { dateTimeLocalToISO } from "@/utils/business-date";
 
 export default function NewSupplierPaymentPage() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function NewSupplierPaymentPage() {
         amount: values.amount,
         payment_method: values.payment_method,
         reference_no: values.reference_no || null,
-        payment_date: new Date(values.payment_date).toISOString(),
+        payment_date: dateTimeLocalToISO(values.payment_date),
         notes: values.notes?.trim() ? values.notes.trim() : null,
         note: values.notes?.trim() ? values.notes.trim() : null,
       };

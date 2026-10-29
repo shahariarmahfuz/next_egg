@@ -13,6 +13,7 @@ import { HasPermission } from "@/providers/auth-provider";
 import { SaleReturnForm, SaleReturnFormValues } from "@/components/sale-returns/sale-return-form";
 import { saleReturnService } from "@/services/api";
 import { SaleReturnCreatePayload } from "@/types";
+import { dateTimeLocalToISO } from "@/utils/business-date";
 
 export default function NewSaleReturnPage() {
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function NewSaleReturnPage() {
       const payload: SaleReturnCreatePayload = {
         sale_id: values.sale_id || null,
         customer_id: values.customer_id,
-        return_date: new Date(values.return_date).toISOString(),
+        return_date: dateTimeLocalToISO(values.return_date),
         refund_amount: values.refund_amount,
         reason: values.reason?.trim() ? values.reason.trim() : null,
         notes: values.reason?.trim() ? values.reason.trim() : null,

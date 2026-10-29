@@ -19,10 +19,11 @@ import { Input } from "@/components/ui/input";
 import { farmService } from "@/services/api";
 import { FarmBalanceItem } from "@/types";
 import { useAuth, HasPermission } from "@/providers/auth-provider";
+import { getTodayDateStr } from "@/utils/business-date";
 
 export default function DeliveryPage() {
   const { hasPermission } = useAuth();
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getTodayDateStr();
 
   // Farms Dropdown State
   const [farms, setFarms] = useState<FarmBalanceItem[]>([]);

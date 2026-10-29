@@ -38,6 +38,7 @@ import { CustomerItem, CustomerFinancialSummary, CustomerCollectionItem } from "
 import { formatCurrency } from "@/utils/formatters";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
+import { toBusinessDateStr, getTodayDateStr } from "@/utils/business-date";
 
 const collectionFormSchema = z
   .object({
@@ -106,8 +107,8 @@ export function CollectionForm({ initialData, onSubmit, isSubmitting }: Collecti
 
   // For Edit modal, the date must be YYYY-MM-DD for type="date"
   const defaultDate = initialData?.collection_date 
-    ? new Date(initialData.collection_date).toISOString().split("T")[0]
-    : new Date().toISOString().split("T")[0];
+    ? toBusinessDateStr(initialData.collection_date)
+    : getTodayDateStr();
 
   const {
     register,

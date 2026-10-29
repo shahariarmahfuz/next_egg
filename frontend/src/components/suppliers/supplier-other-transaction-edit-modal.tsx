@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SupplierOtherTransactionItem, SupplierOtherTransactionUpdatePayload } from "@/types/supplier_other_transaction";
 import { supplierOtherTransactionService, supplierPaymentService } from "@/services/api";
 import { formatCurrency } from "@/utils/formatters";
+import { toDateTimeLocalStr, dateTimeLocalToISO } from "@/utils/business-date";
 
 interface SupplierOtherTransactionEditModalProps {
   transaction: SupplierOtherTransactionItem | null;
@@ -58,11 +59,9 @@ export function SupplierOtherTransactionEditModal({
     if (transaction) {
       setAmount(transaction.amount);
       try {
-        const d = new Date(transaction.transaction_date);
-        const iso = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-        setTransactionDate(iso.slice(0, 16));
+        setTransactionDate(toDateTimeLocalStr(transaction.transaction_date));
       } catch {
-        setTransactionDate(new Date().toISOString().slice(0, 16));
+        setTransactionDate(toDateTimeLocalStr());
       }
       setReferenceNo(transaction.reference_no || "");
       setNotes(transaction.notes || "");
@@ -94,7 +93,7 @@ export function SupplierOtherTransactionEditModal({
     try {
       const payload: SupplierOtherTransactionUpdatePayload = {
         amount: amount,
-        transaction_date: new Date(transactionDate).toISOString(),
+        transaction_date: dateTimeLocalToISO(transactionDate),
         reference_no: referenceNo.trim() ? referenceNo.trim() : null,
         notes: notes.trim() ? notes.trim() : null,
       };

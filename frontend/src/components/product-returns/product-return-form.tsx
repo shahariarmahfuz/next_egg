@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { purchaseService, productReturnService } from "@/services/api";
 import { PurchaseItem, PurchaseReturnableSummary, ProductReturnItem } from "@/types";
 import { formatCurrency, formatDate } from "./product-return-export-utils";
+import { toDateTimeLocalStr } from "@/utils/business-date";
 
 const returnItemSchema = z.object({
   product_id: z.string().min(1),
@@ -107,8 +108,8 @@ export function ProductReturnForm({ initialData, onSubmit, isSubmitting }: Produ
       purchase_id: initialData?.purchase_id || "",
       supplier_id: initialData?.supplier_id || "",
       return_date: initialData?.return_date
-        ? new Date(initialData.return_date).toISOString().slice(0, 16)
-        : new Date().toISOString().slice(0, 16),
+        ? toDateTimeLocalStr(initialData.return_date)
+        : toDateTimeLocalStr(),
       refund_received: initialData?.refund_received || 0,
       reason: initialData?.notes || initialData?.reason || "",
       items: [],

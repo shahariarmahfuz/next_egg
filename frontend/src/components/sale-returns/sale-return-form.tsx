@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { saleService, saleReturnService } from "@/services/api";
 import { SaleItem, SaleReturnableSummary, SaleReturnItem } from "@/types";
 import { formatCurrency, formatDate } from "./sale-return-export-utils";
+import { toDateTimeLocalStr } from "@/utils/business-date";
 
 const returnItemSchema = z.object({
   product_id: z.string().min(1),
@@ -119,8 +120,8 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
       sale_id: initialData?.sale_id || "",
       customer_id: initialData?.customer_id || "",
       return_date: initialData?.return_date
-        ? new Date(initialData.return_date).toISOString().slice(0, 16)
-        : new Date().toISOString().slice(0, 16),
+        ? toDateTimeLocalStr(initialData.return_date)
+        : toDateTimeLocalStr(),
       refund_amount: initialData?.refund_amount || 0,
       reason: initialData?.notes || initialData?.reason || "",
       items: [],

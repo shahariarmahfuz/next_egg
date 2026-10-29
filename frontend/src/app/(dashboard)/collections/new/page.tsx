@@ -13,6 +13,7 @@ import { HasPermission } from "@/providers/auth-provider";
 import { CollectionForm, CollectionFormValues } from "@/components/collections/collection-form";
 import { collectionService } from "@/services/api";
 import { CustomerCollectionCreatePayload } from "@/types";
+import { businessDateToISO } from "@/utils/business-date";
 
 export default function NewCollectionPage() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function NewCollectionPage() {
         amount: values.amount,
         discount_amount: values.discount_amount || 0,
         payment_method: values.payment_method,
-        collection_date: new Date(values.collection_date).toISOString(),
+        collection_date: businessDateToISO(values.collection_date),
         reference_no: values.reference_no || null,
         sale_id: values.sale_id || null,
         notes: values.notes?.trim() ? values.notes.trim() : null,
