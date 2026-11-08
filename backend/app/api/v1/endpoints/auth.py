@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Response, status
+from typing import Optional
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -55,12 +56,22 @@ async def login(
 
 @router.post("/refresh", response_model=ResponseModel[TokenResponse])
 async def refresh_token(
-    refresh_data: RefreshTokenRequest = None,
+    request: Request,
+    refresh_data: Optional[RefreshTokenRequest] = None,
     db: AsyncSession = Depends(get_db),
     response: Response = None,
 ):
     """Issue new access token from HTTP-only cookie or payload refresh token."""
-    token_str = refresh_data.refresh_token if refresh_data and refresh_data.refresh_token else None
+    token_str = None
+    if refresh_data and refresh_data.refresh_token:
+        token_str = refresh_data.refresh_token
+    elif request and request.cookies.get("refresh_token"):
+        token_str = request.cookies.get("refresh_token")
+
+    if not token_str:
+        from app.exceptions.custom import UnauthorizedException
+        raise UnauthorizedException("Refresh token is required")
+
     token_response = await auth_service.refresh_access_token(db, token_str)
 
     return ResponseModel[TokenResponse](

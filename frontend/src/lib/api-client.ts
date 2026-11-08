@@ -60,7 +60,7 @@ export async function apiClient<T = any>(
   if (token) {
     defaultHeaders["Authorization"] = `Bearer ${token}`;
   } else if (typeof window !== "undefined") {
-    const storedToken = localStorage.getItem("auth_token");
+    const storedToken = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
     if (storedToken) {
       defaultHeaders["Authorization"] = `Bearer ${storedToken}`;
     }
@@ -81,6 +81,8 @@ export async function apiClient<T = any>(
     if (!response.ok) {
       if (response.status === 401 && typeof window !== "undefined") {
         localStorage.removeItem("auth_token");
+        sessionStorage.removeItem("auth_token");
+        localStorage.removeItem("remember_me");
         document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         if (window.location.pathname !== "/login") {
           window.location.href = "/login";

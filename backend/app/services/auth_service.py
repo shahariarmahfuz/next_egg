@@ -132,11 +132,11 @@ class AuthService:
 
         permissions = await self.get_user_permissions(db, user)
 
-        access_delta = timedelta(days=7) if login_data.remember_me else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_delta = timedelta(days=30) if login_data.remember_me else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         refresh_delta = timedelta(days=30) if login_data.remember_me else timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
         access_token = create_access_token(subject=user.id, expires_delta=access_delta)
-        refresh_token = create_refresh_token(subject=user.id)
+        refresh_token = create_refresh_token(subject=user.id, expires_delta=refresh_delta)
 
         login_response = LoginResponse(
             recovery_required=False,

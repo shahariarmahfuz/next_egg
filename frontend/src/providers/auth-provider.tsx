@@ -26,7 +26,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchCurrentUser = useCallback(async () => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("auth_token");
+      const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+      const isRemembered = localStorage.getItem("remember_me") === "true";
       if (!token) {
         document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         setUser(null);
@@ -34,7 +35,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
         return;
       }
-      document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+      const cookieOptions = isRemembered ? "max-age=2592000; " : ""; // 30 days if remember_me, session cookie if unchecked
+      document.cookie = `auth_token=${token}; path=/; ${cookieOptions}SameSite=Lax`;
     }
 
     try {
@@ -46,6 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         if (typeof window !== "undefined") {
           localStorage.removeItem("auth_token");
+          sessionStorage.removeItem("auth_token");
+          localStorage.removeItem("remember_me");
           document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         }
         setUser(null);
@@ -54,6 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       if (typeof window !== "undefined") {
         localStorage.removeItem("auth_token");
+        sessionStorage.removeItem("auth_token");
+        localStorage.removeItem("remember_me");
         document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       }
       setUser(null);
@@ -74,8 +80,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return res.data;
       }
       if (typeof window !== "undefined" && res.data.access_token) {
-        localStorage.setItem("auth_token", res.data.access_token);
-        document.cookie = `auth_token=${res.data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+        const isRemembered = !!credentials.remember_me;
+        if (isRemembered) {
+          localStorage.setItem("auth_token", res.data.access_token);
+          localStorage.setItem("remember_me", "true");
+          sessionStorage.removeItem("auth_token");
+          document.cookie = `auth_token=${res.data.access_token}; path=/; max-age=2592000; SameSite=Lax`; // 30 days
+        } else {
+          sessionStorage.setItem("auth_token", res.data.access_token);
+          localStorage.removeItem("auth_token");
+          localStorage.setItem("remember_me", "false");
+          document.cookie = `auth_token=${res.data.access_token}; path=/; SameSite=Lax`; // Session cookie
+        }
       }
       setUser(res.data.user || null);
       setPermissions(res.data.permissions || []);
@@ -93,6 +109,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (typeof window !== "undefined") {
         localStorage.removeItem("auth_token");
+        sessionStorage.removeItem("auth_token");
+        localStorage.removeItem("remember_me");
         document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       }
       setUser(null);

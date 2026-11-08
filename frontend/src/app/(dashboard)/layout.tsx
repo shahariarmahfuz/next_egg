@@ -23,7 +23,9 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (isClient && !isLoading) {
-      const hasToken = typeof window !== "undefined" && !!localStorage.getItem("auth_token");
+      const hasToken =
+        typeof window !== "undefined" &&
+        (!!localStorage.getItem("auth_token") || !!sessionStorage.getItem("auth_token"));
       if (!isAuthenticated || !hasToken) {
         router.replace("/login");
       }
@@ -45,7 +47,9 @@ export default function DashboardLayout({
   }
 
   // 2. Render NOTHING if not authenticated (prevents any rendering of dashboard elements)
-  const hasToken = typeof window !== "undefined" && !!localStorage.getItem("auth_token");
+  const hasToken =
+    typeof window !== "undefined" &&
+    (!!localStorage.getItem("auth_token") || !!sessionStorage.getItem("auth_token"));
   if (!isAuthenticated || !hasToken) {
     return null;
   }
