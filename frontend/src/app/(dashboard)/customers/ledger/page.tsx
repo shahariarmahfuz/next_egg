@@ -18,8 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { collectionService, customerService } from "@/services/api";
-import { CustomerCollectionItem, CustomerItem, CustomerLedgerTransaction } from "@/types";
+import { collectionService, customerService, saleService, saleReturnService } from "@/services/api";
+import { CustomerCollectionItem, CustomerItem, CustomerLedgerTransaction, SaleItem, SaleReturnItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,8 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { CollectionViewModal } from "@/components/collections/collection-view-modal";
+import { SaleViewModal } from "@/components/sales/sale-view-modal";
+import { SaleReturnViewModal } from "@/components/sale-returns/sale-return-view-modal";
 import { HasPermission } from "@/providers/auth-provider";
 import { usePrint } from "@/lib/print-service";
 import { PrintableCustomerStatement } from "@/components/customers/printable-customer-statement";
@@ -55,8 +57,10 @@ export default function CustomerLedgerPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  // Collection View Modal State
+  // Modals State
+  const [selectedViewSale, setSelectedViewSale] = useState<SaleItem | null>(null);
   const [selectedViewCollection, setSelectedViewCollection] = useState<CustomerCollectionItem | null>(null);
+  const [selectedViewReturn, setSelectedViewReturn] = useState<SaleReturnItem | null>(null);
 
   const debouncedCustomerQuery = useDebounce(customerSearch, 300);
 
@@ -105,10 +109,17 @@ export default function CustomerLedgerPage() {
     current_due: selectedCustomer?.current_balance || 0,
   };
 
-  // Click handler for Sale / Collection vouchers
+  // Click handler for Sale / Collection / Sale Return vouchers
   const handleVoucherClick = async (tx: CustomerLedgerTransaction) => {
     if (tx.reference_type === "sale" && tx.reference_id) {
-      window.open(`/sales/${tx.reference_id}/print`, "_blank");
+      try {
+        const res = await saleService.getSaleById(tx.reference_id);
+        if (res.data) {
+          setSelectedViewSale(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch sale details:", err);
+      }
     } else if (tx.reference_type === "collection" && tx.reference_id) {
       try {
         const res = await collectionService.getCollectionById(tx.reference_id);
@@ -117,6 +128,15 @@ export default function CustomerLedgerPage() {
         }
       } catch (err) {
         console.error("Failed to fetch collection details:", err);
+      }
+    } else if (tx.reference_type === "sale_return" && tx.reference_id) {
+      try {
+        const res = await saleReturnService.getSaleReturnById(tx.reference_id);
+        if (res.data) {
+          setSelectedViewReturn(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch sale return details:", err);
       }
     }
   };
@@ -654,11 +674,25 @@ export default function CustomerLedgerPage() {
               )}
             </Card>
 
+            {/* Sale View Modal */}
+            <SaleViewModal
+              sale={selectedViewSale}
+              isOpen={!!selectedViewSale}
+              onClose={() => setSelectedViewSale(null)}
+            />
+
             {/* Collection View Modal */}
             <CollectionViewModal
               collection={selectedViewCollection}
               isOpen={!!selectedViewCollection}
               onClose={() => setSelectedViewCollection(null)}
+            />
+
+            {/* Sale Return View Modal */}
+            <SaleReturnViewModal
+              saleReturn={selectedViewReturn}
+              isOpen={!!selectedViewReturn}
+              onClose={() => setSelectedViewReturn(null)}
             />
           </>
         )}
