@@ -27,10 +27,10 @@ export function SaleViewModal({ sale, isOpen, onClose }: SaleViewModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="fixed inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-card border rounded-2xl p-6 shadow-2xl z-50 animate-in zoom-in-95 duration-200 space-y-6 max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-card border rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl z-50 animate-in zoom-in-95 duration-200 space-y-4 sm:space-y-6 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b">
           <div className="flex items-center space-x-3">
@@ -76,8 +76,8 @@ export function SaleViewModal({ sale, isOpen, onClose }: SaleViewModalProps) {
         </div>
 
         {/* Line Items Table */}
-        <div className="border rounded-xl overflow-hidden">
-          <table className="w-full text-left text-xs">
+        <div className="border rounded-xl overflow-x-auto">
+          <table className="w-full text-left text-xs min-w-[500px]">
             <thead className="bg-muted/50 border-b font-semibold text-muted-foreground uppercase">
               <tr>
                 <th className="p-3">Product Item</th>
@@ -89,17 +89,17 @@ export function SaleViewModal({ sale, isOpen, onClose }: SaleViewModalProps) {
             </thead>
             <tbody className="divide-y divide-border">
               {sale.items.map((item) => (
-                <tr key={item.id} className="hover:bg-accent/30">
-                  <td className="p-3">
+                <tr key={item.id} className="hover:bg-accent/30 transition-colors">
+                  <td className="p-3 font-medium text-foreground">
                     <div className="font-bold text-foreground">{item.product?.name || "Product"}</div>
                     <div className="text-[10px] text-muted-foreground ">{item.product?.product_code}</div>
                   </td>
-                  <td className="p-3 text-center font-medium">
+                  <td className="p-3 text-center font-medium whitespace-nowrap">
                     {item.quantity} {item.product?.unit || ""}
                   </td>
-                  <td className="p-3 text-center ">{formatCurrency(item.unit_price)}</td>
-                  <td className="p-3 text-center text-amber-500">{formatCurrency(item.discount)}</td>
-                  <td className="p-3 text-right font-bold text-foreground">{formatCurrency(item.total_price)}</td>
+                  <td className="p-3 text-center whitespace-nowrap">{formatCurrency(item.unit_price)}</td>
+                  <td className="p-3 text-center text-amber-500 whitespace-nowrap">{formatCurrency(item.discount)}</td>
+                  <td className="p-3 text-right font-bold text-foreground whitespace-nowrap">{formatCurrency(item.total_price)}</td>
                 </tr>
               ))}
             </tbody>
