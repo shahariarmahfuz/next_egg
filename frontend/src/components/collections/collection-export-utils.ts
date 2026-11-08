@@ -1,43 +1,10 @@
+import React from "react";
 import { CustomerCollectionItem, CollectionReportSummaryData } from "@/types";
+import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
+import { printService } from "@/lib/print-service";
+import { PrintableCollectionVoucher } from "./printable-collection-voucher";
 
-export function formatCurrency(amount: number | undefined | null): string {
-  if (amount === undefined || amount === null) return "$0.00";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-export function formatDate(dateString: string | undefined | null): string {
-  if (!dateString) return "";
-  try {
-    const d = new Date(dateString);
-    return d.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
-  } catch {
-    return dateString;
-  }
-}
-
-export function formatDateTime(dateString: string | undefined | null): string {
-  if (!dateString) return "";
-  try {
-    const d = new Date(dateString);
-    return d.toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return dateString;
-  }
-}
+export { formatCurrency, formatDate, formatDateTime };
 
 export function exportCollectionsCSV(collections: CustomerCollectionItem[], filename = "customer_collections.csv") {
   if (!collections || collections.length === 0) return;
@@ -112,7 +79,7 @@ export function exportCollectionsExcel(collections: CustomerCollectionItem[], fi
             <th>Customer Name</th>
             <th>Phone</th>
             <th>Address</th>
-            <th>Amount ($)</th>
+            <th>Amount</th>
             <th>Payment Method</th>
             <th>Notes</th>
           </tr>
@@ -152,10 +119,6 @@ export function exportCollectionsExcel(collections: CustomerCollectionItem[], fi
   document.body.removeChild(link);
 }
 
-import React from "react";
-import { printService } from "@/lib/print-service";
-import { PrintableCollectionVoucher } from "./printable-collection-voucher";
-
 export function printVoucherWindow(collection: CustomerCollectionItem) {
-  printService.printDocument(React.createElement(PrintableCollectionVoucher, { collection }));
+  return printService.printDocument(React.createElement(PrintableCollectionVoucher, { collection }));
 }
