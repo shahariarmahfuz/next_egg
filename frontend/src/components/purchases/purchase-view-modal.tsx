@@ -122,11 +122,6 @@ export function PurchaseViewModal({ purchase, isOpen, onClose }: PurchaseViewMod
               <div className="font-semibold text-foreground text-xs sm:text-sm">
                 {formatDate(purchase.purchase_date)}
               </div>
-              {purchase.supplier?.supplier_code && (
-                <div className="text-[10px] text-muted-foreground truncate">
-                  Code: {purchase.supplier.supplier_code}
-                </div>
-              )}
             </div>
           </div>
 
@@ -153,15 +148,10 @@ export function PurchaseViewModal({ purchase, isOpen, onClose }: PurchaseViewMod
                       <div className="font-semibold text-foreground text-xs sm:text-sm leading-snug break-words">
                         {item.product?.name || "Product"}
                       </div>
-                      <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground">
                         <span className="font-medium text-foreground/85">
                           {formatNumber(item.quantity)} {item.product?.unit || "pcs"} × {formatCurrency(item.unit_price)}
                         </span>
-                        {item.product?.product_code && (
-                          <span className="text-[10px] bg-muted/80 font-mono px-1.5 py-0.2 rounded border text-muted-foreground">
-                            {item.product.product_code}
-                          </span>
-                        )}
                       </div>
                     </div>
 
