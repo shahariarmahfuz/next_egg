@@ -221,6 +221,8 @@ export const PrintableCashBookStatement = React.forwardRef<
   }
 
   const stockItems = summary.stock_summary || [];
+  const hasTrackedCustomer = Boolean(summary.tracked_customer_name && summary.tracked_customer_name.trim());
+  const trackedCustomerName = summary.tracked_customer_name?.trim() || "";
 
   const totalExpense =
     typeof summary.total_expense === "number"
@@ -578,19 +580,53 @@ export const PrintableCashBookStatement = React.forwardRef<
                               </td>
                             ))}
                           </tr>
-                          <tr>
-                            <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
-                              বিক্রি
-                            </td>
-                            {stockItems.map((st) => (
-                              <td
-                                key={`sales-${st.product_id}`}
-                                className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
-                              >
-                                {formatNumber(st.sales)}
+                          {hasTrackedCustomer ? (
+                            <>
+                              <tr>
+                                <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                                  বিক্রি
+                                </td>
+                                {stockItems.map((st) => (
+                                  <td
+                                    key={`reg-sales-${st.product_id}`}
+                                    className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                                  >
+                                    {formatNumber(st.regular_sales ?? st.sales)}
+                                  </td>
+                                ))}
+                              </tr>
+                              <tr>
+                                <td
+                                  className="px-1.5 py-[2px] font-semibold text-cyan-900 border-r hairline-light truncate max-w-[22mm]"
+                                  title={trackedCustomerName}
+                                >
+                                  {trackedCustomerName}
+                                </td>
+                                {stockItems.map((st) => (
+                                  <td
+                                    key={`cust-sales-${st.product_id}`}
+                                    className="px-1 py-[2px] text-right tabular font-medium text-cyan-950 border-r last:border-r-0 hairline-light"
+                                  >
+                                    {formatNumber(st.tracked_customer_sales ?? 0)}
+                                  </td>
+                                ))}
+                              </tr>
+                            </>
+                          ) : (
+                            <tr>
+                              <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                                বিক্রি
                               </td>
-                            ))}
-                          </tr>
+                              {stockItems.map((st) => (
+                                <td
+                                  key={`sales-${st.product_id}`}
+                                  className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                                >
+                                  {formatNumber(st.sales)}
+                                </td>
+                              ))}
+                            </tr>
+                          )}
                         </tbody>
                         <tfoot>
                           <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">

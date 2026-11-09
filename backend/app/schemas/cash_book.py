@@ -61,6 +61,8 @@ class CashBookStockItem(BaseModel):
     unit: str = "pcs"
     previous_stock: float = 0.0
     purchases: float = 0.0
+    regular_sales: float = 0.0
+    tracked_customer_sales: float = 0.0
     sales: float = 0.0
     closing_stock: float = 0.0
 
@@ -101,6 +103,7 @@ class CashBookSummary(BaseModel):
 
     items: List[CashBookItem] = Field(default_factory=list)
     supplier_summary: Optional[SupplierPrintSummary] = None
+    tracked_customer_name: Optional[str] = None
     stock_summary: List[CashBookStockItem] = Field(default_factory=list)
 
 

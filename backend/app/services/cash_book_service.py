@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.datetime_utils import normalize_date_range
 from app.models.currency import Currency
+from app.models.customer import Customer
 from app.models.customer_collection import CustomerCollection
 from app.models.cash_out import CashOut
 from app.models.expense import Expense
@@ -309,7 +310,23 @@ class CashBookService:
             supplier_summary = None
 
         stock_summary: List[CashBookStockItem] = []
+        tracked_customer_name: Optional[str] = None
         try:
+            cust_setting = await setting_repository.get_by_key(db, "stock_report_customer_id")
+            configured_customer_id = (
+                cust_setting.value.strip()
+                if cust_setting and cust_setting.value and cust_setting.value.strip()
+                else None
+            )
+            if configured_customer_id:
+                cust_obj = (
+                    await db.execute(select(Customer).where(Customer.id == configured_customer_id))
+                ).scalar_one_or_none()
+                if cust_obj:
+                    tracked_customer_name = cust_obj.name
+                else:
+                    configured_customer_id = None
+
             active_products = (
                 await db.execute(
                     select(Product)
@@ -349,6 +366,23 @@ class CashBookService:
                         )
                     ).all()
                 )
+                day_tracked_sales_map = {}
+                if configured_customer_id:
+                    day_tracked_sales_map = dict(
+                        (
+                            await db.execute(
+                                select(SaleItem.product_id, func.coalesce(func.sum(SaleItem.quantity), 0.0))
+                                .join(Sale, SaleItem.sale_id == Sale.id)
+                                .where(
+                                    Sale.sale_date >= start_utc,
+                                    Sale.sale_date <= end_utc,
+                                    Sale.customer_id == configured_customer_id,
+                                )
+                                .group_by(SaleItem.product_id)
+                            )
+                        ).all()
+                    )
+
                 day_sret_map = dict(
                     (
                         await db.execute(
@@ -415,7 +449,20 @@ class CashBookService:
                     if abs(day_purch) < 1e-6:
                         day_purch = 0.0
 
-                    day_sold = round(float(day_sales_map.get(prod.id, 0.0)) - float(day_sret_map.get(prod.id, 0.0)), 4)
+                    tracked_sold = round(float(day_tracked_sales_map.get(prod.id, 0.0)), 4)
+                    if abs(tracked_sold) < 1e-6:
+                        tracked_sold = 0.0
+
+                    gross_sales = float(day_sales_map.get(prod.id, 0.0))
+                    sret_qty = float(day_sret_map.get(prod.id, 0.0))
+                    
+                    # Regular sales = Gross sales - tracked customer sales - sale returns
+                    regular_sold = round(max(0.0, gross_sales - tracked_sold - sret_qty), 4)
+                    if abs(regular_sold) < 1e-6:
+                        regular_sold = 0.0
+
+                    # Total net sales across all parties
+                    day_sold = round(regular_sold + tracked_sold, 4)
                     if abs(day_sold) < 1e-6:
                         day_sold = 0.0
 
@@ -431,12 +478,15 @@ class CashBookService:
                                 unit=prod.unit or "pcs",
                                 previous_stock=previous_stock,
                                 purchases=day_purch,
+                                regular_sales=regular_sold,
+                                tracked_customer_sales=tracked_sold,
                                 sales=day_sold,
                                 closing_stock=closing_stock,
                             )
                         )
         except Exception:
             stock_summary = []
+            tracked_customer_name = None
 
         return CashBookSummary(
             date=display_date,
@@ -463,6 +513,7 @@ class CashBookService:
             company_logo=settings.business_logo,
             items=items,
             supplier_summary=supplier_summary,
+            tracked_customer_name=tracked_customer_name,
             stock_summary=stock_summary,
         )
 
