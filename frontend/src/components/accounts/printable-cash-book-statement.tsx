@@ -122,7 +122,13 @@ export const PrintableCashBookStatement = React.forwardRef<
           isCollection: false,
         });
       } else {
-        const productNames = sale.items.map((it) => it.product?.name).filter(Boolean).join(", ");
+        const productNames = Array.from(
+          new Set(
+            sale.items
+              .map((it) => it.product?.name?.trim())
+              .filter((n): n is string => Boolean(n))
+          )
+        ).join(", ");
         const totalQty = sale.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
         rawInflowItems.push({
           id: `sale-${sale.id}`,
@@ -262,7 +268,9 @@ export const PrintableCashBookStatement = React.forwardRef<
           new Set(
             items
               .filter((it) => !it.isCollection && it.productName && it.productName !== "নগদ বিক্রি")
-              .map((it) => it.productName)
+              .flatMap((it) => it.productName.split(","))
+              .map((p) => p.trim())
+              .filter(Boolean)
           )
         );
         const hasCollections = items.some((it) => it.isCollection);
@@ -341,10 +349,13 @@ export const PrintableCashBookStatement = React.forwardRef<
           dueAmount: sale.due_amount,
         });
       } else {
-        const productNames = sale.items
-          .map((it) => it.product?.name)
-          .filter(Boolean)
-          .join(", ");
+        const productNames = Array.from(
+          new Set(
+            sale.items
+              .map((it) => it.product?.name?.trim())
+              .filter((n): n is string => Boolean(n))
+          )
+        ).join(", ");
         const totalQty = sale.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
         rawDueItems.push({
           id: `due-${sale.id}`,
@@ -439,7 +450,14 @@ export const PrintableCashBookStatement = React.forwardRef<
         const totalQty = items.reduce((sum, it) => sum + (it.quantity || 0), 0);
 
         const distinctProducts = Array.from(
-          new Set(items.map((it) => it.productName).filter(Boolean))
+          new Set(
+            items
+              .map((it) => it.productName)
+              .filter(Boolean)
+              .flatMap((p) => p.split(","))
+              .map((p) => p.trim())
+              .filter(Boolean)
+          )
         );
 
         const validRates = items.map((it) => it.rate).filter((r): r is number => r != null);
