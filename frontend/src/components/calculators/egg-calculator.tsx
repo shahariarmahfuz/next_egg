@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  Egg,
   Plus,
   Trash2,
   RotateCcw,
@@ -25,7 +24,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 
 type LooseCategoryKey = "good" | "cracked" | "broken" | "spoiled";
 
@@ -136,7 +134,13 @@ export function EggCalculator() {
     queryFn: () => productService.getProducts({ size: 100, status: "active" }),
     staleTime: 60 * 1000,
   });
-  const products: ProductItem[] = productsData?.items || [];
+  const products: ProductItem[] = useMemo(() => {
+    if (!productsData) return [];
+    if (productsData.data?.items && Array.isArray(productsData.data.items)) {
+      return productsData.data.items;
+    }
+    return [];
+  }, [productsData]);
 
   const selectedProduct = useMemo(() => {
     return products.find((p) => p.id === selectedProductId) || null;
@@ -525,7 +529,10 @@ NextEgg Poultry ERP`;
   };
 
   const handleClearAllHistory = () => {
-    if (window.confirm("আপনি কি নিশ্চিত যে সকল সংরক্ষিত হিস্ট্রি মুছে ফেলতে চান?")) {
+    if (
+      typeof window !== "undefined" &&
+      window.confirm("আপনি কি নিশ্চিত যে সকল সংরক্ষিত হিস্ট্রি মুছে ফেলতে চান?")
+    ) {
       setHistory([]);
       try {
         localStorage.removeItem(HISTORY_STORAGE_KEY);
@@ -581,6 +588,14 @@ NextEgg Poultry ERP`;
     if (historyProductFilter === "all") return history;
     return history.filter((h) => h.productName === historyProductFilter);
   }, [history, historyProductFilter]);
+
+  const historyProductOptions = useMemo(() => {
+    const names = new Set<string>();
+    history.forEach((h) => {
+      if (h.productName) names.add(h.productName);
+    });
+    return Array.from(names);
+  }, [history]);
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -1273,8 +1288,8 @@ NextEgg Poultry ERP`;
                   className="h-8 text-xs font-medium bg-background border border-border/80 rounded-lg px-2 text-foreground"
                 >
                   <option value="all">সকল পণ্য ({history.length})</option>
-                  {Array.from(new Set(history.map((h) => h.productName).filter(Boolean))).map((name) => (
-                    <option key={name as string} value={name as string}>
+                  {historyProductOptions.map((name) => (
+                    <option key={name} value={name}>
                       {name}
                     </option>
                   ))}
