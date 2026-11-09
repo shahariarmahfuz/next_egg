@@ -631,7 +631,7 @@ export const PrintableCashBookStatement = React.forwardRef<
                         <tfoot>
                           <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
                             <td className="px-1.5 py-[2.5px] text-gray-800 border-r hairline-light whitespace-nowrap">
-                              বাকি
+                              অবশিষ্ট থাকবে
                             </td>
                             {stockItems.map((st) => (
                               <td
@@ -639,6 +639,19 @@ export const PrintableCashBookStatement = React.forwardRef<
                                 className="px-1 py-[2.5px] text-right tabular font-bold text-gray-950 border-r last:border-r-0 hairline-light"
                               >
                                 {formatNumber(st.closing_stock)}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="bg-white border-t hairline font-bold text-[7.8px]">
+                            <td className="px-1.5 py-[3.5px] text-gray-800 border-r hairline-light whitespace-nowrap">
+                              অবশিষ্ট আছে
+                            </td>
+                            {stockItems.map((st) => (
+                              <td
+                                key={`actual-${st.product_id}`}
+                                className="px-1 py-[3.5px] text-right border-r last:border-r-0 hairline-light h-[16px]"
+                              >
+                                &nbsp;
                               </td>
                             ))}
                           </tr>
