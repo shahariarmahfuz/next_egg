@@ -20,7 +20,7 @@ import {
   DollarSign,
   Landmark,
 } from "lucide-react";
-import { accountsService, saleService, collectionService } from "@/services/api";
+import { accountsService, saleService, collectionService, settingsService } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +45,11 @@ export default function CashBookPage() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayISO);
   const [isPending, startTransition] = useTransition();
   const { printDocument, isPrinting } = usePrint();
+
+  const { data: printMergeConfig } = useQuery({
+    queryKey: ["print-merge-config"],
+    queryFn: () => settingsService.getPrintMergeConfig(),
+  });
 
   // Navigation helpers
   const handlePreviousDay = () => {
@@ -157,6 +162,8 @@ export default function CashBookPage() {
           sales={sales || []}
           salesAggregate={salesAggregate}
           collections={collections || []}
+          defaultMergeMode={printMergeConfig?.data?.merge_mode || "normal"}
+          defaultSelectedCustomerIds={printMergeConfig?.data?.selected_customer_ids || []}
         />
       );
     } catch (err) {

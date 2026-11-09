@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
+from typing import List, Optional
 
 class SettingBase(BaseModel):
     key: str
@@ -74,4 +74,15 @@ class StockReportCustomerConfigResponse(BaseModel):
 
 class StockReportCustomerConfigUpdate(BaseModel):
     customer_id: Optional[str] = None
+
+
+class PrintMergeConfigResponse(BaseModel):
+    merge_mode: str = "normal"  # "normal" | "selected" | "all"
+    selected_customer_ids: List[str] = Field(default_factory=list)
+    selected_customers: List[dict] = Field(default_factory=list)
+
+
+class PrintMergeConfigUpdate(BaseModel):
+    merge_mode: str = "normal"  # "normal" | "selected" | "all"
+    selected_customer_ids: List[str] = Field(default_factory=list)
 

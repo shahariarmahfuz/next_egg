@@ -10,6 +10,8 @@ from app.schemas.common import ResponseModel
 from app.schemas.setting import (
     BusinessSettingsResponse,
     BusinessSettingsUpdate,
+    PrintMergeConfigResponse,
+    PrintMergeConfigUpdate,
     SupplierPrintConfigResponse,
     SupplierPrintConfigUpdate,
     StockReportCustomerConfigResponse,
@@ -91,3 +93,24 @@ async def update_stock_report_customer_config(
     """Update Stock Report dedicated customer configuration. Requires authorized user."""
     config = await setting_service.update_stock_report_customer_config(db, obj_in=config_in, current_user=current_user)
     return ResponseModel[StockReportCustomerConfigResponse](success=True, data=config)
+
+
+@router.get("/print-merge", response_model=ResponseModel[PrintMergeConfigResponse])
+async def get_print_merge_config(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    """Retrieve Print Cash Book transaction merge configuration."""
+    config = await setting_service.get_print_merge_config(db, current_user=current_user)
+    return ResponseModel[PrintMergeConfigResponse](success=True, data=config)
+
+
+@router.put("/print-merge", response_model=ResponseModel[PrintMergeConfigResponse])
+async def update_print_merge_config(
+    config_in: PrintMergeConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update Print Cash Book transaction merge configuration. Requires authorized user."""
+    config = await setting_service.update_print_merge_config(db, obj_in=config_in, current_user=current_user)
+    return ResponseModel[PrintMergeConfigResponse](success=True, data=config)

@@ -1,6 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { settingsService } from "@/services/api";
 import {
   CashBookSummary,
   SaleItem,
@@ -15,13 +17,51 @@ export interface PrintableCashBookStatementProps {
   sales?: SaleItem[];
   salesAggregate?: Record<string, number> | SaleReportSummaryData;
   collections?: CustomerCollectionItem[];
+  defaultMergeMode?: "normal" | "selected" | "all";
+  defaultSelectedCustomerIds?: string[];
 }
 
 export const PrintableCashBookStatement = React.forwardRef<
   HTMLDivElement,
   PrintableCashBookStatementProps
->(({ summary, sales = [], collections = [] }, ref) => {
-  const { settings } = useSettingsStore();
+>(
+  (
+    {
+      summary,
+      sales = [],
+      collections = [],
+      defaultMergeMode,
+      defaultSelectedCustomerIds,
+    },
+    ref
+  ) => {
+    const { settings } = useSettingsStore();
+
+    // Query print merge settings
+    const { data: printMergeConfig } = useQuery({
+      queryKey: ["print-merge-config"],
+      queryFn: () => settingsService.getPrintMergeConfig(),
+      staleTime: 60000,
+    });
+
+    const [activeMergeMode, setActiveMergeMode] = useState<"normal" | "selected" | "all">(
+      defaultMergeMode || "normal"
+    );
+
+    useEffect(() => {
+      if (defaultMergeMode) {
+        setActiveMergeMode(defaultMergeMode);
+      } else if (printMergeConfig?.data?.merge_mode) {
+        setActiveMergeMode(printMergeConfig.data.merge_mode);
+      }
+    }, [defaultMergeMode, printMergeConfig]);
+
+    const activeSelectedCustomerIds = useMemo(() => {
+      if (defaultSelectedCustomerIds && defaultSelectedCustomerIds.length > 0) {
+        return defaultSelectedCustomerIds;
+      }
+      return printMergeConfig?.data?.selected_customer_ids || [];
+    }, [defaultSelectedCustomerIds, printMergeConfig]);
 
   const businessName =
     (settings.business_name || summary.company_name || "AKOTA POULTRY").toUpperCase();
@@ -48,6 +88,109 @@ export const PrintableCashBookStatement = React.forwardRef<
   };
 
   // 1. CASH SALES & COLLECTION ROWS
+  interface RawInflowItem {
+    id: string;
+    customerId: string | null;
+    customerName: string;
+    productName: string;
+    quantity: number;
+    unit: string;
+    rate: number | null;
+    amount: number;
+    isCollection: boolean;
+  }
+
+  const rawInflowItems: RawInflowItem[] = [];
+
+  const cashSales = (sales || []).filter((s) => (s.paid_amount || 0) > 0);
+  for (const sale of cashSales) {
+    const custId = sale.customer_id || sale.customer?.id || null;
+    const custName = sale.customer?.name || "নগদ বিক্রি";
+    if (sale.items && sale.items.length > 0) {
+      if (sale.items.length === 1) {
+        const item = sale.items[0];
+        const unit = item.product?.unit || "pcs";
+        rawInflowItems.push({
+          id: `sale-${sale.id}-${item.id}`,
+          customerId: custId,
+          customerName: custName,
+          productName: item.product?.name || "ডিম",
+          quantity: Number(item.quantity) || 0,
+          unit,
+          rate: Number(item.unit_price) || null,
+          amount: sale.paid_amount,
+          isCollection: false,
+        });
+      } else {
+        const productNames = sale.items.map((it) => it.product?.name).filter(Boolean).join(", ");
+        const totalQty = sale.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+        rawInflowItems.push({
+          id: `sale-${sale.id}`,
+          customerId: custId,
+          customerName: custName,
+          productName: productNames || "ডিম",
+          quantity: totalQty,
+          unit: "pcs",
+          rate: null,
+          amount: sale.paid_amount,
+          isCollection: false,
+        });
+      }
+    } else {
+      rawInflowItems.push({
+        id: `sale-${sale.id}`,
+        customerId: custId,
+        customerName: custName,
+        productName: "নগদ বিক্রি",
+        quantity: 0,
+        unit: "pcs",
+        rate: null,
+        amount: sale.paid_amount,
+        isCollection: false,
+      });
+    }
+  }
+
+  for (const col of collections || []) {
+    const custId = col.customer_id || col.customer?.id || null;
+    const custName = col.customer?.name || "Customer";
+    rawInflowItems.push({
+      id: `col-${col.id}`,
+      customerId: custId,
+      customerName: custName,
+      productName: col.notes || col.reference_no
+        ? `Previous Due Collection (${col.notes || col.reference_no})`
+        : "Previous Due Collection",
+      quantity: 0,
+      unit: "pcs",
+      rate: null,
+      amount: col.amount,
+      isCollection: true,
+    });
+  }
+
+  if (rawInflowItems.length === 0) {
+    const cashItems = (summary.items || []).filter(
+      (it) => it.credit > 0 && it.transaction_type !== "opening_balance"
+    );
+    for (const it of cashItems) {
+      rawInflowItems.push({
+        id: it.id,
+        customerId: null,
+        customerName: it.name && it.name !== "—" ? it.name : "নগদ বিক্রি",
+        productName:
+          it.transaction_type === "collection"
+            ? "Previous Due Collection"
+            : it.description || "Cash Sale",
+        quantity: 0,
+        unit: "pcs",
+        rate: null,
+        amount: it.credit,
+        isCollection: it.transaction_type === "collection",
+      });
+    }
+  }
+
   interface CashInflowRow {
     id: string;
     customerName: string;
@@ -59,73 +202,106 @@ export const PrintableCashBookStatement = React.forwardRef<
 
   const cashInflowRows: CashInflowRow[] = [];
 
-  const cashSales = (sales || []).filter((s) => (s.paid_amount || 0) > 0);
-  for (const sale of cashSales) {
-    const custName = sale.customer?.name || "নগদ বিক্রি";
-    if (sale.items && sale.items.length > 0) {
-      if (sale.items.length === 1) {
-        const item = sale.items[0];
-        const unit = item.product?.unit || "pcs";
-        cashInflowRows.push({
-          id: `sale-${sale.id}-${item.id}`,
-          customerName: custName,
-          productName: item.product?.name || "ডিম",
-          unitQty: `${formatNumber(item.quantity)} ${unit}`.trim(),
-          rate: formatNumber(item.unit_price),
-          amount: sale.paid_amount,
-        });
-      } else {
-        const productNames = sale.items.map((it) => it.product?.name).filter(Boolean).join(", ");
-        const totalQty = sale.items.reduce((sum, it) => sum + (it.quantity || 0), 0);
-        cashInflowRows.push({
-          id: `sale-${sale.id}`,
-          customerName: custName,
-          productName: productNames || "ডিম",
-          unitQty: `${formatNumber(totalQty)} pcs`,
-          rate: "-",
-          amount: sale.paid_amount,
-        });
-      }
-    } else {
-      cashInflowRows.push({
-        id: `sale-${sale.id}`,
-        customerName: custName,
-        productName: "নগদ বিক্রি",
-        unitQty: "-",
-        rate: "-",
-        amount: sale.paid_amount,
-      });
-    }
-  }
-
-  for (const col of collections || []) {
-    cashInflowRows.push({
-      id: `col-${col.id}`,
-      customerName: col.customer?.name || "Customer",
-      productName: col.notes || col.reference_no
-        ? `Previous Due Collection (${col.notes || col.reference_no})`
-        : "Previous Due Collection",
-      unitQty: "-",
-      rate: "-",
-      amount: col.amount,
-    });
-  }
-
-  if (cashInflowRows.length === 0) {
-    const cashItems = (summary.items || []).filter(
-      (it) => it.credit > 0 && it.transaction_type !== "opening_balance"
-    );
-    for (const it of cashItems) {
+  if (activeMergeMode === "normal") {
+    for (const it of rawInflowItems) {
       cashInflowRows.push({
         id: it.id,
-        customerName: it.name && it.name !== "—" ? it.name : "নগদ বিক্রি",
-        productName:
-          it.transaction_type === "collection"
-            ? "Previous Due Collection"
-            : it.description || "Cash Sale",
-        unitQty: "-",
-        rate: "-",
-        amount: it.credit,
+        customerName: it.customerName,
+        productName: it.productName,
+        unitQty: it.quantity > 0 ? `${formatNumber(it.quantity)} ${it.unit}`.trim() : "-",
+        rate: it.rate != null ? formatNumber(it.rate) : "-",
+        amount: it.amount,
+      });
+    }
+  } else {
+    const shouldMergeInflow = (it: RawInflowItem) => {
+      if (activeMergeMode === "all") {
+        return Boolean(it.customerId || (it.customerName && it.customerName !== "নগদ বিক্রি"));
+      }
+      if (activeMergeMode === "selected") {
+        if (it.customerId && activeSelectedCustomerIds.includes(it.customerId)) {
+          return true;
+        }
+        return false;
+      }
+      return false;
+    };
+
+    const inflowGroupMap = new Map<string, RawInflowItem[]>();
+    const unmergedInflowList: RawInflowItem[] = [];
+
+    for (const it of rawInflowItems) {
+      if (shouldMergeInflow(it)) {
+        const key = it.customerId || it.customerName;
+        if (!inflowGroupMap.has(key)) {
+          inflowGroupMap.set(key, []);
+        }
+        inflowGroupMap.get(key)!.push(it);
+      } else {
+        unmergedInflowList.push(it);
+      }
+    }
+
+    for (const [key, items] of inflowGroupMap.entries()) {
+      if (items.length === 1) {
+        const it = items[0];
+        cashInflowRows.push({
+          id: it.id,
+          customerName: it.customerName,
+          productName: it.productName,
+          unitQty: it.quantity > 0 ? `${formatNumber(it.quantity)} ${it.unit}`.trim() : "-",
+          rate: it.rate != null ? formatNumber(it.rate) : "-",
+          amount: it.amount,
+        });
+      } else {
+        const customerName = items[0].customerName;
+        const totalAmount = items.reduce((sum, it) => sum + (it.amount || 0), 0);
+        const totalQty = items.reduce((sum, it) => sum + (it.quantity || 0), 0);
+
+        const distinctProducts = Array.from(
+          new Set(
+            items
+              .filter((it) => !it.isCollection && it.productName && it.productName !== "নগদ বিক্রি")
+              .map((it) => it.productName)
+          )
+        );
+        const hasCollections = items.some((it) => it.isCollection);
+
+        let combinedDesc = "";
+        if (distinctProducts.length > 0) {
+          combinedDesc = distinctProducts.join(", ");
+          if (hasCollections) {
+            combinedDesc += " + পূর্বের কালেকশন";
+          }
+        } else if (hasCollections) {
+          combinedDesc = "Previous Due Collection";
+        } else {
+          combinedDesc = "নগদ বিক্রি";
+        }
+
+        const validRates = items.map((it) => it.rate).filter((r): r is number => r != null);
+        const allSameRate = validRates.length > 0 && validRates.every((r) => r === validRates[0]);
+        const rateStr = allSameRate ? formatNumber(validRates[0]) : "-";
+
+        cashInflowRows.push({
+          id: `merged-inflow-${key}`,
+          customerName: `${customerName} (মোট)`,
+          productName: combinedDesc,
+          unitQty: totalQty > 0 ? `${formatNumber(totalQty)} pcs` : "-",
+          rate: rateStr,
+          amount: totalAmount,
+        });
+      }
+    }
+
+    for (const it of unmergedInflowList) {
+      cashInflowRows.push({
+        id: it.id,
+        customerName: it.customerName,
+        productName: it.productName,
+        unitQty: it.quantity > 0 ? `${formatNumber(it.quantity)} ${it.unit}`.trim() : "-",
+        rate: it.rate != null ? formatNumber(it.rate) : "-",
+        amount: it.amount,
       });
     }
   }
@@ -133,6 +309,68 @@ export const PrintableCashBookStatement = React.forwardRef<
   const totalCashCollection = summary.today_cash_received;
 
   // 2. DUE SALES (CREDIT) ROWS
+  interface RawDueItem {
+    id: string;
+    customerId: string | null;
+    customerName: string;
+    productName: string;
+    quantity: number;
+    unit: string;
+    rate: number | null;
+    dueAmount: number;
+  }
+
+  const rawDueItems: RawDueItem[] = [];
+  const creditSales = (sales || []).filter((s) => (s.due_amount || 0) > 0);
+
+  for (const sale of creditSales) {
+    const custId = sale.customer_id || sale.customer?.id || null;
+    const custName = sale.customer?.name || "Customer";
+    if (sale.items && sale.items.length > 0) {
+      if (sale.items.length === 1) {
+        const item = sale.items[0];
+        const unit = item.product?.unit || "pcs";
+        rawDueItems.push({
+          id: `due-${sale.id}-${item.id}`,
+          customerId: custId,
+          customerName: custName,
+          productName: item.product?.name || "Product",
+          quantity: Number(item.quantity) || 0,
+          unit,
+          rate: Number(item.unit_price) || null,
+          dueAmount: sale.due_amount,
+        });
+      } else {
+        const productNames = sale.items
+          .map((it) => it.product?.name)
+          .filter(Boolean)
+          .join(", ");
+        const totalQty = sale.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+        rawDueItems.push({
+          id: `due-${sale.id}`,
+          customerId: custId,
+          customerName: custName,
+          productName: productNames || "Multiple Products",
+          quantity: totalQty,
+          unit: "pcs",
+          rate: null,
+          dueAmount: sale.due_amount,
+        });
+      }
+    } else {
+      rawDueItems.push({
+        id: `due-${sale.id}`,
+        customerId: custId,
+        customerName: custName,
+        productName: "Due Sale",
+        quantity: 0,
+        unit: "pcs",
+        rate: null,
+        dueAmount: sale.due_amount,
+      });
+    }
+  }
+
   interface DueSaleRow {
     id: string;
     customerName: string;
@@ -143,45 +381,90 @@ export const PrintableCashBookStatement = React.forwardRef<
   }
 
   const dueSaleRows: DueSaleRow[] = [];
-  const creditSales = (sales || []).filter((s) => (s.due_amount || 0) > 0);
 
-  for (const sale of creditSales) {
-    const custName = sale.customer?.name || "Customer";
-    if (sale.items && sale.items.length > 0) {
-      if (sale.items.length === 1) {
-        const item = sale.items[0];
-        const unit = item.product?.unit || "pcs";
+  if (activeMergeMode === "normal") {
+    for (const it of rawDueItems) {
+      dueSaleRows.push({
+        id: it.id,
+        customerName: it.customerName,
+        productName: it.productName,
+        unitQty: it.quantity > 0 ? `${formatNumber(it.quantity)} ${it.unit}`.trim() : "-",
+        rate: it.rate != null ? formatNumber(it.rate) : "-",
+        dueAmount: it.dueAmount,
+      });
+    }
+  } else {
+    const shouldMergeDue = (it: RawDueItem) => {
+      if (activeMergeMode === "all") {
+        return Boolean(it.customerId || it.customerName);
+      }
+      if (activeMergeMode === "selected") {
+        if (it.customerId && activeSelectedCustomerIds.includes(it.customerId)) {
+          return true;
+        }
+        return false;
+      }
+      return false;
+    };
+
+    const dueGroupMap = new Map<string, RawDueItem[]>();
+    const unmergedDueList: RawDueItem[] = [];
+
+    for (const it of rawDueItems) {
+      if (shouldMergeDue(it)) {
+        const key = it.customerId || it.customerName;
+        if (!dueGroupMap.has(key)) {
+          dueGroupMap.set(key, []);
+        }
+        dueGroupMap.get(key)!.push(it);
+      } else {
+        unmergedDueList.push(it);
+      }
+    }
+
+    for (const [key, items] of dueGroupMap.entries()) {
+      if (items.length === 1) {
+        const it = items[0];
         dueSaleRows.push({
-          id: `due-${sale.id}-${item.id}`,
-          customerName: custName,
-          productName: item.product?.name || "Product",
-          unitQty: `${formatNumber(item.quantity)} ${unit}`.trim(),
-          rate: formatNumber(item.unit_price),
-          dueAmount: sale.due_amount,
+          id: it.id,
+          customerName: it.customerName,
+          productName: it.productName,
+          unitQty: it.quantity > 0 ? `${formatNumber(it.quantity)} ${it.unit}`.trim() : "-",
+          rate: it.rate != null ? formatNumber(it.rate) : "-",
+          dueAmount: it.dueAmount,
         });
       } else {
-        const productNames = sale.items
-          .map((it) => it.product?.name)
-          .filter(Boolean)
-          .join(", ");
-        const totalQty = sale.items.reduce((sum, it) => sum + (it.quantity || 0), 0);
+        const customerName = items[0].customerName;
+        const totalDue = items.reduce((sum, it) => sum + (it.dueAmount || 0), 0);
+        const totalQty = items.reduce((sum, it) => sum + (it.quantity || 0), 0);
+
+        const distinctProducts = Array.from(
+          new Set(items.map((it) => it.productName).filter(Boolean))
+        );
+
+        const validRates = items.map((it) => it.rate).filter((r): r is number => r != null);
+        const allSameRate = validRates.length > 0 && validRates.every((r) => r === validRates[0]);
+        const rateStr = allSameRate ? formatNumber(validRates[0]) : "-";
+
         dueSaleRows.push({
-          id: `due-${sale.id}`,
-          customerName: custName,
-          productName: productNames || "Multiple Products",
-          unitQty: `${formatNumber(totalQty)} pcs`,
-          rate: "-",
-          dueAmount: sale.due_amount,
+          id: `merged-due-${key}`,
+          customerName: `${customerName} (মোট)`,
+          productName: distinctProducts.join(", ") || "Due Sale",
+          unitQty: totalQty > 0 ? `${formatNumber(totalQty)} pcs` : "-",
+          rate: rateStr,
+          dueAmount: totalDue,
         });
       }
-    } else {
+    }
+
+    for (const it of unmergedDueList) {
       dueSaleRows.push({
-        id: `due-${sale.id}`,
-        customerName: custName,
-        productName: "Due Sale",
-        unitQty: "-",
-        rate: "-",
-        dueAmount: sale.due_amount,
+        id: it.id,
+        customerName: it.customerName,
+        productName: it.productName,
+        unitQty: it.quantity > 0 ? `${formatNumber(it.quantity)} ${it.unit}`.trim() : "-",
+        rate: it.rate != null ? formatNumber(it.rate) : "-",
+        dueAmount: it.dueAmount,
       });
     }
   }
@@ -373,18 +656,61 @@ export const PrintableCashBookStatement = React.forwardRef<
       />
 
       {/* SCREEN CONTROLS */}
-      <div className="no-print max-w-[148mm] mx-auto mb-2 bg-white border hairline rounded px-3 py-1.5 flex items-center justify-between shadow-sm">
+      <div className="no-print max-w-[148mm] mx-auto mb-2 bg-white border hairline rounded px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shadow-sm">
         <div>
           <span className="text-xs font-bold text-gray-800 block">Print Preview Layout</span>
           <span className="text-[10px] text-gray-500">Balanced Readable Text Size - A5 Format</span>
         </div>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold px-3 py-1 rounded transition cursor-pointer"
-        >
-          Print / PDF
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Quick Mode Switcher */}
+          <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded border hairline text-[10px]">
+            <span className="text-gray-500 px-1 font-medium">মোড:</span>
+            <button
+              type="button"
+              onClick={() => setActiveMergeMode("normal")}
+              className={`px-1.5 py-0.5 rounded font-semibold transition-colors cursor-pointer ${
+                activeMergeMode === "normal"
+                  ? "bg-white text-gray-900 shadow-xs"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+              title="Normal: কোনো মার্জ হবে না"
+            >
+              Normal
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveMergeMode("selected")}
+              className={`px-1.5 py-0.5 rounded font-semibold transition-colors cursor-pointer ${
+                activeMergeMode === "selected"
+                  ? "bg-white text-emerald-700 shadow-xs"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+              title="Selected Merge: শুধু নির্বাচিত কাস্টমার মার্জ হবে"
+            >
+              Selected
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveMergeMode("all")}
+              className={`px-1.5 py-0.5 rounded font-semibold transition-colors cursor-pointer ${
+                activeMergeMode === "all"
+                  ? "bg-white text-purple-700 shadow-xs"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+              title="All Merge: সব কাস্টমার মার্জ হবে"
+            >
+              All
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold px-3 py-1 rounded transition cursor-pointer"
+          >
+            Print / PDF
+          </button>
+        </div>
       </div>
 
       {dailyAccounts.map((dayAccount, dayIndex) => {

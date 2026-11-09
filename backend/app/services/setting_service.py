@@ -1,4 +1,5 @@
-from typing import Optional
+import json
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.exceptions.custom import ForbiddenException, NotFoundException
 from app.models.user import User
@@ -8,6 +9,8 @@ from app.repositories.customer_repository import customer_repository
 from app.schemas.setting import (
     BusinessSettingsResponse,
     BusinessSettingsUpdate,
+    PrintMergeConfigResponse,
+    PrintMergeConfigUpdate,
     SettingCreate,
     SupplierPrintConfigResponse,
     SupplierPrintConfigUpdate,
@@ -18,6 +21,8 @@ from app.schemas.setting import (
 BRANDING_KEYS = {"business_logo", "app_icon_url", "favicon_url", "login_logo_url"}
 SUPPLIER_PRINT_KEY = "supplier_print_supplier_id"
 STOCK_REPORT_CUSTOMER_KEY = "stock_report_customer_id"
+PRINT_MERGE_MODE_KEY = "print_merge_mode"
+PRINT_MERGE_CUSTOMER_IDS_KEY = "print_merge_customer_ids"
 
 class SettingService:
     async def get_business_settings(
@@ -186,5 +191,96 @@ class SettingService:
             ))
 
         return await self.get_stock_report_customer_config(db, current_user=current_user)
+
+    async def get_print_merge_config(
+        self, db: AsyncSession, current_user: Optional[User] = None
+    ) -> PrintMergeConfigResponse:
+        mode_setting = await setting_repository.get_by_key(db, PRINT_MERGE_MODE_KEY)
+        merge_mode = (
+            mode_setting.value.strip().lower()
+            if mode_setting and mode_setting.value and mode_setting.value.strip()
+            else "normal"
+        )
+        if merge_mode not in ["normal", "selected", "all"]:
+            merge_mode = "normal"
+
+        ids_setting = await setting_repository.get_by_key(db, PRINT_MERGE_CUSTOMER_IDS_KEY)
+        customer_ids: List[str] = []
+        if ids_setting and ids_setting.value:
+            try:
+                loaded = json.loads(ids_setting.value)
+                if isinstance(loaded, list):
+                    customer_ids = [str(c).strip() for c in loaded if str(c).strip()]
+            except Exception:
+                customer_ids = [c.strip() for c in ids_setting.value.split(",") if c.strip()]
+
+        selected_customers: List[dict] = []
+        for cid in customer_ids:
+            cust = await customer_repository.get_by_id(db, id=cid)
+            if cust:
+                selected_customers.append({
+                    "id": cust.id,
+                    "name": cust.name,
+                    "customer_code": cust.customer_code,
+                    "phone": cust.phone,
+                    "current_balance": cust.current_balance,
+                })
+
+        return PrintMergeConfigResponse(
+            merge_mode=merge_mode,
+            selected_customer_ids=customer_ids,
+            selected_customers=selected_customers,
+        )
+
+    async def update_print_merge_config(
+        self, db: AsyncSession, obj_in: PrintMergeConfigUpdate, current_user: User
+    ) -> PrintMergeConfigResponse:
+        # Check authorization (owner, super_admin, or settings.edit)
+        is_admin = current_user.role and current_user.role.code in ["owner", "super_admin"]
+        user_perm_codes = (
+            {p.code for p in current_user.role.permissions}
+            if current_user.role and current_user.role.permissions
+            else set()
+        )
+        if not is_admin and "settings.edit" not in user_perm_codes:
+            raise ForbiddenException("Permission denied. Required permission: settings.edit")
+
+        merge_mode = obj_in.merge_mode.strip().lower() if obj_in.merge_mode else "normal"
+        if merge_mode not in ["normal", "selected", "all"]:
+            merge_mode = "normal"
+
+        cleaned_ids = [c.strip() for c in obj_in.selected_customer_ids if c and c.strip()]
+        verified_ids = []
+        for cid in cleaned_ids:
+            cust = await customer_repository.get_by_id(db, id=cid)
+            if cust:
+                verified_ids.append(cust.id)
+
+        # Save mode
+        setting_mode = await setting_repository.get_by_key(db, PRINT_MERGE_MODE_KEY)
+        if setting_mode:
+            await setting_repository.update(db, db_obj=setting_mode, obj_in={"value": merge_mode})
+        else:
+            await setting_repository.create(db, obj_in=SettingCreate(
+                key=PRINT_MERGE_MODE_KEY,
+                value=merge_mode,
+                group_name="business",
+                description="Print Cash Book transaction merge mode (normal, selected, all)",
+            ))
+
+        # Save customer IDs
+        setting_ids = await setting_repository.get_by_key(db, PRINT_MERGE_CUSTOMER_IDS_KEY)
+        ids_json = json.dumps(verified_ids)
+        if setting_ids:
+            await setting_repository.update(db, db_obj=setting_ids, obj_in={"value": ids_json})
+        else:
+            await setting_repository.create(db, obj_in=SettingCreate(
+                key=PRINT_MERGE_CUSTOMER_IDS_KEY,
+                value=ids_json,
+                group_name="business",
+                description="Selected customer IDs for print transaction merging",
+            ))
+
+        return await self.get_print_merge_config(db, current_user=current_user)
 
 setting_service = SettingService()

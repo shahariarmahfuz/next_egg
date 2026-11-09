@@ -962,6 +962,23 @@ export const settingsService = {
   updateStockReportCustomerConfig: async (payload: { customer_id?: string | null }) => {
     return http.put<{ customer_id?: string | null; customer?: any }>("/settings/stock-report-customer", payload);
   },
+  getPrintMergeConfig: async () => {
+    return http.get<{
+      merge_mode: "normal" | "selected" | "all";
+      selected_customer_ids: string[];
+      selected_customers?: any[];
+    }>("/settings/print-merge");
+  },
+  updatePrintMergeConfig: async (payload: {
+    merge_mode: "normal" | "selected" | "all";
+    selected_customer_ids: string[];
+  }) => {
+    return http.put<{
+      merge_mode: "normal" | "selected" | "all";
+      selected_customer_ids: string[];
+      selected_customers?: any[];
+    }>("/settings/print-merge", payload);
+  },
 };
 
 export const reportService = {

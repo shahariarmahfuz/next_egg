@@ -29,6 +29,9 @@ import {
   Boxes,
   User,
   UserCheck,
+  Layers,
+  FileText,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useSettingsStore } from "@/store/settings";
 import { apiClient } from "@/lib/api-client";
@@ -249,6 +252,76 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
     setSelectedStockCustomer(null);
   };
 
+  // Print Transaction Merge Settings query and state
+  const { data: printMergeConfigData, refetch: refetchPrintMergeConfig } = useQuery({
+    queryKey: ["print-merge-config"],
+    queryFn: () => settingsService.getPrintMergeConfig(),
+    enabled: canEdit,
+  });
+
+  const [printMergeMode, setPrintMergeMode] = useState<"normal" | "selected" | "all">("normal");
+  const [selectedPrintCustomers, setSelectedPrintCustomers] = useState<any[]>([]);
+  const [printCustomerSearch, setPrintCustomerSearch] = useState("");
+  const [openPrintCustomerPopover, setOpenPrintCustomerPopover] = useState(false);
+  const [isSavingPrintMerge, setIsSavingPrintMerge] = useState(false);
+
+  useEffect(() => {
+    if (printMergeConfigData?.data) {
+      setPrintMergeMode(printMergeConfigData.data.merge_mode || "normal");
+      setSelectedPrintCustomers(printMergeConfigData.data.selected_customers || []);
+    }
+  }, [printMergeConfigData]);
+
+  const debouncedPrintCustomerSearch = useDebounce(printCustomerSearch, 300);
+
+  const { data: searchPrintCustomersData, isLoading: isSearchingPrintCustomers } = useQuery({
+    queryKey: ["customers-search-print-merge-settings", debouncedPrintCustomerSearch],
+    queryFn: () => customerService.getCustomers({ search: debouncedPrintCustomerSearch || undefined, size: 25 }),
+    enabled: canEdit && openPrintCustomerPopover,
+  });
+
+  const searchedPrintCustomers = searchPrintCustomersData?.data?.items || [];
+
+  const handleTogglePrintCustomer = (cust: any) => {
+    if (!cust?.id) return;
+    const exists = selectedPrintCustomers.some((c) => c.id === cust.id);
+    if (exists) {
+      setSelectedPrintCustomers((prev) => prev.filter((c) => c.id !== cust.id));
+    } else {
+      setSelectedPrintCustomers((prev) => [
+        ...prev,
+        {
+          id: cust.id,
+          name: cust.name,
+          customer_code: cust.customer_code,
+          phone: cust.phone,
+          current_balance: cust.current_balance,
+        },
+      ]);
+    }
+  };
+
+  const handleRemovePrintCustomer = (customerId: string) => {
+    setSelectedPrintCustomers((prev) => prev.filter((c) => c.id !== customerId));
+  };
+
+  const handleSavePrintMergeConfig = async () => {
+    if (!canEdit) return;
+    try {
+      setIsSavingPrintMerge(true);
+      await settingsService.updatePrintMergeConfig({
+        merge_mode: printMergeMode,
+        selected_customer_ids: selectedPrintCustomers.map((c) => c.id),
+      });
+      toast.success("Print Settings (Transaction Merge Mode) saved successfully");
+      await refetchPrintMergeConfig();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save Print settings");
+    } finally {
+      setIsSavingPrintMerge(false);
+    }
+  };
+
   const form = useForm<BusinessSettingsFormValues>({
     resolver: zodResolver(businessSettingsSchema),
     defaultValues: {
@@ -392,6 +465,15 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                 >
                   <Boxes className="w-4 h-4 shrink-0" />
                   <span>Stock Report Customer</span>
+                </TabsTrigger>
+              )}
+              {canEdit && (
+                <TabsTrigger
+                  value="print-settings"
+                  className="w-full lg:w-auto justify-start lg:justify-center px-3 py-2.5 text-xs sm:text-sm whitespace-normal sm:whitespace-nowrap text-left sm:text-center flex items-center gap-2 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                  <span>Print Settings</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -1111,6 +1193,276 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                         Remove Selected Customer
                       </Button>
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {/* TAB 5: Print Settings (Customer Transaction Merge Mode) */}
+          {canEdit && (
+            <TabsContent value="print-settings" className="space-y-6">
+              <Card className="glass-card border-none shadow-xl shadow-black/5 bg-gradient-to-br from-card/80 to-accent/20">
+                <CardHeader className="border-b border-border/50 bg-accent/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center">
+                        <Printer className="w-5 h-5 mr-2 text-primary" /> Print Settings (Transaction Merge Mode)
+                      </CardTitle>
+                      <CardDescription>
+                        ক্যাশ বুক স্টেটমেন্ট প্রিন্ট করার সময় একই দিনে একজন কাস্টমারের একাধিক লেনদেন কীভাবে প্রদর্শিত হবে তা নির্ধারণ করুন।
+                      </CardDescription>
+                    </div>
+                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Print Settings
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  {/* 3 Option Radio Cards */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-semibold flex items-center gap-2">
+                      <SlidersHorizontal className="w-4 h-4 text-primary" /> কাস্টমার লেনদেন মার্জ মোড
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {/* Option 1: Normal */}
+                      <div
+                        onClick={() => setPrintMergeMode("normal")}
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                          printMergeMode === "normal"
+                            ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
+                            : "border-border/60 hover:border-border hover:bg-accent/30"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <input
+                              type="radio"
+                              name="printMergeMode"
+                              checked={printMergeMode === "normal"}
+                              onChange={() => setPrintMergeMode("normal")}
+                              className="accent-primary h-4 w-4"
+                            />
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">1. Normal (ডিফল্ট)</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            কোনো মার্জ হবে না। সারাদিনে যতবারই মাল নেওয়া হবে, প্রিন্টে ততবারই আলাদা সারিতে নাম উঠবে।
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400 mt-3 block">
+                          • ক্রমানুসারে প্রতিটি চালান আলাদা থাকবে
+                        </span>
+                      </div>
+
+                      {/* Option 2: Selected Merge */}
+                      <div
+                        onClick={() => setPrintMergeMode("selected")}
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                          printMergeMode === "selected"
+                            ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
+                            : "border-border/60 hover:border-border hover:bg-accent/30"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                              <UserCheck className="w-4 h-4" />
+                            </div>
+                            <input
+                              type="radio"
+                              name="printMergeMode"
+                              checked={printMergeMode === "selected"}
+                              onChange={() => setPrintMergeMode("selected")}
+                              className="accent-primary h-4 w-4"
+                            />
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">2. Selected Merge (সিলেক্টেড মার্জ)</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            শুধুমাত্র নির্বাচিত কাস্টমারদের সারাদিনের একাধিক লেনদেন যোগ হয়ে ১টি মাত্র সারিতে দেখাবে।
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mt-3 block">
+                          • শুধু নির্দিষ্ট পাইকারি কাস্টমার মার্জ হবে
+                        </span>
+                      </div>
+
+                      {/* Option 3: All Merge */}
+                      <div
+                        onClick={() => setPrintMergeMode("all")}
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                          printMergeMode === "all"
+                            ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
+                            : "border-border/60 hover:border-border hover:bg-accent/30"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="h-8 w-8 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                              <Layers className="w-4 h-4" />
+                            </div>
+                            <input
+                              type="radio"
+                              name="printMergeMode"
+                              checked={printMergeMode === "all"}
+                              onChange={() => setPrintMergeMode("all")}
+                              className="accent-primary h-4 w-4"
+                            />
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">3. All Merge (অল মার্জ)</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            সব কাস্টমারের একাধিক লেনদেন স্বয়ংক্রিয়ভাবে মার্জ হয়ে কাস্টমার প্রতি ১টি মাত্র সারিতে দেখাবে।
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-medium text-purple-600 dark:text-purple-400 mt-3 block">
+                          • প্রতিটি কাস্টমারের নাম সর্বোচ্চ একবার উঠবে
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Multi-Customer Picker when in "selected" mode */}
+                  {printMergeMode === "selected" && (
+                    <div className="space-y-3 p-4 rounded-xl border border-primary/20 bg-primary/5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <UserCheck className="w-4 h-4 text-primary" /> মার্জ করার জন্য কাস্টমার নির্বাচন করুন
+                          </label>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            যেসব কাস্টমারকে যোগ করবেন, শুধু তাদের একাধিক চালান ১ লাইনে মোট হয়ে প্রিন্ট হবে।
+                          </p>
+                        </div>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary self-start sm:self-auto">
+                          {selectedPrintCustomers.length} জন নির্বাচিত
+                        </span>
+                      </div>
+
+                      {/* Popover to search & add customer */}
+                      <Popover open={openPrintCustomerPopover} onOpenChange={setOpenPrintCustomerPopover}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between h-10 text-xs sm:text-sm font-normal bg-background/80 border-input hover:bg-accent/50"
+                          >
+                            <span className="flex items-center gap-2 text-muted-foreground truncate">
+                              <Search className="h-4 w-4 shrink-0 opacity-70" />
+                              Search & add customer to merge list...
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[320px] max-w-[calc(100vw-2rem)] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <CommandInput
+                              placeholder="Search customer name, code, phone..."
+                              value={printCustomerSearch}
+                              onValueChange={setPrintCustomerSearch}
+                            />
+                            <CommandList className="max-h-60 overflow-y-auto">
+                              {isSearchingPrintCustomers ? (
+                                <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                                  Searching customers...
+                                </div>
+                              ) : searchedPrintCustomers.length === 0 ? (
+                                <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
+                                  No customers found.
+                                </CommandEmpty>
+                              ) : (
+                                <CommandGroup>
+                                  {searchedPrintCustomers.map((cust: any) => {
+                                    const isAdded = selectedPrintCustomers.some((c) => c.id === cust.id);
+                                    return (
+                                      <CommandItem
+                                        key={cust.id}
+                                        value={`${cust.name} ${cust.customer_code || ""} ${cust.phone || ""}`}
+                                        onSelect={() => {
+                                          handleTogglePrintCustomer(cust);
+                                        }}
+                                        className="py-2.5 px-3 hover:bg-accent/70 cursor-pointer text-xs flex items-center justify-between gap-2"
+                                      >
+                                        <div className="truncate">
+                                          <span className="font-medium text-foreground block">{cust.name}</span>
+                                          <span className="text-[11px] text-muted-foreground font-mono">
+                                            {cust.customer_code || "—"} {cust.phone ? `| ${cust.phone}` : ""}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className="text-[10px] font-semibold text-muted-foreground">
+                                            Due: {formatCurrency(cust.current_balance || 0)}
+                                          </span>
+                                          <span
+                                            className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                              isAdded
+                                                ? "bg-primary text-primary-foreground"
+                                                : "bg-muted text-muted-foreground"
+                                            }`}
+                                          >
+                                            {isAdded ? "Added ✓" : "+ Add"}
+                                          </span>
+                                        </div>
+                                      </CommandItem>
+                                    );
+                                  })}
+                                </CommandGroup>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+
+                      {/* Chips of Selected Customers */}
+                      {selectedPrintCustomers.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          {selectedPrintCustomers.map((cust) => (
+                            <span
+                              key={cust.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border shadow-2xs text-xs font-medium text-foreground"
+                            >
+                              <span>{cust.name}</span>
+                              {cust.customer_code && (
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  ({cust.customer_code})
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePrintCustomer(cust.id)}
+                                className="h-4 w-4 rounded-full hover:bg-destructive/15 text-muted-foreground hover:text-destructive flex items-center justify-center transition-colors ml-0.5"
+                                title="Remove"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Save Button for Print Settings */}
+                  <div className="flex items-center gap-3 pt-4 border-t border-border/40">
+                    <Button
+                      type="button"
+                      onClick={handleSavePrintMergeConfig}
+                      disabled={isSavingPrintMerge}
+                      className="min-w-[140px] shadow-lg shadow-primary/20"
+                    >
+                      {isSavingPrintMerge ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" /> Save Print Settings
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
