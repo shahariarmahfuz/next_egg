@@ -15,7 +15,11 @@ import {
   Package,
   CalendarDays,
   BookmarkCheck,
+  History,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { productService } from "@/services/api";
+import { ProductItem } from "@/types/product";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,6 +69,7 @@ interface CalculatorState {
   stacks: StackRow[];
   looseEntries?: Record<LooseCategoryKey, number[]>;
   nextDaySell?: number | "";
+  selectedProductId?: string;
   // Legacy single-value compatibility
   looseGood?: number | "";
   looseCracked?: number | "";
@@ -72,7 +77,27 @@ interface CalculatorState {
   looseSpoiled?: number | "";
 }
 
+export interface CalculatorHistoryEntry {
+  id: string;
+  createdAt: string;
+  formattedDate: string;
+  productId?: string;
+  productName?: string;
+  systemStock?: number | null;
+  stacks: StackRow[];
+  looseEntries: Record<LooseCategoryKey, number[]>;
+  nextDaySell: number | "";
+  totalTrays: number;
+  totalTrayEggs: number;
+  totalLooseEggs: number;
+  nextDaySellEggs: number;
+  grandTotalEggs: number;
+  grandTotalConversion: { fullTrays: number; remainderEggs: number };
+  stockDifference?: number | null;
+}
+
 const STORAGE_KEY = "egg_calculator_v1";
+const HISTORY_STORAGE_KEY = "egg_calculator_history_v1";
 const EGGS_PER_TRAY = 30;
 
 const DEFAULT_STATE: CalculatorState = {
@@ -94,6 +119,28 @@ export function EggCalculator() {
   const [stacks, setStacks] = useState<StackRow[]>([
     { id: "1", traysPerStack: 20, stacksCount: "" },
   ]);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"calculator" | "history">("calculator");
+
+  // Product selection & verification state
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+
+  // History state & filter
+  const [history, setHistory] = useState<CalculatorHistoryEntry[]>([]);
+  const [historyProductFilter, setHistoryProductFilter] = useState<string>("all");
+
+  // Fetch active products for optional stock verification (Read-only)
+  const { data: productsData } = useQuery({
+    queryKey: ["calculator-products"],
+    queryFn: () => productService.getProducts({ size: 100, status: "active" }),
+    staleTime: 60 * 1000,
+  });
+  const products: ProductItem[] = productsData?.items || [];
+
+  const selectedProduct = useMemo(() => {
+    return products.find((p) => p.id === selectedProductId) || null;
+  }, [products, selectedProductId]);
 
   // Next Day Sell (Reserve / Carry-over Eggs)
   const [nextDaySell, setNextDaySell] = useState<number | "">("");
@@ -118,6 +165,19 @@ export function EggCalculator() {
   const [rowToDelete, setRowToDelete] = useState<StackRow | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
+  // Restore history from localStorage
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (savedHistory) {
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed)) setHistory(parsed);
+      }
+    } catch (err) {
+      console.warn("Failed to load calculator history from localStorage:", err);
+    }
+  }, []);
+
   // Restore from localStorage on initial mount with backward compatibility
   useEffect(() => {
     try {
@@ -125,6 +185,10 @@ export function EggCalculator() {
       if (saved) {
         const parsed = JSON.parse(saved) as CalculatorState;
         if (Array.isArray(parsed.stacks) && parsed.stacks.length > 0) setStacks(parsed.stacks);
+
+        if (parsed.selectedProductId) {
+          setSelectedProductId(parsed.selectedProductId);
+        }
 
         if (parsed.looseEntries && typeof parsed.looseEntries === "object") {
           setLooseEntries({
@@ -166,12 +230,13 @@ export function EggCalculator() {
         stacks,
         looseEntries,
         nextDaySell,
+        selectedProductId,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
       console.warn("Failed to save calculator state to localStorage:", err);
     }
-  }, [stacks, looseEntries, nextDaySell]);
+  }, [stacks, looseEntries, nextDaySell, selectedProductId]);
 
   // Calculations
 
@@ -276,6 +341,11 @@ export function EggCalculator() {
     [toTrayRemainder, nextDaySellEggs]
   );
 
+  const stockDifference = useMemo(() => {
+    if (!selectedProduct) return null;
+    return grandTotalEggs - (selectedProduct.current_stock ?? 0);
+  }, [selectedProduct, grandTotalEggs]);
+
   // Stack Row Management
   const addStackRow = () => {
     const newId = Date.now().toString();
@@ -331,6 +401,7 @@ export function EggCalculator() {
       spoiled: "",
     });
     setNextDaySell("");
+    setSelectedProductId("");
     localStorage.removeItem(STORAGE_KEY);
     setIsResetModalOpen(false);
     toast.success("Calculator reset to initial defaults.");
@@ -350,6 +421,19 @@ export function EggCalculator() {
       if (numLooseSpoiled > 0) looseLines.push(`+ নষ্ট ডিম: ${numLooseSpoiled.toLocaleString()} টি`);
       if (nextDaySellEggs > 0) looseLines.push(`+ পরের দিনের বিক্রি: ${nextDaySellEggs.toLocaleString()} টি`);
 
+      let stockVerificationText = "";
+      if (selectedProduct) {
+        const sys = selectedProduct.current_stock ?? 0;
+        const diff = grandTotalEggs - sys;
+        const diffStr =
+          diff === 0
+            ? "হুবহু মিলে গেছে"
+            : diff < 0
+            ? `${diff.toLocaleString()} টি ঘাটতি (Shortage)`
+            : `+${diff.toLocaleString()} টি অতিরিক্ত (Surplus)`;
+        stockVerificationText = `\n------------------------------\nপণ্য: ${selectedProduct.name}\nসিস্টেম স্টক: ${sys.toLocaleString()} টি\nস্টক যাচাই: ${diffStr}`;
+      }
+
       const text = `🥚 ডিমের হিসাব বিবরণী
 ------------------------------
 ${stacksBreakdown}
@@ -359,7 +443,7 @@ ${stacksBreakdown}
 ট্রে ডিম: ${totalTrays} × ${validEggsPerTray} = ${totalTrayEggs.toLocaleString()} টি
 ${looseLines.length > 0 ? `\n${looseLines.join("\n")}\n` : ""}------------------------------
 সর্বমোট ডিম: ${grandTotalEggs.toLocaleString()} টি
-ট্রে হিসেবে: ${grandTotalConversion.fullTrays} ট্রে, ${grandTotalConversion.remainderEggs} ডিম
+ট্রে হিসেবে: ${grandTotalConversion.fullTrays} ট্রে, ${grandTotalConversion.remainderEggs} ডিম${stockVerificationText}
 ------------------------------
 NextEgg Poultry ERP`;
 
@@ -372,257 +456,428 @@ NextEgg Poultry ERP`;
     }
   };
 
+  // History Management
+  const handleSaveToHistory = () => {
+    if (grandTotalEggs <= 0 && totalTrays <= 0) {
+      toast.error("হিসাব খালি! অন্তত কিছু ডিম বা ট্রে যোগ করে সেভ করুন।");
+      return;
+    }
+
+    const now = new Date();
+    const formattedDate = now.toLocaleString("bn-BD", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    const newEntry: CalculatorHistoryEntry = {
+      id: Date.now().toString(),
+      createdAt: now.toISOString(),
+      formattedDate,
+      productId: selectedProduct?.id,
+      productName: selectedProduct?.name,
+      systemStock: selectedProduct?.current_stock ?? null,
+      stacks: JSON.parse(JSON.stringify(stacks)),
+      looseEntries: JSON.parse(JSON.stringify(looseEntries)),
+      nextDaySell,
+      totalTrays,
+      totalTrayEggs,
+      totalLooseEggs,
+      nextDaySellEggs,
+      grandTotalEggs,
+      grandTotalConversion: { ...grandTotalConversion },
+      stockDifference: stockDifference ?? null,
+    };
+
+    const updatedHistory = [newEntry, ...history];
+    setHistory(updatedHistory);
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
+    } catch (err) {
+      console.warn("Failed to save history to localStorage:", err);
+    }
+    toast.success("হিসাবটি সফলভাবে হিস্ট্রিতে সংরক্ষণ করা হয়েছে!");
+  };
+
+  const handleLoadFromHistory = (entry: CalculatorHistoryEntry) => {
+    if (Array.isArray(entry.stacks) && entry.stacks.length > 0) {
+      setStacks(entry.stacks);
+    }
+    if (entry.looseEntries) {
+      setLooseEntries(entry.looseEntries);
+    }
+    setNextDaySell(entry.nextDaySell ?? "");
+    if (entry.productId) {
+      setSelectedProductId(entry.productId);
+    }
+    setActiveTab("calculator");
+    toast.success("হিসাবটি ক্যালকুলেটরে লোড করা হয়েছে!");
+  };
+
+  const handleDeleteHistoryItem = (id: string) => {
+    const updated = history.filter((item) => item.id !== id);
+    setHistory(updated);
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.warn("Failed to update history in localStorage:", err);
+    }
+    toast.success("হিস্ট্রি আইটেম মুছে ফেলা হয়েছে।");
+  };
+
+  const handleClearAllHistory = () => {
+    if (window.confirm("আপনি কি নিশ্চিত যে সকল সংরক্ষিত হিস্ট্রি মুছে ফেলতে চান?")) {
+      setHistory([]);
+      try {
+        localStorage.removeItem(HISTORY_STORAGE_KEY);
+      } catch (err) {
+        console.warn("Failed to clear history from localStorage:", err);
+      }
+      toast.success("সকল হিস্ট্রি মুছে ফেলা হয়েছে।");
+    }
+  };
+
+  const handleCopyHistoryItem = async (entry: CalculatorHistoryEntry) => {
+    try {
+      const stacksBreakdown = entry.stacks
+        .map(
+          (r) =>
+            `${r.traysPerStack || 0} × ${r.stacksCount || 0} = ${(Number(r.traysPerStack) || 0) * (Number(r.stacksCount) || 0)}`
+        )
+        .join("\n");
+
+      let stockVerificationText = "";
+      if (entry.productName && entry.systemStock !== null && entry.systemStock !== undefined) {
+        const diff = entry.stockDifference ?? (entry.grandTotalEggs - entry.systemStock);
+        const diffStr =
+          diff === 0
+            ? "হুবহু মিলে গেছে"
+            : diff < 0
+            ? `${diff.toLocaleString()} টি ঘাটতি (Shortage)`
+            : `+${diff.toLocaleString()} টি অতিরিক্ত (Surplus)`;
+        stockVerificationText = `\n------------------------------\nপণ্য: ${entry.productName}\nসিস্টেম স্টক: ${entry.systemStock.toLocaleString()} টি\nস্টক যাচাই: ${diffStr}`;
+      }
+
+      const text = `🥚 ডিমের হিসাব বিবরণী (${entry.formattedDate})
+------------------------------
+${stacksBreakdown}
+------------------------------
+মোট ট্রে: ${entry.totalTrays.toLocaleString()} ট্রে
+ট্রে ডিম: ${entry.totalTrayEggs.toLocaleString()} টি
+খোলা ডিম: ${entry.totalLooseEggs.toLocaleString()} টি
+------------------------------
+সর্বমোট ডিম: ${entry.grandTotalEggs.toLocaleString()} টি
+ট্রে হিসেবে: ${entry.grandTotalConversion.fullTrays} ট্রে, ${entry.grandTotalConversion.remainderEggs} ডিম${stockVerificationText}
+------------------------------
+NextEgg Poultry ERP`;
+
+      await navigator.clipboard.writeText(text);
+      toast.success("হিসাব ক্লিপবোর্ডে কপি করা হয়েছে!");
+    } catch (err) {
+      toast.error("Failed to copy to clipboard.");
+    }
+  };
+
+  const filteredHistory = useMemo(() => {
+    if (historyProductFilter === "all") return history;
+    return history.filter((h) => h.productName === historyProductFilter);
+  }, [history, historyProductFilter]);
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
-      {/* Main Two-Column Grid: Inputs on Left, Results on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Left Column: Tray Stacks & Loose/Damaged Categories (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* Tray Stacks Card */}
-          <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
-            <CardHeader className="p-3 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-sm font-bold text-foreground">
-                Tray Stacks
-              </CardTitle>
+      {/* Navigation Tabs Header: Calculator vs History Log */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant={activeTab === "calculator" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("calculator")}
+            className="h-8.5 text-xs font-bold gap-1.5 rounded-lg"
+          >
+            <Calculator className="h-3.5 w-3.5" />
+            <span>ক্যালকুলেটর (Calculator)</span>
+          </Button>
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addStackRow}
-                className="h-7.5 px-2.5 text-xs font-semibold rounded-lg text-primary border-primary/30 hover:bg-primary/10 gap-1 shrink-0"
+          <Button
+            type="button"
+            variant={activeTab === "history" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("history")}
+            className="h-8.5 text-xs font-bold gap-1.5 rounded-lg"
+          >
+            <History className="h-3.5 w-3.5" />
+            <span>হিস্ট্রি লগ (History)</span>
+            {history.length > 0 && (
+              <Badge
+                variant={activeTab === "history" ? "secondary" : "default"}
+                className="ml-1 text-[10px] px-1.5 py-0 font-mono"
               >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Stack</span>
-              </Button>
-            </CardHeader>
-
-            <CardContent className="p-3 sm:p-4 space-y-2">
-              {/* Single Clean Table Column Header Row */}
-              <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-1.5 border-b border-border/60">
-                <span className="w-5 sm:w-6 text-center shrink-0">#</span>
-                <span className="w-20 sm:w-28 text-center shrink-0 truncate">Trays/Stack</span>
-                <span className="w-3 shrink-0 text-center">×</span>
-                <span className="w-20 sm:w-28 text-center shrink-0 truncate">Stacks</span>
-                <span className="flex-1 text-right pr-2 truncate">Total</span>
-                <span className="w-8 shrink-0"></span>
-              </div>
-
-              {/* Single-Line Stack Rows */}
-              <div className="divide-y divide-border/50">
-                {stacks.map((row, index) => {
-                  const t = Number(row.traysPerStack) || 0;
-                  const s = Number(row.stacksCount) || 0;
-                  const rowTotal = t * s;
-
-                  return (
-                    <div
-                      key={row.id}
-                      className="flex items-center gap-1.5 sm:gap-2 w-full flex-nowrap py-1.5 sm:py-2"
-                    >
-                      {/* Row Index */}
-                      <span className="w-5 sm:w-6 text-center text-[11px] sm:text-xs font-mono font-medium text-muted-foreground shrink-0">
-                        {index + 1}
-                      </span>
-
-                      {/* Trays per stack input */}
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
-                        placeholder="20"
-                        value={row.traysPerStack}
-                        onChange={(e) => updateStackRow(row.id, "traysPerStack", e.target.value)}
-                        className="w-20 sm:w-28 h-9 text-center text-xs sm:text-sm font-medium bg-background border-border/80 rounded-lg shrink-0 px-1"
-                      />
-
-                      {/* Multiply sign */}
-                      <span className="w-3 text-center text-muted-foreground font-semibold text-xs sm:text-sm shrink-0">
-                        ×
-                      </span>
-
-                      {/* Number of stacks input */}
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
-                        placeholder="0"
-                        value={row.stacksCount}
-                        onChange={(e) => updateStackRow(row.id, "stacksCount", e.target.value)}
-                        className="w-20 sm:w-28 h-9 text-center text-xs sm:text-sm font-medium bg-background border-border/80 rounded-lg shrink-0 px-1"
-                      />
-
-                      {/* Equals & Total Trays Result */}
-                      <div className="flex-1 text-right font-bold text-sm sm:text-base whitespace-nowrap px-1 font-mono text-foreground">
-                        <span className="text-muted-foreground font-normal text-xs sm:text-sm mr-1">=</span>
-                        {rowTotal.toLocaleString()}
-                        <span className="text-[10px] sm:text-xs font-normal text-muted-foreground ml-1 hidden min-[420px]:inline">
-                          Trays
-                        </span>
-                      </div>
-
-                      {/* Delete / Cross Icon Button */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => promptDeleteRow(row)}
-                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
-                        title="Delete stack row"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Subtotals Footer Bar */}
-              <div className="pt-2 border-t border-border/60 flex flex-wrap items-center justify-between gap-2 bg-muted/10 p-2 sm:p-2.5 rounded-lg mt-1">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Layers className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
-                  <span>
-                    Rows: <strong className="text-foreground">{stacks.length}</strong>
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs font-mono ml-auto">
-                  <div>
-                    <span className="text-muted-foreground text-[11px]">Total Trays: </span>
-                    <strong className="text-xs sm:text-sm font-black text-teal-600 dark:text-teal-400">
-                      {totalTrays.toLocaleString()}
-                    </strong>
-                  </div>
-                  <div className="border-l border-border/60 pl-3">
-                    <span className="text-muted-foreground text-[11px]">Tray Eggs: </span>
-                    <strong className="text-xs sm:text-sm font-black text-foreground">
-                      {totalTrayEggs.toLocaleString()} <span className="text-[10px] font-normal">pcs</span>
-                    </strong>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Loose & Damaged Eggs Card */}
-          <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
-            <CardHeader className="p-3 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-sm font-bold text-foreground">
-                Loose & Damaged Eggs
-              </CardTitle>
-
-              <Badge variant="outline" className="font-mono text-xs px-2 py-0.5 font-semibold">
-                Total: {totalLooseEggs.toLocaleString()} pcs
+                {history.length}
               </Badge>
-            </CardHeader>
+            )}
+          </Button>
+        </div>
 
-            <CardContent className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {LOOSE_CATEGORIES.map((cat) => {
-                  const entries = looseEntries[cat.key] || [];
-                  const draft = looseDrafts[cat.key] || "";
-                  const total = getCategoryTotal(cat.key);
+        {activeTab === "calculator" && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+            <span>স্ট্যান্ডার্ড:</span>
+            <Badge variant="outline" className="font-semibold text-[11px]">
+              {validEggsPerTray} ডিম / ট্রে
+            </Badge>
+          </div>
+        )}
+      </div>
 
-                  return (
-                    <div
-                      key={cat.key}
-                      className="p-2.5 sm:p-3 rounded-xl border border-border/60 bg-muted/15 space-y-2"
-                    >
-                      {/* Header: Label & Running Total Badge */}
-                      <div className="flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div className={`h-2.5 w-2.5 rounded-full ${cat.dotColor} shrink-0`} />
-                          <span className="text-xs font-bold text-foreground truncate">
-                            {cat.title}
-                          </span>
-                        </div>
+      {/* TAB 1: CALCULATOR */}
+      {activeTab === "calculator" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Left Column: Tray Stacks & Loose/Damaged Categories (7 cols) */}
+          <div className="lg:col-span-7 space-y-4">
+            {/* Tray Stacks Card */}
+            <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
+              <CardHeader className="p-3 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-row items-center justify-between gap-2">
+                <CardTitle className="text-sm font-bold text-foreground">
+                  Tray Stacks
+                </CardTitle>
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Badge variant="secondary" className="font-mono text-xs px-2 py-0.5 font-bold">
-                            Total: {total.toLocaleString()}
-                          </Badge>
-                          {(entries.length > 0 || draft !== "") && (
-                            <button
-                              type="button"
-                              onClick={() => clearCategory(cat.key)}
-                              className="text-[10px] text-muted-foreground hover:text-destructive p-0.5 rounded transition-colors"
-                              title="Clear category"
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addStackRow}
+                  className="h-7.5 px-2.5 text-xs font-semibold rounded-lg text-primary border-primary/30 hover:bg-primary/10 gap-1 shrink-0"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Stack</span>
+                </Button>
+              </CardHeader>
 
-                      {/* Single-Line Entry Row: Input + Quick Add + Quick Presets */}
-                      <div className="flex items-center gap-1.5">
+              <CardContent className="p-3 sm:p-4 space-y-2">
+                {/* Single Clean Table Column Header Row */}
+                <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-1.5 border-b border-border/60">
+                  <span className="w-5 sm:w-6 text-center shrink-0">#</span>
+                  <span className="w-20 sm:w-28 text-center shrink-0 truncate">Trays/Stack</span>
+                  <span className="w-3 shrink-0 text-center">×</span>
+                  <span className="w-20 sm:w-28 text-center shrink-0 truncate">Stacks</span>
+                  <span className="flex-1 text-right pr-2 truncate">Total</span>
+                  <span className="w-8 shrink-0"></span>
+                </div>
+
+                {/* Single-Line Stack Rows */}
+                <div className="divide-y divide-border/50">
+                  {stacks.map((row, index) => {
+                    const t = Number(row.traysPerStack) || 0;
+                    const s = Number(row.stacksCount) || 0;
+                    const rowTotal = t * s;
+
+                    return (
+                      <div
+                        key={row.id}
+                        className="flex items-center gap-1.5 sm:gap-2 w-full flex-nowrap py-1.5 sm:py-2"
+                      >
+                        {/* Row Index */}
+                        <span className="w-5 sm:w-6 text-center text-[11px] sm:text-xs font-mono font-medium text-muted-foreground shrink-0">
+                          {index + 1}
+                        </span>
+
+                        {/* Trays per stack input */}
                         <Input
                           type="number"
                           inputMode="numeric"
-                          min="1"
-                          placeholder="Add count..."
-                          value={draft}
-                          onChange={(e) =>
-                            setLooseDrafts((prev) => ({ ...prev, [cat.key]: e.target.value }))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              commitEntry(cat.key);
-                            }
-                          }}
-                          className="h-8 text-xs font-semibold bg-background border-border/80 rounded-lg flex-1 min-w-0 px-2"
+                          min="0"
+                          placeholder="20"
+                          value={row.traysPerStack}
+                          onChange={(e) => updateStackRow(row.id, "traysPerStack", e.target.value)}
+                          className="w-20 sm:w-28 h-9 text-center text-xs sm:text-sm font-medium bg-background border-border/80 rounded-lg shrink-0 px-1"
                         />
+
+                        {/* Multiply sign */}
+                        <span className="w-3 text-center text-muted-foreground font-semibold text-xs sm:text-sm shrink-0">
+                          ×
+                        </span>
+
+                        {/* Number of stacks input */}
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min="0"
+                          placeholder="0"
+                          value={row.stacksCount}
+                          onChange={(e) => updateStackRow(row.id, "stacksCount", e.target.value)}
+                          className="w-20 sm:w-28 h-9 text-center text-xs sm:text-sm font-medium bg-background border-border/80 rounded-lg shrink-0 px-1"
+                        />
+
+                        {/* Equals & Total Trays Result */}
+                        <div className="flex-1 text-right font-bold text-sm sm:text-base whitespace-nowrap px-1 font-mono text-foreground">
+                          <span className="text-muted-foreground font-normal text-xs sm:text-sm mr-1">=</span>
+                          {rowTotal.toLocaleString()}
+                          <span className="text-[10px] sm:text-xs font-normal text-muted-foreground ml-1 hidden min-[420px]:inline">
+                            Trays
+                          </span>
+                        </div>
+
+                        {/* Delete / Cross Icon Button */}
                         <Button
                           type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => commitEntry(cat.key)}
-                          disabled={!draft || parseInt(draft, 10) <= 0}
-                          className="h-8 px-2 text-xs font-semibold rounded-lg shrink-0 gap-1 border-primary/40 text-primary hover:bg-primary/10 disabled:opacity-40"
-                          title="Add entry (or press Enter)"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => promptDeleteRow(row)}
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                          title="Delete stack row"
                         >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span>Add</span>
+                          <X className="h-4 w-4" />
                         </Button>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => addDirectPreset(cat.key, 1)}
-                            className="h-8 px-1.5 text-[10px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
-                            title="Add +1 egg"
-                          >
-                            +1
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => addDirectPreset(cat.key, 5)}
-                            className="h-8 px-1.5 text-[10px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
-                            title="Add +5 eggs"
-                          >
-                            +5
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => addDirectPreset(cat.key, 10)}
-                            className="h-8 px-1.5 text-[10px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
-                            title="Add +10 eggs"
-                          >
-                            +10
-                          </button>
-                        </div>
                       </div>
+                    );
+                  })}
+                </div>
 
-                      {/* Interactive Entry Pills / Chips */}
-                      {entries.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                          {entries.map((num, idx) => (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center gap-1 bg-background border border-border/80 text-foreground font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md shadow-2xs"
-                            >
-                              <span>+{num}</span>
+                {/* Subtotals Footer Bar */}
+                <div className="pt-2 border-t border-border/60 flex flex-wrap items-center justify-between gap-2 bg-muted/10 p-2 sm:p-2.5 rounded-lg mt-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Layers className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                    <span>
+                      Rows: <strong className="text-foreground">{stacks.length}</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs font-mono ml-auto">
+                    <div>
+                      <span className="text-muted-foreground text-[11px]">Total Trays: </span>
+                      <strong className="text-xs sm:text-sm font-black text-teal-600 dark:text-teal-400">
+                        {totalTrays.toLocaleString()}
+                      </strong>
+                    </div>
+                    <div className="border-l border-border/60 pl-3">
+                      <span className="text-muted-foreground text-[11px]">Tray Eggs: </span>
+                      <strong className="text-xs sm:text-sm font-black text-foreground">
+                        {totalTrayEggs.toLocaleString()} <span className="text-[10px] font-normal">pcs</span>
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Loose & Damaged Eggs Card */}
+            <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
+              <CardHeader className="p-3 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-row items-center justify-between gap-2">
+                <CardTitle className="text-sm font-bold text-foreground">
+                  Loose & Damaged Eggs
+                </CardTitle>
+
+                <Badge variant="outline" className="font-mono text-xs px-2 py-0.5 font-semibold">
+                  Total: {totalLooseEggs.toLocaleString()} pcs
+                </Badge>
+              </CardHeader>
+
+              <CardContent className="p-3 sm:p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {LOOSE_CATEGORIES.map((cat) => {
+                    const entries = looseEntries[cat.key] || [];
+                    const draft = looseDrafts[cat.key] || "";
+                    const total = getCategoryTotal(cat.key);
+
+                    return (
+                      <div
+                        key={cat.key}
+                        className="p-2.5 sm:p-3 rounded-xl border border-border/60 bg-muted/15 space-y-2"
+                      >
+                        {/* Header: Label & Running Total Badge */}
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`h-2.5 w-2.5 rounded-full ${cat.dotColor} shrink-0`} />
+                            <span className="text-xs font-bold text-foreground truncate">
+                              {cat.title}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Badge variant="secondary" className="font-mono text-xs px-2 py-0.5 font-bold">
+                              Total: {total.toLocaleString()}
+                            </Badge>
+                            {(entries.length > 0 || draft !== "") && (
                               <button
+                                type="button"
+                                onClick={() => clearCategory(cat.key)}
+                                className="text-[10px] text-muted-foreground hover:text-destructive p-0.5 rounded transition-colors"
+                                title="Clear category"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Single-Line Entry Row: Input + Quick Add + Quick Presets */}
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            placeholder="Add count..."
+                            value={draft}
+                            onChange={(e) =>
+                              setLooseDrafts((prev) => ({ ...prev, [cat.key]: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                commitEntry(cat.key);
+                              }
+                            }}
+                            className="h-8 text-xs font-semibold bg-background border-border/80 rounded-lg flex-1 min-w-0 px-2"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => commitEntry(cat.key)}
+                            disabled={!draft || parseInt(draft, 10) <= 0}
+                            className="h-8 px-2 text-xs font-semibold rounded-lg shrink-0 gap-1 border-primary/40 text-primary hover:bg-primary/10 disabled:opacity-40"
+                            title="Add entry (or press Enter)"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Add</span>
+                          </Button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => addDirectPreset(cat.key, 1)}
+                              className="h-8 px-1.5 text-[10px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
+                              title="Add +1 egg"
+                            >
+                              +1
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addDirectPreset(cat.key, 5)}
+                              className="h-8 px-1.5 text-[10px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
+                              title="Add +5 eggs"
+                            >
+                              +5
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addDirectPreset(cat.key, 10)}
+                              className="h-8 px-1.5 text-[10px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/40"
+                              title="Add +10 eggs"
+                            >
+                              +10
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Interactive Entry Pills / Chips */}
+                        {entries.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            {entries.map((num, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 bg-background border border-border/80 text-foreground font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded-md shadow-2xs"
+                              >
+                                <span>+{num}</span>
+                                <button
                                 type="button"
                                 onClick={() => removeEntry(cat.key, idx)}
                                 className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
@@ -641,7 +896,6 @@ NextEgg Poultry ERP`;
             </CardContent>
           </Card>
 
-          {/* Next Day Sell (Reserved / Carry-over Eggs) Card */}
           {/* Next Day Sell (পরের দিনের বিক্রি) Card */}
           <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
             <CardHeader className="p-3 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-row items-center justify-between gap-2">
@@ -739,193 +993,431 @@ NextEgg Poultry ERP`;
 
         {/* Right Column: Calculation Summary (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
-          <Card className="rounded-xl border-primary/40 bg-gradient-to-br from-primary/10 via-card to-card shadow-xs overflow-hidden">
-            <CardHeader className="p-3 sm:p-4 border-b border-primary/20 bg-primary/5 pb-2.5">
+          <Card className="rounded-xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="p-3.5 sm:p-4 border-b border-border/60 bg-muted/15 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Calculation Summary
-                </span>
-                <Package className="h-4 w-4 text-primary" />
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-bold text-foreground uppercase tracking-wider">
+                    গণনার সারসংক্ষেপ (Summary)
+                  </span>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-mono font-semibold">
+                  {validEggsPerTray} ডিম / ট্রে
+                </Badge>
+              </div>
+
+              {/* Optional Product Selection & Real Stock Indicator */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                    <span>পণ্য নির্বাচন (ঐচ্ছিক স্টক যাচাই):</span>
+                  </label>
+                  {selectedProduct && (
+                    <Badge variant="outline" className="text-[11px] font-mono font-semibold text-primary border-primary/30 bg-primary/5">
+                      বর্তমান স্টক: {selectedProduct.current_stock.toLocaleString()} টি
+                    </Badge>
+                  )}
+                </div>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  className="w-full h-8.5 text-xs font-medium bg-background border border-border/80 rounded-lg px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">-- সাধারণ গণনা (কোনো পণ্য ছাড়া) --</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (বর্তমান স্টক: {p.current_stock.toLocaleString()} টি)
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Main Prominent Final Result (Trays + Eggs) */}
-              <div className="mt-2.5 space-y-0.5">
+              <div className="pt-2 border-t border-border/50">
                 <div className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
                   {grandTotalConversion.fullTrays.toLocaleString()}{" "}
-                  <span className="text-base sm:text-lg font-semibold text-muted-foreground">Trays,</span>{" "}
+                  <span className="text-base sm:text-lg font-semibold text-muted-foreground">ট্রে,</span>{" "}
                   {grandTotalConversion.remainderEggs}{" "}
-                  <span className="text-base sm:text-lg font-semibold text-muted-foreground">Eggs</span>
+                  <span className="text-base sm:text-lg font-semibold text-muted-foreground">ডিম</span>
                 </div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  Grand Total: <strong className="text-foreground font-bold">{grandTotalEggs.toLocaleString()}</strong> pieces
+                <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                  সর্বমোট ডিম: <strong className="text-foreground font-bold">{grandTotalEggs.toLocaleString()}</strong> টি
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-3 sm:p-4 space-y-3">
+            <CardContent className="p-3.5 sm:p-4 space-y-3">
               {/* Step-by-Step Arithmetic Ledger (ধাপে ধাপে হিসাব) */}
-              <div className="rounded-xl border border-border/80 bg-background/80 shadow-xs overflow-hidden">
-                <div className="bg-muted/40 px-3.5 py-2 border-b border-border/60 flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <Calculator className="h-3.5 w-3.5 text-primary" />
-                    <span>ধাপে ধাপে হিসাব বিবরণী</span>
-                  </span>
-                  <Badge variant="outline" className="text-[10px] font-mono font-semibold">
-                    {validEggsPerTray} ডিম / ট্রে
-                  </Badge>
-                </div>
-
-                <div className="p-3 sm:p-4 font-mono text-xs sm:text-sm space-y-3">
-                  {/* 1. Tray Stacks Breakdown */}
-                  <div className="space-y-1">
-                    <div className="text-[11px] font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                      ট্রে খাঁচার হিসাব (Tray Stacks)
-                    </div>
-                    <div className="space-y-1.5 bg-muted/20 p-2.5 rounded-lg border border-border/40">
-                      {stackRowsData.map((r, idx) => {
-                        const t = Number(r.traysPerStack) || 0;
-                        const s = Number(r.stacksCount) || 0;
-                        return (
-                          <div key={r.id || idx} className="flex items-center justify-between">
-                            <span className="text-foreground font-semibold">
-                              {t} <span className="text-muted-foreground font-normal">×</span> {s}
-                            </span>
-                            <span className="font-bold text-foreground">
-                              <span className="text-muted-foreground font-normal mr-1">=</span>
-                              {r.rowTotalTrays.toLocaleString()} <span className="text-[11px] text-muted-foreground font-normal">ট্রে</span>
-                            </span>
-                          </div>
-                        );
-                      })}
-                      <div className="border-t border-dashed border-border/80 pt-1.5 mt-1 flex items-center justify-between font-bold text-teal-600 dark:text-teal-400">
-                        <span>মোট ট্রে</span>
-                        <span className="text-sm sm:text-base">{totalTrays.toLocaleString()} ট্রে</span>
-                      </div>
-                    </div>
+              <div className="font-mono text-xs sm:text-sm divide-y divide-border/60">
+                {/* 1. Tray Stacks Breakdown */}
+                <div className="pb-2.5 space-y-1">
+                  <div className="text-[11px] font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                    ট্রে খাঁচার হিসাব (Tray Stacks)
                   </div>
-
-                  {/* 2. Tray to Eggs Conversion */}
-                  <div className="space-y-1">
-                    <div className="text-[11px] font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                      ট্রে থেকে ডিমের সংখ্যা
-                    </div>
-                    <div className="bg-muted/20 p-2.5 rounded-lg border border-border/40 flex items-center justify-between">
-                      <span className="text-foreground font-semibold">
-                        {totalTrays} <span className="text-muted-foreground font-normal">×</span> {validEggsPerTray}
-                      </span>
-                      <span className="font-bold text-foreground">
-                        <span className="text-muted-foreground font-normal mr-1">=</span>
-                        {totalTrayEggs.toLocaleString()} <span className="text-[11px] text-muted-foreground font-normal">টি ডিম</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 3. Loose & Damaged Eggs Breakdown */}
-                  {(totalLooseEggs > 0 || nextDaySellEggs > 0) && (
-                    <div className="space-y-1">
-                      <div className="text-[11px] font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                        খোলা ও অতিরিক্ত ডিম
-                      </div>
-                      <div className="space-y-1.5 bg-muted/20 p-2.5 rounded-lg border border-border/40">
-                        {numLooseGood > 0 && (
-                          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
-                            <span className="font-medium flex items-center gap-1.5">
-                              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                              + খোলা ডিম (Loose)
-                            </span>
-                            <span className="font-bold">+{numLooseGood.toLocaleString()} টি</span>
-                          </div>
-                        )}
-                        {numLooseCracked > 0 && (
-                          <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
-                            <span className="font-medium flex items-center gap-1.5">
-                              <span className="inline-block w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                              + ফাটা / লাগা (Cracked)
-                            </span>
-                            <span className="font-bold">+{numLooseCracked.toLocaleString()} টি</span>
-                          </div>
-                        )}
-                        {numLooseBroken > 0 && (
-                          <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
-                            <span className="font-medium flex items-center gap-1.5">
-                              <span className="inline-block w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                              + ভাঙা ডিম (Broken)
-                            </span>
-                            <span className="font-bold">+{numLooseBroken.toLocaleString()} টি</span>
-                          </div>
-                        )}
-                        {numLooseSpoiled > 0 && (
-                          <div className="flex items-center justify-between text-red-600 dark:text-red-400">
-                            <span className="font-medium flex items-center gap-1.5">
-                              <span className="inline-block w-2 h-2 rounded-full bg-red-600 shrink-0" />
-                              + নষ্ট ডিম (Spoiled)
-                            </span>
-                            <span className="font-bold">+{numLooseSpoiled.toLocaleString()} টি</span>
-                          </div>
-                        )}
-                        {nextDaySellEggs > 0 && (
-                          <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
-                            <span className="font-medium flex items-center gap-1.5">
-                              <span className="inline-block w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-                              + পরের দিনের বিক্রি
-                            </span>
-                            <span className="font-bold">+{nextDaySellEggs.toLocaleString()} টি</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 4. Final Grand Total Block */}
-                  <div className="border-t border-primary/30 pt-2.5 mt-2 bg-primary/5 p-3 rounded-xl border border-primary/20 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-foreground text-xs sm:text-sm">
-                        সর্বমোট ডিম (Grand Total)
-                      </span>
-                      <span className="font-black text-primary text-base sm:text-lg">
-                        {grandTotalEggs.toLocaleString()} টি
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-primary/10">
-                      <span>ট্রে হিসেবে:</span>
-                      <span className="font-bold text-foreground font-mono">
-                        {grandTotalConversion.fullTrays.toLocaleString()} ট্রে, {grandTotalConversion.remainderEggs} ডিম
-                      </span>
+                  <div className="space-y-1 pl-1">
+                    {stackRowsData.map((r, idx) => {
+                      const t = Number(r.traysPerStack) || 0;
+                      const s = Number(r.stacksCount) || 0;
+                      return (
+                        <div key={r.id || idx} className="flex items-center justify-between text-foreground">
+                          <span>
+                            {t} <span className="text-muted-foreground font-normal">×</span> {s}
+                          </span>
+                          <span className="font-bold">
+                            = {r.rowTotalTrays.toLocaleString()} <span className="text-[11px] text-muted-foreground font-normal">ট্রে</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                    <div className="pt-1 flex items-center justify-between font-bold text-teal-600 dark:text-teal-400 border-t border-dashed border-border/60">
+                      <span>মোট ট্রে</span>
+                      <span>= {totalTrays.toLocaleString()} ট্রে</span>
                     </div>
                   </div>
                 </div>
+
+                {/* 2. Tray to Eggs Conversion */}
+                <div className="py-2.5 space-y-1">
+                  <div className="text-[11px] font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                    ট্রে থেকে ডিমের সংখ্যা
+                  </div>
+                  <div className="flex items-center justify-between text-foreground pl-1 font-bold">
+                    <span>
+                      {totalTrays} <span className="text-muted-foreground font-normal">×</span> {validEggsPerTray}
+                    </span>
+                    <span>= {totalTrayEggs.toLocaleString()} টি ডিম</span>
+                  </div>
+                </div>
+
+                {/* 3. Loose & Damaged Eggs Breakdown */}
+                {(totalLooseEggs > 0 || nextDaySellEggs > 0) && (
+                  <div className="py-2.5 space-y-1">
+                    <div className="text-[11px] font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                      খোলা ও অতিরিক্ত ডিম
+                    </div>
+                    <div className="space-y-1 pl-1">
+                      {numLooseGood > 0 && (
+                        <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                            + খোলা ডিম (Loose)
+                          </span>
+                          <span className="font-bold">+{numLooseGood.toLocaleString()} টি</span>
+                        </div>
+                      )}
+                      {numLooseCracked > 0 && (
+                        <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                            + ফাটা / লাগা (Cracked)
+                          </span>
+                          <span className="font-bold">+{numLooseCracked.toLocaleString()} টি</span>
+                        </div>
+                      )}
+                      {numLooseBroken > 0 && (
+                        <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                            + ভাঙা ডিম (Broken)
+                          </span>
+                          <span className="font-bold">+{numLooseBroken.toLocaleString()} টি</span>
+                        </div>
+                      )}
+                      {numLooseSpoiled > 0 && (
+                        <div className="flex items-center justify-between text-red-600 dark:text-red-400">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-red-600 shrink-0" />
+                            + নষ্ট ডিম (Spoiled)
+                          </span>
+                          <span className="font-bold">+{numLooseSpoiled.toLocaleString()} টি</span>
+                        </div>
+                      )}
+                      {nextDaySellEggs > 0 && (
+                        <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                            + পরের দিনের বিক্রি
+                          </span>
+                          <span className="font-bold">+{nextDaySellEggs.toLocaleString()} টি</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Stock Match Verification (Only when a product is selected) */}
+                {selectedProduct && (
+                  <div className="pt-2.5 space-y-1.5 font-sans">
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                      <span>স্টক যাচাই (Stock Verification)</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">(শুধুমাত্র তুলনার জন্য)</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg border border-border/70 bg-muted/20 space-y-1.5 text-xs font-mono">
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>সিস্টেমের বর্তমান স্টক:</span>
+                        <span className="font-bold text-foreground">{selectedProduct.current_stock.toLocaleString()} টি</span>
+                      </div>
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>গণনাকৃত সর্বমোট ডিম:</span>
+                        <span className="font-bold text-foreground">{grandTotalEggs.toLocaleString()} টি</span>
+                      </div>
+                      <div className="border-t border-border/60 pt-1.5 flex items-center justify-between font-sans">
+                        <span className="font-bold text-foreground text-xs">স্টক ব্যবধান (Gap):</span>
+                        {stockDifference === 0 ? (
+                          <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-bold text-xs gap-1">
+                            <Check className="h-3 w-3" />
+                            <span>হুবহু মিলে গেছে</span>
+                          </Badge>
+                        ) : (stockDifference || 0) < 0 ? (
+                          <Badge variant="destructive" className="font-bold text-xs">
+                            {stockDifference?.toLocaleString()} টি ঘাটতি (Shortage)
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-600 hover:bg-blue-600 text-white font-bold text-xs">
+                            +{stockDifference?.toLocaleString()} টি অতিরিক্ত (Surplus)
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground pt-0.5 font-sans">
+                        🔒 শুধুমাত্র গণনার জন্য। আসল প্রোডাক্ট স্টকে কোনো প্রভাব পড়বে না।
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Actions: Copy Summary & Reset All */}
-              <div className="flex items-center gap-2 pt-1">
+              {/* Actions: Save History, Copy Summary, Reset All */}
+              <div className="space-y-2 pt-2 border-t border-border/60">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="default"
                   size="sm"
-                  onClick={handleCopySummary}
-                  className="flex-1 h-8.5 text-xs font-semibold rounded-lg gap-1.5"
-                  title="Copy formatted summary to clipboard"
+                  onClick={handleSaveToHistory}
+                  className="w-full h-9 text-xs font-bold rounded-lg gap-1.5 shadow-xs"
                 >
-                  {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                  <span>{isCopied ? "Copied" : "Copy Summary"}</span>
+                  <History className="h-3.5 w-3.5" />
+                  <span>হিস্ট্রিতে সংরক্ষণ করুন (Save History)</span>
                 </Button>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsResetModalOpen(true)}
-                  className="h-8.5 px-3 text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg gap-1.5"
-                  title="Reset all inputs"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Reset All</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopySummary}
+                    className="flex-1 h-8.5 text-xs font-semibold rounded-lg gap-1.5"
+                    title="Copy formatted summary to clipboard"
+                  >
+                    {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span>{isCopied ? "Copied" : "Copy Summary"}</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsResetModalOpen(true)}
+                    className="h-8.5 px-3 text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg gap-1.5"
+                    title="Reset all inputs"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Reset</span>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+      )}
+
+      {/* TAB 2: HISTORY LOG */}
+      {activeTab === "history" && (
+        <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
+          <CardHeader className="p-3.5 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <History className="h-4 w-4 text-primary" />
+                <span>ক্যালকুলেটর হিস্ট্রি লগ (Calculation History)</span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                তারিখ ও পণ্য অনুযায়ী পূর্বে সংরক্ষিত হিসাবসমূহ
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {history.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearAllHistory}
+                  className="h-8 text-xs text-muted-foreground hover:text-destructive border-border/70 rounded-lg gap-1"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>সব মুছুন</span>
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-3.5 sm:p-4 space-y-3">
+            {/* Optional Filter by Product */}
+            {history.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-border/50">
+                <span className="text-xs font-medium text-muted-foreground">পণ্য ফিল্টার:</span>
+                <select
+                  value={historyProductFilter}
+                  onChange={(e) => setHistoryProductFilter(e.target.value)}
+                  className="h-8 text-xs font-medium bg-background border border-border/80 rounded-lg px-2 text-foreground"
+                >
+                  <option value="all">সকল পণ্য ({history.length})</option>
+                  {Array.from(new Set(history.map((h) => h.productName).filter(Boolean))).map((name) => (
+                    <option key={name as string} value={name as string}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* History Items List */}
+            {filteredHistory.length === 0 ? (
+              <div className="py-12 text-center space-y-2">
+                <History className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+                <h4 className="text-sm font-semibold text-foreground">কোনো সংরক্ষিত হিস্ট্রি নেই</h4>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  ক্যালকুলেটরে হিসাব করার পর &quot;হিস্ট্রিতে সংরক্ষণ করুন&quot; বাটনে ক্লিক করলে তা এখানে তারিখ অনুযায়ী সংরক্ষিত থাকবে।
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab("calculator")}
+                  className="mt-2 h-8 text-xs font-semibold rounded-lg"
+                >
+                  ক্যালকুলেটরে যান
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredHistory.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 sm:p-4 rounded-xl border border-border/70 bg-muted/10 hover:bg-muted/20 transition-colors space-y-2.5"
+                  >
+                    {/* Item Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          <span>{item.formattedDate}</span>
+                        </span>
+                        {item.productName ? (
+                          <Badge variant="secondary" className="font-semibold text-xs bg-primary/10 text-primary border-primary/20">
+                            {item.productName}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">
+                            সাধারণ গণনা
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleLoadFromHistory(item)}
+                          className="h-7.5 px-2.5 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10 rounded-lg gap-1"
+                          title="এই হিসাবটি ক্যালকুলেটরে লোড করুন"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          <span>লোড করুন</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyHistoryItem(item)}
+                          className="h-7.5 px-2 text-xs text-muted-foreground hover:text-foreground rounded-lg"
+                          title="কপি করুন"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteHistoryItem(item.id)}
+                          className="h-7.5 px-2 text-xs text-muted-foreground hover:text-destructive rounded-lg"
+                          title="মুছে ফেলুন"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Item Body: Result & Breakdown */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs font-mono bg-background p-2.5 rounded-lg border border-border/50">
+                      <div>
+                        <span className="text-muted-foreground text-[11px] block font-sans">সর্বমোট ডিম:</span>
+                        <strong className="text-sm font-bold text-foreground">
+                          {item.grandTotalEggs.toLocaleString()} টি
+                        </strong>
+                        <span className="text-[11px] text-muted-foreground block">
+                          ({item.grandTotalConversion.fullTrays} ট্রে, {item.grandTotalConversion.remainderEggs} ডিম)
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-muted-foreground text-[11px] block font-sans">খাঁচা হিসাব:</span>
+                        <span className="text-foreground">
+                          {item.stacks.map((s) => `${s.traysPerStack || 0}×${s.stacksCount || 0}`).join(" + ")}
+                        </span>
+                        <span className="text-[11px] text-teal-600 dark:text-teal-400 block font-bold">
+                          = {item.totalTrays} ট্রে ({item.totalTrayEggs.toLocaleString()} টি)
+                        </span>
+                      </div>
+
+                      <div>
+                        {item.systemStock !== null && item.systemStock !== undefined ? (
+                          <div>
+                            <span className="text-muted-foreground text-[11px] block font-sans">স্টক তুলনা:</span>
+                            <span className="text-muted-foreground">সিস্টেম: {item.systemStock.toLocaleString()} টি</span>
+                            <div className="mt-0.5">
+                              {item.stockDifference === 0 ? (
+                                <span className="font-bold text-emerald-600 text-xs">✓ হুবহু মিলেছে</span>
+                              ) : (item.stockDifference || 0) < 0 ? (
+                                <span className="font-bold text-destructive text-xs">
+                                  {item.stockDifference?.toLocaleString()} টি ঘাটতি
+                                </span>
+                              ) : (
+                                <span className="font-bold text-blue-600 text-xs">
+                                  +{item.stockDifference?.toLocaleString()} টি অতিরিক্ত
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="text-muted-foreground text-[11px] block font-sans">খোলা ডিম:</span>
+                            <span className="text-foreground">
+                              মোট {item.totalLooseEggs.toLocaleString()} টি
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Confirmation Modal: Delete Stack Row */}
       {rowToDelete && (
