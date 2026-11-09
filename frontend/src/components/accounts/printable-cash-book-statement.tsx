@@ -206,13 +206,21 @@ export const PrintableCashBookStatement = React.forwardRef<
 
   for (const it of actualExpenseItems) {
     const expType = it.name && it.name !== "—" ? it.name : "Expense";
+    const rawDesc = (it.description || "").trim();
+    const isAutoDesc =
+      !rawDesc ||
+      rawDesc === `Expense - ${expType}` ||
+      rawDesc === `Expense (${expType})` ||
+      rawDesc === "Expense";
     expenseRows.push({
       id: it.id,
-      description: it.description || `Expense (${expType})`,
+      description: isAutoDesc ? expType : rawDesc,
       type: expType,
       amount: it.debit,
     });
   }
+
+  const stockItems = summary.stock_summary || [];
 
   const totalExpense =
     typeof summary.total_expense === "number"
@@ -518,50 +526,138 @@ export const PrintableCashBookStatement = React.forwardRef<
               </section>
 
               {/* =======================================================
-                   3. DAILY EXPENSES
+                   3. SIDE BY SIDE: STOCK REPORT & DAILY EXPENSES
                    ======================================================= */}
-              <section className="mb-1.5">
-                <div className="font-bold uppercase text-[7.8px] text-gray-800 mb-0.5">
-                  3. DAILY EXPENSES
-                </div>
-                <table className="w-full text-left text-[7.8px] border border-collapse hairline bg-white">
-                  <thead>
-                    <tr className="bg-gray-100 border-b hairline text-[7.2px] text-gray-700 font-bold">
-                      <th className="px-1 py-[2.5px] text-center w-3">#</th>
-                      <th className="px-1.5 py-[2.5px]">EXPENSE DESCRIPTION</th>
-                      <th className="px-1.5 py-[2.5px]">TYPE</th>
-                      <th className="px-1.5 py-[2.5px] text-right">AMOUNT ({currencySymbol})</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y hairline-light">
-                    {expenseRows.map((row, idx) => (
-                      <tr key={row.id}>
-                        <td className="px-1 py-[2px] text-center text-gray-500 font-medium">{idx + 1}</td>
-                        <td className="px-1.5 py-[2px] font-medium text-gray-900">{row.description}</td>
-                        <td className="px-1.5 py-[2px] text-gray-700 font-medium">{row.type}</td>
-                        <td className="px-1.5 py-[2px] text-right tabular font-semibold text-gray-900">
-                          {formatNumber(row.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                    {expenseRows.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="px-2 py-2 text-center text-gray-500 italic">
-                          No expenses recorded for this date.
-                        </td>
-                      </tr>
+              <div className="flex gap-1.5 items-stretch mb-1.5 no-break">
+                {/* LEFT: STOCK REPORT (Products as columns, Metrics as rows) */}
+                <section className="w-[55%] shrink-0 border hairline bg-white flex flex-col justify-between">
+                  <div>
+                    <div className="bg-gray-100 border-b hairline px-1.5 py-[2px] font-bold uppercase text-[7.2px] text-gray-700">
+                      3. STOCK REPORT
+                    </div>
+                    {stockItems.length > 0 ? (
+                      <table className="w-full text-[7.5px] border-collapse bg-white">
+                        <thead>
+                          <tr className="bg-gray-50 border-b hairline text-[7px] text-gray-700 font-bold">
+                            <th className="px-1.5 py-[2px] text-left border-r hairline-light">Product</th>
+                            {stockItems.map((st) => (
+                              <th
+                                key={st.product_id}
+                                className="px-1 py-[2px] text-right border-r last:border-r-0 hairline-light truncate max-w-[22mm]"
+                                title={st.product_name}
+                              >
+                                {st.product_name}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y hairline-light">
+                          <tr>
+                            <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                              আগের স্টক
+                            </td>
+                            {stockItems.map((st) => (
+                              <td
+                                key={`prev-${st.product_id}`}
+                                className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                              >
+                                {formatNumber(st.previous_stock)}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                              ক্রয়
+                            </td>
+                            {stockItems.map((st) => (
+                              <td
+                                key={`purch-${st.product_id}`}
+                                className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                              >
+                                {formatNumber(st.purchases)}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr>
+                            <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                              বিক্রি
+                            </td>
+                            {stockItems.map((st) => (
+                              <td
+                                key={`sales-${st.product_id}`}
+                                className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                              >
+                                {formatNumber(st.sales)}
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
+                            <td className="px-1.5 py-[2.5px] text-gray-800 border-r hairline-light whitespace-nowrap">
+                              বাকি
+                            </td>
+                            {stockItems.map((st) => (
+                              <td
+                                key={`close-${st.product_id}`}
+                                className="px-1 py-[2.5px] text-right tabular font-bold text-gray-950 border-r last:border-r-0 hairline-light"
+                              >
+                                {formatNumber(st.closing_stock)}
+                              </td>
+                            ))}
+                          </tr>
+                        </tfoot>
+                      </table>
+                    ) : (
+                      <div className="px-2 py-3 text-center text-gray-500 italic text-[7px]">
+                        No active stock items for this date.
+                      </div>
                     )}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gray-50 border-t hairline font-bold text-[7.8px]">
-                      <td colSpan={3} className="px-1.5 py-[2.5px] text-right text-gray-800">Total Expense:</td>
-                      <td className="px-1.5 py-[2.5px] text-right tabular font-bold text-gray-900">
-                        {currencySymbol} {formatNumber(totalExpense)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </section>
+                  </div>
+                </section>
+
+                {/* RIGHT: DAILY EXPENSES (Compact without Category column) */}
+                <section className="flex-1 min-w-0 border hairline bg-white flex flex-col justify-between">
+                  <div>
+                    <div className="bg-gray-100 border-b hairline px-1.5 py-[2px] font-bold uppercase text-[7.2px] text-gray-700">
+                      DAILY EXPENSES
+                    </div>
+                    <table className="w-full text-left text-[7.8px] border-collapse bg-white">
+                      <thead>
+                        <tr className="bg-gray-50 border-b hairline text-[7px] text-gray-600 font-bold">
+                          <th className="px-1 py-[2px] text-center w-4">#</th>
+                          <th className="px-1.5 py-[2px]">EXPENSE</th>
+                          <th className="px-1.5 py-[2px] text-right w-16 shrink-0">AMOUNT ({currencySymbol})</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y hairline-light">
+                        {expenseRows.map((row, idx) => (
+                          <tr key={row.id}>
+                            <td className="px-1 py-[2px] text-center text-gray-500 font-medium">{idx + 1}</td>
+                            <td className="px-1.5 py-[2px] font-medium text-gray-900 break-words">{row.description}</td>
+                            <td className="px-1.5 py-[2px] text-right tabular font-semibold text-gray-900 whitespace-nowrap">
+                              {formatNumber(row.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                        {expenseRows.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-1.5 py-[3px] text-center text-gray-500 italic text-[7px]">
+                              No expenses recorded
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-1.5 py-[2.5px] bg-gray-50 border-t hairline flex justify-between items-center font-bold text-[7.8px]">
+                    <span className="text-gray-800">Total Expense</span>
+                    <strong className="tabular text-gray-900 font-bold">
+                      {currencySymbol} {formatNumber(totalExpense)}
+                    </strong>
+                  </div>
+                </section>
+              </div>
 
               {/* =======================================================
                    4 & 5: SIDE BY SIDE SUMMARY (SUPPLIER & CASH OUT)

@@ -53,6 +53,18 @@ class SupplierPrintSummary(BaseModel):
     daily_accounts: List[SupplierDailyAccount] = Field(default_factory=list)
 
 
+class CashBookStockItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    product_id: str
+    product_name: str
+    unit: str = "pcs"
+    previous_stock: float = 0.0
+    purchases: float = 0.0
+    sales: float = 0.0
+    closing_stock: float = 0.0
+
+
 class CashBookSummary(BaseModel):
     """
     Complete Cash Book Response Payload for a selected business date or range.
@@ -89,6 +101,7 @@ class CashBookSummary(BaseModel):
 
     items: List[CashBookItem] = Field(default_factory=list)
     supplier_summary: Optional[SupplierPrintSummary] = None
+    stock_summary: List[CashBookStockItem] = Field(default_factory=list)
 
 
 CashBookSummary.model_rebuild()

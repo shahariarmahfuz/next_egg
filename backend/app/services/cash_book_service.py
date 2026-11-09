@@ -12,9 +12,19 @@ from app.models.currency import Currency
 from app.models.customer_collection import CustomerCollection
 from app.models.cash_out import CashOut
 from app.models.expense import Expense
-from app.models.sale import Sale
+from app.models.product import Product
+from app.models.product_return import ProductReturn, ProductReturnItem
+from app.models.purchase import Purchase, PurchaseItem
+from app.models.sale import Sale, SaleItem
+from app.models.sale_return import SaleReturn, SaleReturnItem
 from app.repositories.setting_repository import setting_repository
-from app.schemas.cash_book import CashBookItem, CashBookSummary, SupplierDailyAccount, SupplierPrintSummary
+from app.schemas.cash_book import (
+    CashBookItem,
+    CashBookStockItem,
+    CashBookSummary,
+    SupplierDailyAccount,
+    SupplierPrintSummary,
+)
 from app.services.setting_service import setting_service
 
 
@@ -162,7 +172,7 @@ class CashBookService:
         exp_records = (await db.execute(q_curr_expenses)).scalars().all()
         for e in exp_records:
             cat_name = e.category.name if e.category else "Expense"
-            desc = e.description.strip() if (e.description and e.description.strip()) else (f"Expense - {cat_name}" if cat_name != "Expense" else "Expense")
+            desc = e.description.strip() if (e.description and e.description.strip()) else cat_name
             raw_transactions.append({
                 "id": f"exp-{e.id}",
                 "timestamp": e.expense_date,
@@ -298,6 +308,136 @@ class CashBookService:
         except Exception:
             supplier_summary = None
 
+        stock_summary: List[CashBookStockItem] = []
+        try:
+            active_products = (
+                await db.execute(
+                    select(Product)
+                    .where(Product.status == "active", Product.product_type != "FARM")
+                    .order_by(Product.created_at.asc(), Product.name.asc())
+                )
+            ).scalars().all()
+
+            if active_products:
+                day_purch_map = dict(
+                    (
+                        await db.execute(
+                            select(PurchaseItem.product_id, func.coalesce(func.sum(PurchaseItem.quantity), 0.0))
+                            .join(Purchase, PurchaseItem.purchase_id == Purchase.id)
+                            .where(Purchase.purchase_date >= start_utc, Purchase.purchase_date <= end_utc)
+                            .group_by(PurchaseItem.product_id)
+                        )
+                    ).all()
+                )
+                day_pret_map = dict(
+                    (
+                        await db.execute(
+                            select(ProductReturnItem.product_id, func.coalesce(func.sum(ProductReturnItem.quantity), 0.0))
+                            .join(ProductReturn, ProductReturnItem.product_return_id == ProductReturn.id)
+                            .where(ProductReturn.return_date >= start_utc, ProductReturn.return_date <= end_utc)
+                            .group_by(ProductReturnItem.product_id)
+                        )
+                    ).all()
+                )
+                day_sales_map = dict(
+                    (
+                        await db.execute(
+                            select(SaleItem.product_id, func.coalesce(func.sum(SaleItem.quantity), 0.0))
+                            .join(Sale, SaleItem.sale_id == Sale.id)
+                            .where(Sale.sale_date >= start_utc, Sale.sale_date <= end_utc)
+                            .group_by(SaleItem.product_id)
+                        )
+                    ).all()
+                )
+                day_sret_map = dict(
+                    (
+                        await db.execute(
+                            select(SaleReturnItem.product_id, func.coalesce(func.sum(SaleReturnItem.quantity), 0.0))
+                            .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
+                            .where(SaleReturn.return_date >= start_utc, SaleReturn.return_date <= end_utc)
+                            .group_by(SaleReturnItem.product_id)
+                        )
+                    ).all()
+                )
+
+                after_purch_map = dict(
+                    (
+                        await db.execute(
+                            select(PurchaseItem.product_id, func.coalesce(func.sum(PurchaseItem.quantity), 0.0))
+                            .join(Purchase, PurchaseItem.purchase_id == Purchase.id)
+                            .where(Purchase.purchase_date > end_utc)
+                            .group_by(PurchaseItem.product_id)
+                        )
+                    ).all()
+                )
+                after_pret_map = dict(
+                    (
+                        await db.execute(
+                            select(ProductReturnItem.product_id, func.coalesce(func.sum(ProductReturnItem.quantity), 0.0))
+                            .join(ProductReturn, ProductReturnItem.product_return_id == ProductReturn.id)
+                            .where(ProductReturn.return_date > end_utc)
+                            .group_by(ProductReturnItem.product_id)
+                        )
+                    ).all()
+                )
+                after_sales_map = dict(
+                    (
+                        await db.execute(
+                            select(SaleItem.product_id, func.coalesce(func.sum(SaleItem.quantity), 0.0))
+                            .join(Sale, SaleItem.sale_id == Sale.id)
+                            .where(Sale.sale_date > end_utc)
+                            .group_by(SaleItem.product_id)
+                        )
+                    ).all()
+                )
+                after_sret_map = dict(
+                    (
+                        await db.execute(
+                            select(SaleReturnItem.product_id, func.coalesce(func.sum(SaleReturnItem.quantity), 0.0))
+                            .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
+                            .where(SaleReturn.return_date > end_utc)
+                            .group_by(SaleReturnItem.product_id)
+                        )
+                    ).all()
+                )
+
+                for prod in active_products:
+                    live_stock = float(prod.current_stock or 0.0)
+                    after_in = (float(after_purch_map.get(prod.id, 0.0)) - float(after_pret_map.get(prod.id, 0.0))) + float(
+                        after_sret_map.get(prod.id, 0.0)
+                    )
+                    after_out = float(after_sales_map.get(prod.id, 0.0))
+                    closing_stock = round(live_stock - after_in + after_out, 4)
+                    if abs(closing_stock) < 1e-6:
+                        closing_stock = 0.0
+
+                    day_purch = round(float(day_purch_map.get(prod.id, 0.0)) - float(day_pret_map.get(prod.id, 0.0)), 4)
+                    if abs(day_purch) < 1e-6:
+                        day_purch = 0.0
+
+                    day_sold = round(float(day_sales_map.get(prod.id, 0.0)) - float(day_sret_map.get(prod.id, 0.0)), 4)
+                    if abs(day_sold) < 1e-6:
+                        day_sold = 0.0
+
+                    previous_stock = round(closing_stock - day_purch + day_sold, 4)
+                    if abs(previous_stock) < 1e-6:
+                        previous_stock = 0.0
+
+                    if previous_stock > 0 or day_purch > 0 or day_sold > 0 or closing_stock > 0:
+                        stock_summary.append(
+                            CashBookStockItem(
+                                product_id=prod.id,
+                                product_name=prod.name,
+                                unit=prod.unit or "pcs",
+                                previous_stock=previous_stock,
+                                purchases=day_purch,
+                                sales=day_sold,
+                                closing_stock=closing_stock,
+                            )
+                        )
+        except Exception:
+            stock_summary = []
+
         return CashBookSummary(
             date=display_date,
             start_date=start_utc,
@@ -323,6 +463,7 @@ class CashBookService:
             company_logo=settings.business_logo,
             items=items,
             supplier_summary=supplier_summary,
+            stock_summary=stock_summary,
         )
 
 

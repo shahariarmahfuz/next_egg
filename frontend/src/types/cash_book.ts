@@ -43,6 +43,17 @@ export interface CashBookSummary {
   company_logo?: string | null;
   items: CashBookItem[];
   supplier_summary?: SupplierPrintSummary | null;
+  stock_summary?: CashBookStockItem[];
+}
+
+export interface CashBookStockItem {
+  product_id: string;
+  product_name: string;
+  unit?: string;
+  previous_stock: number;
+  purchases: number;
+  sales: number;
+  closing_stock: number;
 }
 
 export interface SupplierDailyAccount {
