@@ -61,6 +61,8 @@ class CashBookStockItem(BaseModel):
     unit: str = "pcs"
     previous_stock: float = 0.0
     purchases: float = 0.0
+    cash_sales: float = 0.0
+    due_sales: float = 0.0
     regular_sales: float = 0.0
     tracked_customer_sales: float = 0.0
     sales: float = 0.0

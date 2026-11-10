@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Sequence
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -138,6 +138,87 @@ class PurchaseRepository(BaseRepository[Purchase, PurchaseCreate, PurchaseUpdate
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> dict:
+        # If product_id is specified, compute product-specific purchases, paid, due, and units
+        if product_id and product_id.strip():
+            clean_product_id = product_id.strip()
+
+            paid_expr = case(
+                (Purchase.grand_total > 0, PurchaseItem.total_price * (Purchase.paid_amount / Purchase.grand_total)),
+                (Purchase.paid_amount > 0, PurchaseItem.total_price),
+                else_=0.0,
+            )
+            due_expr = case(
+                (Purchase.grand_total > 0, PurchaseItem.total_price * (Purchase.due_amount / Purchase.grand_total)),
+                (Purchase.paid_amount <= 0, PurchaseItem.total_price),
+                else_=0.0,
+            )
+
+            prod_query = select(
+                func.count(func.distinct(Purchase.id)).label("total_purchases_count"),
+                func.coalesce(func.sum(PurchaseItem.total_price), 0.0).label("total_purchase_amount"),
+                func.coalesce(func.sum(PurchaseItem.discount), 0.0).label("total_discount"),
+                func.coalesce(func.sum(paid_expr), 0.0).label("total_paid"),
+                func.coalesce(func.sum(due_expr), 0.0).label("total_due"),
+                func.coalesce(func.sum(PurchaseItem.quantity), 0.0).label("total_quantity"),
+            ).join(Purchase, PurchaseItem.purchase_id == Purchase.id).where(
+                PurchaseItem.product_id == clean_product_id
+            )
+
+            if search:
+                pattern = f"%{search}%"
+                prod_query = prod_query.join(Supplier, Purchase.supplier_id == Supplier.id, isouter=True).where(
+                    or_(
+                        Purchase.purchase_no.ilike(pattern),
+                        Purchase.invoice_no.ilike(pattern),
+                        Supplier.name.ilike(pattern),
+                        Supplier.supplier_code.ilike(pattern),
+                    )
+                )
+
+            if supplier_id:
+                prod_query = prod_query.where(Purchase.supplier_id == supplier_id)
+
+            if payment_status and payment_status.strip():
+                clean_status = payment_status.strip().lower()
+                if clean_status == "due":
+                    prod_query = prod_query.where(Purchase.due_amount > 0)
+                else:
+                    prod_query = prod_query.where(Purchase.payment_status == payment_status.strip())
+
+            if start_date:
+                prod_query = prod_query.where(Purchase.purchase_date >= start_date)
+
+            if end_date:
+                prod_query = prod_query.where(Purchase.purchase_date <= end_date)
+
+            result = await db.execute(prod_query)
+            row = result.one()
+
+            total_quantity = round(float(row.total_quantity or 0.0), 2)
+            total_amount = round(float(row.total_purchase_amount or 0.0), 2)
+            total_paid = round(float(row.total_paid or 0.0), 2)
+            total_due = round(float(row.total_due or 0.0), 2)
+            total_discount = round(float(row.total_discount or 0.0), 2)
+            count = int(row.total_purchases_count or 0)
+
+            return {
+                "total_purchases": total_amount,
+                "total_purchase_amount": total_amount,
+                "total_amount": total_amount,
+                "total_paid": total_paid,
+                "paid_amount": total_paid,
+                "total_due": total_due,
+                "due_amount": total_due,
+                "total_discount": total_discount,
+                "total_quantity": total_quantity,
+                "total_units": total_quantity,
+                "total_purchases_count": count,
+                "total_invoices": count,
+                "count": count,
+                "total_count": count,
+            }
+
+        # Otherwise (All Products)
         query = select(
             func.count(Purchase.id).label("total_purchases_count"),
             func.coalesce(func.sum(Purchase.grand_total), 0.0).label("total_purchase_amount"),

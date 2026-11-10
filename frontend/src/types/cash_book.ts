@@ -53,6 +53,8 @@ export interface CashBookStockItem {
   unit?: string;
   previous_stock: number;
   purchases: number;
+  cash_sales?: number;
+  due_sales?: number;
   regular_sales?: number;
   tracked_customer_sales?: number;
   sales: number;

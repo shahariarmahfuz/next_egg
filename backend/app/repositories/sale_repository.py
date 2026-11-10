@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Sequence
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -90,13 +90,13 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
 
         # Sorting logic
         if sort_by == "oldest":
-            order_clause = Sale.sale_date.asc()
+            order_clause = (Sale.sale_date.asc(), Sale.created_at.asc())
         elif sort_by == "highest_amount":
-            order_clause = Sale.grand_total.desc()
+            order_clause = (Sale.grand_total.desc(), Sale.created_at.desc())
         elif sort_by == "lowest_amount":
-            order_clause = Sale.grand_total.asc()
+            order_clause = (Sale.grand_total.asc(), Sale.created_at.desc())
         else:
-            order_clause = Sale.sale_date.desc()
+            order_clause = (Sale.sale_date.desc(), Sale.created_at.desc())
 
         # Paginate & Order
         query = (
@@ -104,7 +104,7 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
                 selectinload(Sale.customer),
                 selectinload(Sale.items).selectinload(SaleItem.product),
             )
-            .order_by(order_clause)
+            .order_by(*order_clause)
             .offset(skip)
             .limit(limit)
         )
@@ -124,6 +124,87 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> dict:
+        # If product_id is specified, compute product-specific sales, paid, due, and units
+        if product_id and product_id.strip():
+            clean_product_id = product_id.strip()
+
+            # Proportional allocation for payment & due when multiple items exist on a sale:
+            # If sale.grand_total > 0: line_share = sale_item.total_price * (sale.paid_amount / sale.grand_total)
+            paid_expr = case(
+                (Sale.grand_total > 0, SaleItem.total_price * (Sale.paid_amount / Sale.grand_total)),
+                (Sale.paid_amount > 0, SaleItem.total_price),
+                else_=0.0,
+            )
+            due_expr = case(
+                (Sale.grand_total > 0, SaleItem.total_price * (Sale.due_amount / Sale.grand_total)),
+                (Sale.paid_amount <= 0, SaleItem.total_price),
+                else_=0.0,
+            )
+
+            prod_query = select(
+                func.count(func.distinct(Sale.id)).label("total_sales"),
+                func.coalesce(func.sum(SaleItem.total_price), 0.0).label("total_sale_amount"),
+                func.coalesce(func.sum(SaleItem.discount), 0.0).label("total_discount"),
+                func.coalesce(func.sum(paid_expr), 0.0).label("total_paid"),
+                func.coalesce(func.sum(due_expr), 0.0).label("total_due"),
+                func.coalesce(func.sum(SaleItem.quantity), 0.0).label("total_items_sold"),
+            ).join(Sale, SaleItem.sale_id == Sale.id).join(Customer, Sale.customer_id == Customer.id).where(
+                SaleItem.product_id == clean_product_id
+            )
+
+            if search:
+                pattern = f"%{search}%"
+                prod_query = prod_query.where(
+                    or_(
+                        Sale.invoice_no.ilike(pattern),
+                        Customer.name.ilike(pattern),
+                        Customer.customer_code.ilike(pattern),
+                        Customer.phone.ilike(pattern),
+                    )
+                )
+
+            if customer_id:
+                prod_query = prod_query.where(Sale.customer_id == customer_id)
+            if payment_status and payment_status.strip():
+                clean_status = payment_status.strip().lower()
+                if clean_status == "due":
+                    prod_query = prod_query.where(Sale.due_amount > 0)
+                else:
+                    prod_query = prod_query.where(Sale.payment_status == payment_status.strip())
+            if start_date:
+                prod_query = prod_query.where(Sale.sale_date >= start_date)
+            if end_date:
+                prod_query = prod_query.where(Sale.sale_date <= end_date)
+
+            result = await db.execute(prod_query)
+            row = result.one()
+
+            total_sales = int(row.total_sales or 0)
+            total_sale_amount = round(float(row.total_sale_amount or 0.0), 2)
+            total_discount = round(float(row.total_discount or 0.0), 2)
+            total_paid = round(float(row.total_paid or 0.0), 2)
+            total_due = round(float(row.total_due or 0.0), 2)
+            total_items_sold = round(float(row.total_items_sold or 0.0), 4)
+
+            return {
+                "total_sales": total_sales,
+                "total_invoices": total_sales,
+                "total_sales_count": total_sales,
+                "total_count": total_sales,
+                "count": total_sales,
+                "total_sale_amount": total_sale_amount,
+                "total_amount": total_sale_amount,
+                "total_revenue": total_sale_amount,
+                "total_discount": total_discount,
+                "total_paid": total_paid,
+                "paid_amount": total_paid,
+                "total_due": total_due,
+                "due_amount": total_due,
+                "total_items_sold": total_items_sold,
+                "total_units": total_items_sold,
+            }
+
+        # Otherwise (All Products), compute invoice-level totals
         query = select(
             func.count(Sale.id).label("total_sales"),
             func.coalesce(func.sum(Sale.grand_total), 0.0).label("total_sale_amount"),
@@ -151,13 +232,6 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
                 query = query.where(Sale.due_amount > 0)
             else:
                 query = query.where(Sale.payment_status == payment_status.strip())
-        if product_id and product_id.strip():
-            query = query.where(
-                exists().where(
-                    SaleItem.sale_id == Sale.id,
-                    SaleItem.product_id == product_id.strip(),
-                )
-            )
         if start_date:
             query = query.where(Sale.sale_date >= start_date)
         if end_date:
@@ -190,8 +264,6 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
                 items_query = items_query.where(Sale.due_amount > 0)
             else:
                 items_query = items_query.where(Sale.payment_status == payment_status.strip())
-        if product_id and product_id.strip():
-            items_query = items_query.where(SaleItem.product_id == product_id.strip())
         if start_date:
             items_query = items_query.where(Sale.sale_date >= start_date)
         if end_date:

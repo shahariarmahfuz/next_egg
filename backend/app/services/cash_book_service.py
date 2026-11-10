@@ -3,7 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional, Tuple, Union
 import zoneinfo
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -366,6 +366,36 @@ class CashBookService:
                         )
                     ).all()
                 )
+                cash_qty_case = case(
+                    (Sale.grand_total > 0, SaleItem.quantity * (Sale.paid_amount / Sale.grand_total)),
+                    (Sale.paid_amount > 0, SaleItem.quantity),
+                    else_=0.0,
+                )
+                day_cash_sales_map = dict(
+                    (
+                        await db.execute(
+                            select(SaleItem.product_id, func.coalesce(func.sum(cash_qty_case), 0.0))
+                            .join(Sale, SaleItem.sale_id == Sale.id)
+                            .where(Sale.sale_date >= start_utc, Sale.sale_date <= end_utc)
+                            .group_by(SaleItem.product_id)
+                        )
+                    ).all()
+                )
+                due_qty_case = case(
+                    (Sale.grand_total > 0, SaleItem.quantity * (Sale.due_amount / Sale.grand_total)),
+                    (Sale.paid_amount <= 0, SaleItem.quantity),
+                    else_=0.0,
+                )
+                day_due_sales_map = dict(
+                    (
+                        await db.execute(
+                            select(SaleItem.product_id, func.coalesce(func.sum(due_qty_case), 0.0))
+                            .join(Sale, SaleItem.sale_id == Sale.id)
+                            .where(Sale.sale_date >= start_utc, Sale.sale_date <= end_utc)
+                            .group_by(SaleItem.product_id)
+                        )
+                    ).all()
+                )
                 day_tracked_sales_map = {}
                 if configured_customer_id:
                     day_tracked_sales_map = dict(
@@ -466,6 +496,14 @@ class CashBookService:
                     if abs(day_sold) < 1e-6:
                         day_sold = 0.0
 
+                    # Cash and Due breakdown
+                    cash_sold = round(float(day_cash_sales_map.get(prod.id, 0.0)), 4)
+                    due_sold = round(float(day_due_sales_map.get(prod.id, 0.0)), 4)
+                    if abs(cash_sold) < 1e-6:
+                        cash_sold = 0.0
+                    if abs(due_sold) < 1e-6:
+                        due_sold = 0.0
+
                     previous_stock = round(closing_stock - day_purch + day_sold, 4)
                     if abs(previous_stock) < 1e-6:
                         previous_stock = 0.0
@@ -478,6 +516,8 @@ class CashBookService:
                                 unit=prod.unit or "pcs",
                                 previous_stock=previous_stock,
                                 purchases=day_purch,
+                                cash_sales=cash_sold,
+                                due_sales=due_sold,
                                 regular_sales=regular_sold,
                                 tracked_customer_sales=tracked_sold,
                                 sales=day_sold,

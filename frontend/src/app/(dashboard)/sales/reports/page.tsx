@@ -70,6 +70,7 @@ export default function SalesReportPage() {
   });
 
   const products: ProductItem[] = productsData?.data?.items || [];
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
 
   const { data: customersData } = useQuery({
     queryKey: ["all-customers-dropdown"],
@@ -172,7 +173,9 @@ export default function SalesReportPage() {
         <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-blue-500/30 transition-all">
           <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[11px] sm:text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider truncate">Total Sales</span>
+              <span className="text-[11px] sm:text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider truncate">
+                {selectedProduct ? `${selectedProduct.name} Sales` : "Total Sales"}
+              </span>
               <div className="h-7 w-7 rounded-lg bg-blue-500/10 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
                 <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
@@ -184,7 +187,9 @@ export default function SalesReportPage() {
         <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-emerald-500/30 transition-all">
           <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[11px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider truncate">Total Paid</span>
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider truncate">
+                {selectedProduct ? `${selectedProduct.name} Paid` : "Total Paid"}
+              </span>
               <div className="h-7 w-7 rounded-lg bg-emerald-500/10 dark:bg-emerald-950/40 flex items-center justify-center shrink-0">
                 <CircleCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
@@ -196,7 +201,9 @@ export default function SalesReportPage() {
         <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-orange-500/30 transition-all">
           <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[11px] sm:text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider truncate">Total Due</span>
+              <span className="text-[11px] sm:text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider truncate">
+                {selectedProduct ? `${selectedProduct.name} Due` : "Total Due"}
+              </span>
               <div className="h-7 w-7 rounded-lg bg-orange-500/10 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
                 <CircleAlert className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
@@ -208,7 +215,9 @@ export default function SalesReportPage() {
         <Card className="border-border/60 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-xs rounded-2xl overflow-hidden hover:border-purple-500/30 transition-all">
           <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[11px] sm:text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider truncate">Total Units</span>
+              <span className="text-[11px] sm:text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider truncate">
+                {selectedProduct ? `${selectedProduct.name} Units` : "Total Units"}
+              </span>
               <div className="h-7 w-7 rounded-lg bg-purple-500/10 dark:bg-purple-950/40 flex items-center justify-center shrink-0">
                 <Boxes className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </div>
@@ -290,9 +299,15 @@ export default function SalesReportPage() {
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Invoice No</th>
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Date</th>
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Customer</th>
-                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Grand Total</th>
-                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Paid</th>
-                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">Due</th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">
+                  {selectedProduct ? `${selectedProduct.name} Total` : "Grand Total"}
+                </th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">
+                  {selectedProduct ? `${selectedProduct.name} Paid` : "Paid"}
+                </th>
+                <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap">
+                  {selectedProduct ? `${selectedProduct.name} Due` : "Due"}
+                </th>
                 <th className="px-3 py-2.5 align-middle font-medium text-left whitespace-nowrap w-[110px]">Status</th>
                 <th className="px-3 py-2.5 align-middle font-medium text-right whitespace-nowrap w-[90px]">Actions</th>
               </tr>
@@ -321,15 +336,61 @@ export default function SalesReportPage() {
               ) : (
                 sales.map((sale, index) => {
                   const serialNumber = (page - 1) * pageSize + index + 1;
+                  const matchingItems = selectedProductId
+                    ? (sale.items?.filter((it) => it.product_id === selectedProductId) || [])
+                    : [];
+                  const isProductFiltered = Boolean(selectedProductId && matchingItems.length > 0);
+                  const itemTotal = matchingItems.reduce((acc, it) => acc + (it.total_price || 0), 0);
+                  const itemQuantity = matchingItems.reduce((acc, it) => acc + (it.quantity || 0), 0);
+                  const itemPaid = sale.grand_total > 0
+                    ? (itemTotal * (sale.paid_amount / sale.grand_total))
+                    : (sale.paid_amount > 0 ? itemTotal : 0);
+                  const itemDue = sale.grand_total > 0
+                    ? (itemTotal * (sale.due_amount / sale.grand_total))
+                    : (sale.paid_amount <= 0 ? itemTotal : 0);
+
                   return (
                     <tr key={sale.id} className="hover:bg-accent/40 transition-colors h-10">
                       <td className="px-3 py-2 align-middle text-center font-medium text-muted-foreground whitespace-nowrap">{serialNumber}</td>
                       <td className="px-3 py-2 align-middle font-medium text-primary whitespace-nowrap">{sale.invoice_no}</td>
                       <td className="px-3 py-2 align-middle text-muted-foreground whitespace-nowrap">{formatDate(sale.sale_date)}</td>
                       <td className="px-3 py-2 align-middle font-medium text-foreground whitespace-nowrap max-w-[200px] truncate" title={sale.customer?.name || "Walk-in Cash Customer"}>{sale.customer?.name || "Walk-in Cash Customer"}</td>
-                      <td className="px-3 py-2 align-middle font-semibold text-foreground whitespace-nowrap">{formatCurrency(sale.grand_total)}</td>
-                      <td className="px-3 py-2 align-middle font-semibold text-emerald-500 whitespace-nowrap">{formatCurrency(sale.paid_amount)}</td>
-                      <td className="px-3 py-2 align-middle font-semibold text-amber-500 whitespace-nowrap">{formatCurrency(sale.due_amount)}</td>
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">
+                        {isProductFiltered ? (
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-foreground">{formatCurrency(itemTotal)}</span>
+                            <span className="text-[10px] text-muted-foreground font-normal">
+                              {formatNumber(itemQuantity)} pcs • Inv: {formatCurrency(sale.grand_total)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-foreground">{formatCurrency(sale.grand_total)}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">
+                        {isProductFiltered ? (
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-emerald-500">{formatCurrency(itemPaid)}</span>
+                            <span className="text-[10px] text-muted-foreground/80 font-normal">
+                              Inv: {formatCurrency(sale.paid_amount)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-emerald-500">{formatCurrency(sale.paid_amount)}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">
+                        {isProductFiltered ? (
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-amber-500">{formatCurrency(itemDue)}</span>
+                            <span className="text-[10px] text-muted-foreground/80 font-normal">
+                              Inv: {formatCurrency(sale.due_amount)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-amber-500">{formatCurrency(sale.due_amount)}</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{getStatusBadge(sale.payment_status)}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">

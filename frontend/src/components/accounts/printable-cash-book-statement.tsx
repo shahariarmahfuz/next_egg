@@ -87,6 +87,39 @@ export const PrintableCashBookStatement = React.forwardRef<
     }
   };
 
+  // Pre-calculate Product-wise Cash Sales Qty and Due Sales Qty from sales items
+  const productCashQtyMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const sale of sales || []) {
+      const isPaid = (sale.paid_amount || 0) > 0;
+      const grandTotal = sale.grand_total || 0;
+      const paidRatio = grandTotal > 0 ? Math.min(1, Math.max(0, (sale.paid_amount || 0) / grandTotal)) : (isPaid ? 1 : 0);
+      for (const item of sale.items || []) {
+        const pid = item.product_id;
+        const qty = Number(item.quantity) || 0;
+        const cashQty = qty * paidRatio;
+        map.set(pid, (map.get(pid) || 0) + cashQty);
+      }
+    }
+    return map;
+  }, [sales]);
+
+  const productDueQtyMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const sale of sales || []) {
+      const isDue = (sale.due_amount || 0) > 0;
+      const grandTotal = sale.grand_total || 0;
+      const dueRatio = grandTotal > 0 ? Math.min(1, Math.max(0, (sale.due_amount || 0) / grandTotal)) : (sale.paid_amount <= 0 ? 1 : 0);
+      for (const item of sale.items || []) {
+        const pid = item.product_id;
+        const qty = Number(item.quantity) || 0;
+        const dueQty = qty * dueRatio;
+        map.set(pid, (map.get(pid) || 0) + dueQty);
+      }
+    }
+    return map;
+  }, [sales]);
+
   // 1. CASH SALES & COLLECTION ROWS
   interface RawInflowItem {
     id: string;
@@ -928,23 +961,40 @@ export const PrintableCashBookStatement = React.forwardRef<
                             <>
                               <tr>
                                 <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
-                                  বিক্রি
+                                  নগদ বিক্রি
                                 </td>
-                                {stockItems.map((st) => (
-                                  <td
-                                    key={`reg-sales-${st.product_id}`}
-                                    className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
-                                  >
-                                    {formatNumber(st.regular_sales ?? st.sales)}
-                                  </td>
-                                ))}
+                                {stockItems.map((st) => {
+                                  const cashQty = st.cash_sales ?? productCashQtyMap.get(st.product_id) ?? 0;
+                                  return (
+                                    <td
+                                      key={`cash-sales-${st.product_id}`}
+                                      className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                                    >
+                                      {formatNumber(cashQty)}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                              <tr>
+                                <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                                  বাকি বিক্রি
+                                </td>
+                                {stockItems.map((st) => {
+                                  const dueQty = st.due_sales ?? productDueQtyMap.get(st.product_id) ?? 0;
+                                  return (
+                                    <td
+                                      key={`due-sales-${st.product_id}`}
+                                      className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                                    >
+                                      {formatNumber(dueQty)}
+                                    </td>
+                                  );
+                                })}
                               </tr>
                               <tr>
                                 <td
                                   className="px-1.5 py-[2px] font-semibold text-cyan-900 border-r hairline-light truncate max-w-[22mm]"
                                   title={trackedCustomerName}
-                                >
-                                  {trackedCustomerName}
                                 </td>
                                 {stockItems.map((st) => (
                                   <td
@@ -957,19 +1007,44 @@ export const PrintableCashBookStatement = React.forwardRef<
                               </tr>
                             </>
                           ) : (
-                            <tr>
-                              <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
-                                বিক্রি
-                              </td>
-                              {stockItems.map((st) => (
-                                <td
-                                  key={`sales-${st.product_id}`}
-                                  className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
-                                >
-                                  {formatNumber(st.sales)}
+                            <>
+                              <tr>
+                                <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                                  নগদ বিক্রি
                                 </td>
-                              ))}
-                            </tr>
+                                {stockItems.map((st) => {
+                                  const fallbackCash =
+                                    st.sales && !productCashQtyMap.has(st.product_id) && !productDueQtyMap.has(st.product_id)
+                                      ? st.sales
+                                      : 0;
+                                  const cashQty = st.cash_sales ?? productCashQtyMap.get(st.product_id) ?? fallbackCash;
+                                  return (
+                                    <td
+                                      key={`cash-sales-${st.product_id}`}
+                                      className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                                    >
+                                      {formatNumber(cashQty)}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                              <tr>
+                                <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                                  বাকি বিক্রি
+                                </td>
+                                {stockItems.map((st) => {
+                                  const dueQty = st.due_sales ?? productDueQtyMap.get(st.product_id) ?? 0;
+                                  return (
+                                    <td
+                                      key={`due-sales-${st.product_id}`}
+                                      className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                                    >
+                                      {formatNumber(dueQty)}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            </>
                           )}
                         </tbody>
                         <tfoot>
