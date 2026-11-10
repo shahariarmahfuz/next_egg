@@ -995,6 +995,8 @@ export const PrintableCashBookStatement = React.forwardRef<
                                 <td
                                   className="px-1.5 py-[2px] font-semibold text-cyan-900 border-r hairline-light truncate max-w-[22mm]"
                                   title={trackedCustomerName}
+                                >
+                                  {trackedCustomerName}
                                 </td>
                                 {stockItems.map((st) => (
                                   <td
