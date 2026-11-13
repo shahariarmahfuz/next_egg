@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import TimestampedBaseModel
 from app.models.user import User
@@ -44,6 +44,9 @@ class CalculatorHistory(TimestampedBaseModel):
     remainder_eggs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     stock_difference: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
 
     user: Mapped["User"] = relationship("User", lazy="selectin")
 
