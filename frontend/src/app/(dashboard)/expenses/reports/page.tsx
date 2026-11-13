@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Eye } from "lucide-react";
+import { Search } from "lucide-react";
 import { expenseService } from "@/services/api";
-import { Expense, ExpenseFilters } from "@/types";
+import { Expense, ExpenseCategory } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,20 +20,35 @@ export default function ExpensesReportPage() {
   const today = getTodayDateStr();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState<string>("all");
   const [paymentMethod, setPaymentMethod] = useState<string>("all");
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
-  const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ["expense-categories"],
+    queryFn: () => expenseService.getCategories(false),
+  });
+  const categories: ExpenseCategory[] = categoriesData?.data || [];
+
   const { data: expensesData, isLoading } = useQuery({
-    queryKey: ["expenses-reports", page, debouncedSearch, paymentMethod, startDate, endDate],
+    queryKey: [
+      "expenses-reports",
+      page,
+      debouncedSearch,
+      categoryId,
+      paymentMethod,
+      startDate,
+      endDate,
+    ],
     queryFn: () =>
       expenseService.getExpenses({
         page,
         page_size: 15,
         search: debouncedSearch || undefined,
+        category_id: categoryId !== "all" ? categoryId : undefined,
         payment_method: paymentMethod !== "all" ? paymentMethod : undefined,
         start_date: startDate ? `${startDate}T00:00:00` : undefined,
         end_date: endDate ? `${endDate}T23:59:59` : undefined,
@@ -44,6 +59,7 @@ export default function ExpensesReportPage() {
   const totalPages = expensesData?.data?.pages || 1;
   const pageSize = 15;
   const aggregate = expensesData?.data?.aggregate || { total_amount: 0 };
+  const selectedCategory = categories.find((c) => c.id === categoryId) || null;
 
   const getMethodBadge = (method: string) => {
     switch (method?.toLowerCase()) {
@@ -69,11 +85,29 @@ export default function ExpensesReportPage() {
         <div className="flex items-center space-x-3 bg-card p-2 rounded-lg border shadow-sm">
           <div className="flex items-center space-x-2">
             <Label htmlFor="start_date" className="text-xs">From</Label>
-            <Input type="date" id="start_date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-auto h-8 text-xs" />
+            <Input
+              type="date"
+              id="start_date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+              className="w-auto h-8 text-xs"
+            />
           </div>
           <div className="flex items-center space-x-2">
             <Label htmlFor="end_date" className="text-xs">To</Label>
-            <Input type="date" id="end_date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-auto h-8 text-xs" />
+            <Input
+              type="date"
+              id="end_date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+              className="w-auto h-8 text-xs"
+            />
           </div>
         </div>
       </div>
@@ -81,15 +115,24 @@ export default function ExpensesReportPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card className="glass-card border-rose-500/30 bg-rose-500/5">
           <CardContent className="p-4">
-            <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-1">Total Expense</div>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider">
+                Total Expense
+              </div>
+              {selectedCategory && (
+                <Badge variant="outline" className="text-[11px] border-rose-500/30 text-rose-600 bg-background/60">
+                  {selectedCategory.name}
+                </Badge>
+              )}
+            </div>
             <div className="text-xl font-extrabold text-rose-500">{formatCurrency(aggregate.total_amount)}</div>
           </CardContent>
         </Card>
       </div>
 
       <Card className="border-border/40 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-border/40 bg-muted/20 flex flex-col sm:flex-row gap-3 items-center justify-between">
-          <div className="relative w-full sm:w-72">
+        <div className="p-4 border-b border-border/40 bg-muted/20 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search expense description..."
@@ -101,13 +144,31 @@ export default function ExpensesReportPage() {
               className="pl-9 bg-background w-full"
             />
           </div>
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full md:w-auto">
+            <select
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Filter by expense category"
+              className="flex h-10 w-full sm:w-48 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+
             <select
               value={paymentMethod}
               onChange={(e) => {
                 setPaymentMethod(e.target.value);
                 setPage(1);
               }}
+              aria-label="Filter by payment method"
               className="flex h-10 w-full sm:w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               <option value="all">All Methods</option>

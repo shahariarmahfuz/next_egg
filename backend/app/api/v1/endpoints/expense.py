@@ -33,7 +33,11 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 async def list_categories(
     active_only: bool = Query(False, description="Filter only active categories"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(RequirePermission("expense.category.view")),
+    current_user: User = Depends(
+        RequirePermission(
+            ["expense.category.view", "expense.view", "expense.create", "expense.report.view"]
+        )
+    ),
 ):
     """Retrieve list of all expense categories."""
     categories = await expense_service.list_categories(db, active_only=active_only)
