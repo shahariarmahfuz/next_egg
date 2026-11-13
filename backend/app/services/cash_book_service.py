@@ -508,7 +508,7 @@ class CashBookService:
                     if abs(previous_stock) < 1e-6:
                         previous_stock = 0.0
 
-                    if previous_stock > 0 or day_purch > 0 or day_sold > 0 or closing_stock > 0:
+                    if previous_stock != 0 or day_purch != 0 or day_sold != 0 or closing_stock != 0:
                         stock_summary.append(
                             CashBookStockItem(
                                 product_id=prod.id,
