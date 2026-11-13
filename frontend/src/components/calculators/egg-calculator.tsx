@@ -14,10 +14,13 @@ import {
   Package,
   BookmarkCheck,
   History,
+  Loader2,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { productService } from "@/services/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { calculatorService, productService } from "@/services/api";
+import { useAuth } from "@/providers/auth-provider";
 import { ProductItem } from "@/types/product";
+import { CalculatorHistoryCreatePayload } from "@/types/calculator";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,13 +30,10 @@ import {
   LooseCategoryKey,
   StackRow,
   CalculatorState,
-  CalculatorHistoryEntry,
   EGGS_PER_TRAY,
   readCalculatorState,
   writeCalculatorState,
   clearCalculatorState,
-  readCalculatorHistory,
-  writeCalculatorHistory,
   normalizeLooseEntries,
   formatStockVerificationText,
 } from "./egg-calculator-storage";
@@ -69,6 +69,9 @@ const LOOSE_CATEGORIES: LooseCategoryConfig[] = [
 
 export function EggCalculator() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id;
   const validEggsPerTray = EGGS_PER_TRAY;
   const hasHydratedRef = useRef(false);
   const [stacks, setStacks] = useState<StackRow[]>([
@@ -119,9 +122,9 @@ export function EggCalculator() {
   const [rowToDelete, setRowToDelete] = useState<StackRow | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
-  // Restore from localStorage on initial mount with backward compatibility
+  // Restore from localStorage on initial mount (and when userId resolves) with backward compatibility
   useEffect(() => {
-    const parsed = readCalculatorState();
+    const parsed = readCalculatorState(userId);
     if (parsed) {
       if (Array.isArray(parsed.stacks) && parsed.stacks.length > 0) {
         setStacks(parsed.stacks);
@@ -154,7 +157,7 @@ export function EggCalculator() {
       }
     }
     hasHydratedRef.current = true;
-  }, []);
+  }, [userId]);
 
   // Persist to localStorage on state change (after initial hydration)
   useEffect(() => {
@@ -166,8 +169,8 @@ export function EggCalculator() {
       nextDaySell,
       selectedProductId,
     };
-    writeCalculatorState(state);
-  }, [stacks, looseEntries, nextDaySell, selectedProductId]);
+    writeCalculatorState(state, userId);
+  }, [stacks, looseEntries, nextDaySell, selectedProductId, userId]);
 
   // Calculations
 
@@ -333,7 +336,7 @@ export function EggCalculator() {
     });
     setNextDaySell("");
     setSelectedProductId("");
-    clearCalculatorState();
+    clearCalculatorState(userId);
     setIsResetModalOpen(false);
     toast.success("Calculator reset to initial defaults.");
   };
@@ -380,46 +383,53 @@ Akota Poultry`;
     }
   };
 
-  // History Management
+  // History Management (Database per-user)
+  const saveHistoryMutation = useMutation({
+    mutationFn: (payload: CalculatorHistoryCreatePayload) =>
+      calculatorService.createHistory(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calculator-history"] });
+      toast.success("হিসাবটি আপনার অ্যাকাউন্টের ডাটাবেসে সংরক্ষণ করা হয়েছে!", {
+        action: {
+          label: "হিস্ট্রি দেখুন",
+          onClick: () => router.push("/calculators/history"),
+        },
+      });
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof Error ? err.message : "হিস্ট্রি সংরক্ষণ করতে সমস্যা হয়েছে।";
+      toast.error(msg);
+    },
+  });
+
   const handleSaveToHistory = () => {
     if (grandTotalEggs <= 0 && totalTrays <= 0) {
       toast.error("হিসাব খালি! অন্তত কিছু ডিম বা ট্রে যোগ করে সেভ করুন।");
       return;
     }
 
-    const now = new Date();
-    const formattedDate = now.toLocaleString("bn-BD", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-
-    const newEntry: CalculatorHistoryEntry = {
-      id: Date.now().toString(),
-      createdAt: now.toISOString(),
-      formattedDate,
-      productId: selectedProduct?.id,
-      productName: selectedProduct?.name,
-      systemStock: selectedProduct?.current_stock ?? null,
+    const payload: CalculatorHistoryCreatePayload = {
+      calculator_type: "egg",
+      calculation_date: new Date().toISOString(),
+      product_id: selectedProduct?.id ?? null,
+      product_name: selectedProduct?.name ?? null,
+      system_stock: selectedProduct?.current_stock ?? null,
+      eggs_per_tray: EGGS_PER_TRAY,
       stacks: JSON.parse(JSON.stringify(stacks)),
-      looseEntries: JSON.parse(JSON.stringify(looseEntries)),
-      nextDaySell,
-      totalTrays,
-      totalTrayEggs,
-      totalLooseEggs,
-      nextDaySellEggs,
-      grandTotalEggs,
-      grandTotalConversion: { ...grandTotalConversion },
-      stockDifference: stockDifference ?? null,
+      loose_entries: JSON.parse(JSON.stringify(looseEntries)),
+      next_day_sell: nextDaySellEggs,
+      total_trays: totalTrays,
+      total_tray_eggs: totalTrayEggs,
+      total_loose_eggs: totalLooseEggs,
+      next_day_sell_eggs: nextDaySellEggs,
+      grand_total_eggs: grandTotalEggs,
+      full_trays: grandTotalConversion.fullTrays,
+      remainder_eggs: grandTotalConversion.remainderEggs,
+      stock_difference: stockDifference ?? null,
     };
 
-    const existingHistory = readCalculatorHistory();
-    writeCalculatorHistory([newEntry, ...existingHistory]);
-    toast.success("হিসাবটি সফলভাবে হিস্ট্রিতে সংরক্ষণ করা হয়েছে!", {
-      action: {
-        label: "হিস্ট্রি দেখুন",
-        onClick: () => router.push("/calculators/history"),
-      },
-    });
+    saveHistoryMutation.mutate(payload);
   };
 
   return (
@@ -988,10 +998,19 @@ Akota Poultry`;
                   variant="default"
                   size="sm"
                   onClick={handleSaveToHistory}
+                  disabled={saveHistoryMutation.isPending}
                   className="w-full h-9 text-xs font-bold rounded-lg gap-1.5 shadow-xs"
                 >
-                  <History className="h-3.5 w-3.5" />
-                  <span>হিস্ট্রিতে সংরক্ষণ করুন (Save History)</span>
+                  {saveHistoryMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <History className="h-3.5 w-3.5" />
+                  )}
+                  <span>
+                    {saveHistoryMutation.isPending
+                      ? "সংরক্ষণ হচ্ছে..."
+                      : "হিস্ট্রিতে সংরক্ষণ করুন (Save History)"}
+                  </span>
                 </Button>
 
                 <div className="flex items-center gap-2">

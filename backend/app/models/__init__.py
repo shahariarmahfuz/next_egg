@@ -23,6 +23,7 @@ from app.models.farm import Farm
 from app.models.farm_entry import FarmEntry
 from app.models.farm_production import FarmProduction
 from app.models.farm_delivery import FarmDelivery
+from app.models.calculator_history import CalculatorHistory
 
 __all__ = [
     "Base",
@@ -58,4 +59,5 @@ __all__ = [
     "InventoryBatch",
     "BalanceAdjustment",
     "Currency",
+    "CalculatorHistory",
 ]

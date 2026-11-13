@@ -2,6 +2,9 @@ import { http } from "./http";
 import {
   BalanceAdjustmentItem,
   BalanceAdjustmentPayload,
+  CalculatorHistoryCreatePayload,
+  CalculatorHistoryFilters,
+  CalculatorHistoryItem,
   CashBookSummary,
   CashOutInput,
   CashOutItem,
@@ -999,6 +1002,29 @@ export const reportService = {
     timezone?: string;
   }) => {
     return http.get<CashOutReportData>("/reports/cash-out", params);
+  },
+};
+
+export const calculatorService = {
+  getHistory: async (params: CalculatorHistoryFilters = {}) => {
+    return http.get<PaginatedResult<CalculatorHistoryItem>>("/calculators/history", params);
+  },
+  createHistory: async (payload: CalculatorHistoryCreatePayload) => {
+    return http.post<CalculatorHistoryItem>("/calculators/history", payload);
+  },
+  deleteHistoryItem: async (id: string) => {
+    return http.delete<{ id: string }>(`/calculators/history/${id}`);
+  },
+  clearHistory: async (params: Omit<CalculatorHistoryFilters, "page" | "size" | "product_name"> = {}) => {
+    const search = new URLSearchParams();
+    if (params.target_date) search.append("target_date", params.target_date);
+    if (params.start_date) search.append("start_date", params.start_date);
+    if (params.end_date) search.append("end_date", params.end_date);
+    if (params.show_all !== undefined) search.append("show_all", String(params.show_all));
+    if (params.calculator_type) search.append("calculator_type", params.calculator_type);
+    if (params.timezone) search.append("timezone", params.timezone);
+    const qs = search.toString();
+    return http.delete<{ deleted_count: number }>(`/calculators/history${qs ? `?${qs}` : ""}`);
   },
 };
 

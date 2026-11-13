@@ -1,15 +1,17 @@
-export type LooseCategoryKey = "good" | "cracked" | "broken" | "spoiled";
+import {
+  CalculatorHistoryItem,
+  CalculatorLooseCategoryKey,
+  CalculatorLooseEntries,
+  CalculatorStackRow,
+} from "@/types/calculator";
 
-export interface StackRow {
-  id: string;
-  traysPerStack: number | "";
-  stacksCount: number | "";
-}
+export type LooseCategoryKey = CalculatorLooseCategoryKey;
+export type StackRow = CalculatorStackRow;
 
 export interface CalculatorState {
   eggsPerTray: number;
   stacks: StackRow[];
-  looseEntries?: Record<LooseCategoryKey, number[]>;
+  looseEntries?: CalculatorLooseEntries;
   nextDaySell?: number | "";
   selectedProductId?: string;
   // Legacy single-value compatibility
@@ -19,7 +21,7 @@ export interface CalculatorState {
   looseSpoiled?: number | "";
 }
 
-export interface CalculatorHistoryEntry {
+export interface LegacyLocalCalculatorHistoryEntry {
   id: string;
   createdAt: string;
   formattedDate: string;
@@ -27,7 +29,7 @@ export interface CalculatorHistoryEntry {
   productName?: string;
   systemStock?: number | null;
   stacks: StackRow[];
-  looseEntries: Record<LooseCategoryKey, number[]>;
+  looseEntries: CalculatorLooseEntries;
   nextDaySell: number | "";
   totalTrays: number;
   totalTrayEggs: number;
@@ -42,12 +44,16 @@ export const CALCULATOR_STORAGE_KEY = "egg_calculator_v1";
 export const CALCULATOR_HISTORY_STORAGE_KEY = "egg_calculator_history_v1";
 export const EGGS_PER_TRAY = 30;
 
-const EMPTY_LOOSE_ENTRIES: Record<LooseCategoryKey, number[]> = {
+const EMPTY_LOOSE_ENTRIES: CalculatorLooseEntries = {
   good: [],
   cracked: [],
   broken: [],
   spoiled: [],
 };
+
+export function getCalculatorDraftKey(userId?: string): string {
+  return userId ? `${CALCULATOR_STORAGE_KEY}_${userId}` : CALCULATOR_STORAGE_KEY;
+}
 
 export function createDefaultStacks(): StackRow[] {
   return [{ id: Date.now().toString(), traysPerStack: 20, stacksCount: "" }];
@@ -55,7 +61,7 @@ export function createDefaultStacks(): StackRow[] {
 
 export function normalizeLooseEntries(
   entries?: Partial<Record<LooseCategoryKey, unknown>>
-): Record<LooseCategoryKey, number[]> {
+): CalculatorLooseEntries {
   return {
     good: Array.isArray(entries?.good) ? entries.good.map(Number).filter((n) => !isNaN(n)) : [],
     cracked: Array.isArray(entries?.cracked) ? entries.cracked.map(Number).filter((n) => !isNaN(n)) : [],
@@ -64,9 +70,11 @@ export function normalizeLooseEntries(
   };
 }
 
-export function readCalculatorState(): CalculatorState | null {
+export function readCalculatorState(userId?: string): CalculatorState | null {
   try {
-    const saved = localStorage.getItem(CALCULATOR_STORAGE_KEY);
+    const saved =
+      localStorage.getItem(getCalculatorDraftKey(userId)) ||
+      (userId ? localStorage.getItem(CALCULATOR_STORAGE_KEY) : null);
     if (!saved) return null;
     const parsed = JSON.parse(saved);
     return parsed && typeof parsed === "object" ? (parsed as CalculatorState) : null;
@@ -76,52 +84,49 @@ export function readCalculatorState(): CalculatorState | null {
   }
 }
 
-export function writeCalculatorState(state: CalculatorState): void {
+export function writeCalculatorState(state: CalculatorState, userId?: string): void {
   try {
-    localStorage.setItem(CALCULATOR_STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(getCalculatorDraftKey(userId), JSON.stringify(state));
   } catch (err) {
     console.warn("Failed to save calculator state to localStorage:", err);
   }
 }
 
-export function clearCalculatorState(): void {
+export function clearCalculatorState(userId?: string): void {
   try {
-    localStorage.removeItem(CALCULATOR_STORAGE_KEY);
+    localStorage.removeItem(getCalculatorDraftKey(userId));
+    if (!userId) {
+      localStorage.removeItem(CALCULATOR_STORAGE_KEY);
+    }
   } catch (err) {
     console.warn("Failed to clear calculator state from localStorage:", err);
   }
 }
 
-export function readCalculatorHistory(): CalculatorHistoryEntry[] {
+export function readLegacyLocalHistory(): LegacyLocalCalculatorHistoryEntry[] {
   try {
     const saved = localStorage.getItem(CALCULATOR_HISTORY_STORAGE_KEY);
     if (!saved) return [];
     const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? (parsed as CalculatorHistoryEntry[]) : [];
-  } catch (err) {
-    console.warn("Failed to load calculator history from localStorage:", err);
+    return Array.isArray(parsed) ? (parsed as LegacyLocalCalculatorHistoryEntry[]) : [];
+  } catch {
     return [];
   }
 }
 
-export function writeCalculatorHistory(entries: CalculatorHistoryEntry[]): void {
-  try {
-    localStorage.setItem(CALCULATOR_HISTORY_STORAGE_KEY, JSON.stringify(entries));
-  } catch (err) {
-    console.warn("Failed to save calculator history to localStorage:", err);
-  }
-}
-
-export function clearCalculatorHistory(): void {
+export function clearLegacyLocalHistory(): void {
   try {
     localStorage.removeItem(CALCULATOR_HISTORY_STORAGE_KEY);
-  } catch (err) {
-    console.warn("Failed to clear calculator history from localStorage:", err);
+  } catch {
+    // ignore
   }
 }
 
-export function loadHistoryEntryIntoCalculatorState(entry: CalculatorHistoryEntry): void {
-  const existing = readCalculatorState();
+export function loadDbHistoryEntryIntoCalculatorState(
+  entry: CalculatorHistoryItem,
+  userId?: string
+): void {
+  const existing = readCalculatorState(userId);
   const nextStacks =
     Array.isArray(entry.stacks) && entry.stacks.length > 0
       ? entry.stacks
@@ -129,19 +134,22 @@ export function loadHistoryEntryIntoCalculatorState(entry: CalculatorHistoryEntr
       ? existing.stacks
       : createDefaultStacks();
 
-  writeCalculatorState({
-    eggsPerTray: EGGS_PER_TRAY,
-    stacks: nextStacks,
-    looseEntries: entry.looseEntries
-      ? normalizeLooseEntries(entry.looseEntries)
-      : { ...EMPTY_LOOSE_ENTRIES },
-    nextDaySell: entry.nextDaySell ?? "",
-    selectedProductId: entry.productId ?? "",
-  });
+  writeCalculatorState(
+    {
+      eggsPerTray: entry.eggs_per_tray || EGGS_PER_TRAY,
+      stacks: nextStacks,
+      looseEntries: entry.loose_entries
+        ? normalizeLooseEntries(entry.loose_entries)
+        : { ...EMPTY_LOOSE_ENTRIES },
+      nextDaySell: entry.next_day_sell > 0 ? entry.next_day_sell : "",
+      selectedProductId: entry.product_id ?? "",
+    },
+    userId
+  );
 }
 
 export function formatStockVerificationText(
-  productName: string | undefined,
+  productName: string | null | undefined,
   systemStock: number | null | undefined,
   grandTotalEggs: number,
   stockDifference?: number | null
