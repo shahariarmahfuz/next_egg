@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Eye, ShoppingCart, CircleCheck, CircleAlert, Boxes, Calendar, ArrowRight, Printer, Loader2, ChevronLeft, ChevronRight, Truck } from "lucide-react";
@@ -296,51 +298,69 @@ export default function PurchasesReportPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
             {/* Supplier Dropdown Filter */}
-            <select
+            <CustomSelect
               value={selectedSupplierId}
-              onChange={(e) => {
-                setSelectedSupplierId(e.target.value);
+              onValueChange={(val) => {
+                setSelectedSupplierId(val);
                 setPage(1);
               }}
-              className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">All Suppliers</option>
-              {suppliers.map((supp) => (
-                <option key={supp.id} value={supp.id}>
-                  {supp.name} {supp.phone ? `(${supp.phone})` : ""}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "All Suppliers" },
+                ...suppliers.map((supp) => ({
+                  value: supp.id,
+                  label: `${supp.name}${supp.phone ? ` (${supp.phone})` : ""}`,
+                  keywords: `${supp.name} ${supp.phone || ""}`,
+                })),
+              ]}
+              placeholder="All Suppliers"
+              searchPlaceholder="Search supplier name or phone..."
+              emptyText="No suppliers found"
+              searchable={true}
+              ariaLabel="Filter by supplier"
+              className="w-full sm:w-48"
+              triggerClassName="h-9 text-xs font-medium rounded-xl border-border/60 bg-background/80"
+            />
 
-            <select
+            <CustomSelect
               value={paymentStatus}
-              onChange={(e) => {
-                setPaymentStatus(e.target.value);
+              onValueChange={(val) => {
+                setPaymentStatus(val);
                 setPage(1);
               }}
-              className="flex h-9 w-full sm:w-36 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">All Statuses</option>
-              <option value="paid">Paid</option>
-              <option value="partial">Partial</option>
-              <option value="due">Due</option>
-            </select>
+              options={[
+                { value: "", label: "All Statuses" },
+                { value: "paid", label: "Paid" },
+                { value: "partial", label: "Partial" },
+                { value: "due", label: "Due" },
+              ]}
+              placeholder="All Statuses"
+              searchable={false}
+              ariaLabel="Filter by payment status"
+              className="w-full sm:w-36"
+              triggerClassName="h-9 text-xs font-medium rounded-xl border-border/60 bg-background/80"
+            />
 
-            <select
+            <CustomSelect
               value={selectedProductId}
-              onChange={(e) => {
-                setSelectedProductId(e.target.value);
+              onValueChange={(val) => {
+                setSelectedProductId(val);
                 setPage(1);
               }}
-              className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">All Products</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "All Products" },
+                ...products.map((product) => ({
+                  value: product.id,
+                  label: product.name,
+                })),
+              ]}
+              placeholder="All Products"
+              searchPlaceholder="Search product..."
+              emptyText="No products found"
+              searchable={true}
+              ariaLabel="Filter by product"
+              className="w-full sm:w-48"
+              triggerClassName="h-9 text-xs font-medium rounded-xl border-border/60 bg-background/80"
+            />
           </div>
         </div>
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Eye } from "lucide-react";
@@ -103,21 +105,26 @@ export default function CollectionsReportPage() {
             />
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <select
+            <CustomSelect
               value={paymentMethod}
-              onChange={(e) => {
-                setPaymentMethod(e.target.value);
+              onValueChange={(val) => {
+                setPaymentMethod(val);
                 setPage(1);
               }}
-              className="flex h-10 w-full sm:w-40 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              <option value="all">All Methods</option>
-              <option value="cash">Cash</option>
-              <option value="bank">Bank</option>
-              <option value="card">Card</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="cheque">Cheque</option>
-            </select>
+              options={[
+                { value: "all", label: "All Methods" },
+                { value: "cash", label: "Cash" },
+                { value: "bank", label: "Bank" },
+                { value: "card", label: "Card" },
+                { value: "mobile_money", label: "Mobile Money" },
+                { value: "cheque", label: "Cheque" },
+              ]}
+              placeholder="All Methods"
+              searchable={false}
+              ariaLabel="Filter by payment method"
+              className="w-full sm:w-40"
+              triggerClassName="h-10 text-sm"
+            />
           </div>
         </div>
 

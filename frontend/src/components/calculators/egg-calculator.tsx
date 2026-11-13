@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CustomSelect } from "@/components/ui/custom-select";
 import {
   LooseCategoryKey,
   StackRow,
@@ -823,18 +824,24 @@ Akota Poultry`;
                     </Badge>
                   )}
                 </div>
-                <select
+                <CustomSelect
                   value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="w-full h-8.5 text-xs font-medium bg-background border border-border/80 rounded-lg px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">-- সাধারণ গণনা (কোনো পণ্য ছাড়া) --</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (বর্তমান স্টক: {p.current_stock.toLocaleString()} টি)
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={setSelectedProductId}
+                  options={[
+                    { value: "", label: "-- সাধারণ গণনা (কোনো পণ্য ছাড়া) --" },
+                    ...products.map((p) => ({
+                      value: p.id,
+                      label: `${p.name} (বর্তমান স্টক: ${p.current_stock.toLocaleString()} টি)`,
+                      keywords: p.name,
+                    })),
+                  ]}
+                  placeholder="-- সাধারণ গণনা (কোনো পণ্য ছাড়া) --"
+                  searchPlaceholder="পণ্য খুঁজুন..."
+                  emptyText="কোনো পণ্য পাওয়া যায়নি"
+                  searchable={true}
+                  ariaLabel="পণ্য নির্বাচন করুন"
+                  triggerClassName="h-8.5 text-xs font-medium rounded-lg border-border/80"
+                />
               </div>
 
               {/* Main Prominent Final Result (Trays + Eggs) */}

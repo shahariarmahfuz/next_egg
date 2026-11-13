@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -241,39 +243,48 @@ export default function ManageExpensesPage() {
 
               {/* Category Filter */}
               <div>
-                <select
+                <CustomSelect
                   value={categoryId}
-                  onChange={(e) => {
-                    setCategoryId(e.target.value);
+                  onValueChange={(val) => {
+                    setCategoryId(val);
                     setPage(1);
                   }}
-                  className="w-full h-9 px-2.5 py-1 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">All Categories</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All Categories" },
+                    ...categories.map((cat) => ({
+                      value: cat.id,
+                      label: cat.name,
+                    })),
+                  ]}
+                  placeholder="All Categories"
+                  searchPlaceholder="Search category..."
+                  emptyText="No categories found"
+                  searchable={true}
+                  ariaLabel="Filter by category"
+                  triggerClassName="h-9 text-xs"
+                />
               </div>
 
               {/* Payment Method Filter */}
               <div>
-                <select
+                <CustomSelect
                   value={paymentMethod}
-                  onChange={(e) => {
-                    setPaymentMethod(e.target.value);
+                  onValueChange={(val) => {
+                    setPaymentMethod(val);
                     setPage(1);
                   }}
-                  className="w-full h-9 px-2.5 py-1 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">All Payment Methods</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Bank">Bank Transfer</option>
-                  <option value="Mobile Banking">Mobile Banking</option>
-                  <option value="Card">Card</option>
-                </select>
+                  options={[
+                    { value: "", label: "All Payment Methods" },
+                    { value: "Cash", label: "Cash" },
+                    { value: "Bank", label: "Bank Transfer" },
+                    { value: "Mobile Banking", label: "Mobile Banking" },
+                    { value: "Card", label: "Card" },
+                  ]}
+                  placeholder="All Payment Methods"
+                  searchable={false}
+                  ariaLabel="Filter by payment method"
+                  triggerClassName="h-9 text-xs"
+                />
               </div>
 
               {/* Start Date */}
@@ -570,17 +581,21 @@ export default function ManageExpensesPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Category</Label>
-                <select
+                <CustomSelect
                   value={editData.category_id || ""}
-                  onChange={(e) => setEditData({ ...editData, category_id: e.target.value })}
-                  className="w-full h-9 px-3 text-xs rounded-md border border-input bg-background"
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(val) => setEditData({ ...editData, category_id: val })}
+                  options={categories.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
+                  placeholder="Select category..."
+                  searchPlaceholder="Search category..."
+                  emptyText="No categories found"
+                  searchable={true}
+                  portal={false}
+                  ariaLabel="Category"
+                  triggerClassName="h-9 text-xs"
+                />
               </div>
 
               <div className="space-y-1.5">
@@ -607,16 +622,21 @@ export default function ManageExpensesPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Payment Method</Label>
-                <select
+                <CustomSelect
                   value={editData.payment_method || "Cash"}
-                  onChange={(e) => setEditData({ ...editData, payment_method: e.target.value })}
-                  className="w-full h-9 px-3 text-xs rounded-md border border-input bg-background"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Bank">Bank Transfer</option>
-                  <option value="Mobile Banking">Mobile Banking</option>
-                  <option value="Card">Card</option>
-                </select>
+                  onValueChange={(val) => setEditData({ ...editData, payment_method: val })}
+                  options={[
+                    { value: "Cash", label: "Cash" },
+                    { value: "Bank", label: "Bank Transfer" },
+                    { value: "Mobile Banking", label: "Mobile Banking" },
+                    { value: "Card", label: "Card" },
+                  ]}
+                  placeholder="Select payment method"
+                  searchable={false}
+                  portal={false}
+                  ariaLabel="Payment Method"
+                  triggerClassName="h-9 text-xs"
+                />
               </div>
 
               <div className="space-y-1.5">

@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -132,16 +134,21 @@ export default function PurchasesPage() {
           </div>
 
           <div className="flex flex-wrap gap-3 w-full md:w-auto">
-            <select
+            <CustomSelect
               value={paymentStatus}
-              onChange={(e) => setPaymentStatus(e.target.value)}
-              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">All Payment Statuses</option>
-              <option value="paid">Paid</option>
-              <option value="partial">Partial</option>
-              <option value="unpaid">Unpaid</option>
-            </select>
+              onValueChange={setPaymentStatus}
+              options={[
+                { value: "", label: "All Payment Statuses" },
+                { value: "paid", label: "Paid" },
+                { value: "partial", label: "Partial" },
+                { value: "unpaid", label: "Unpaid" },
+              ]}
+              placeholder="All Payment Statuses"
+              searchable={false}
+              ariaLabel="Filter by payment status"
+              className="w-full sm:w-48"
+              triggerClassName="h-10 text-sm"
+            />
           </div>
         </CardContent>
       </Card>

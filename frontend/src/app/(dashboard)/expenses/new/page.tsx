@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -359,16 +361,20 @@ export default function AddExpensePage() {
                       <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>Payment Method</span>
                     </Label>
-                    <select
+                    <CustomSelect
                       value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full h-10 px-3 py-2 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="Bank">Bank Transfer</option>
-                      <option value="Mobile Banking">Mobile Banking (bKash / Nagad)</option>
-                      <option value="Card">Credit / Debit Card</option>
-                    </select>
+                      onValueChange={setPaymentMethod}
+                      options={[
+                        { value: "Cash", label: "Cash" },
+                        { value: "Bank", label: "Bank Transfer" },
+                        { value: "Mobile Banking", label: "Mobile Banking (bKash / Nagad)" },
+                        { value: "Card", label: "Credit / Debit Card" },
+                      ]}
+                      placeholder="Select Payment Method"
+                      searchable={false}
+                      ariaLabel="Payment Method"
+                      triggerClassName="h-10 text-xs font-medium"
+                    />
                   </div>
 
                   {/* Reference Number */}

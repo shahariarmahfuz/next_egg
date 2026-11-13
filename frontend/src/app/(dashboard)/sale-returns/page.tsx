@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -153,19 +155,23 @@ export default function ManageSaleReturnsPage() {
               </div>
 
               {/* Sort By */}
-              <select
+              <CustomSelect
                 value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
+                onValueChange={(val) => {
+                  setSortBy(val);
                   setPage(1);
                 }}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="amount_desc">Highest Amount</option>
-                <option value="amount_asc">Lowest Amount</option>
-              </select>
+                options={[
+                  { value: "newest", label: "Newest First" },
+                  { value: "oldest", label: "Oldest First" },
+                  { value: "amount_desc", label: "Highest Amount" },
+                  { value: "amount_asc", label: "Lowest Amount" },
+                ]}
+                placeholder="Sort by"
+                searchable={false}
+                ariaLabel="Sort sale returns"
+                triggerClassName="h-9 text-xs"
+              />
 
               {/* Date Filters */}
               <div className="flex gap-2">

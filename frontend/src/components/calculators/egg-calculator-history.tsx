@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { calculatorService } from "@/services/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -443,19 +444,23 @@ Akota Poultry`;
                 </button>
               </div>
 
-              <select
+              <CustomSelect
                 value={productFilter}
-                onChange={(e) => setProductFilter(e.target.value)}
-                aria-label="পণ্য ফিল্টার"
-                className="h-8.5 flex-1 min-w-0 lg:w-44 lg:flex-initial text-xs font-medium bg-background border border-border/70 rounded-lg px-2 text-foreground"
-              >
-                <option value="all">পণ্য: সকল পণ্য</option>
-                {productOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setProductFilter}
+                options={[
+                  { value: "all", label: "পণ্য: সকল পণ্য" },
+                  ...productOptions.map((name) => ({
+                    value: name,
+                    label: name,
+                  })),
+                ]}
+                placeholder="পণ্য: সকল পণ্য"
+                searchPlaceholder="পণ্য খুঁজুন..."
+                emptyText="কোনো পণ্য পাওয়া যায়নি"
+                ariaLabel="পণ্য ফিল্টার"
+                className="flex-1 min-w-0 lg:w-44 lg:flex-initial"
+                triggerClassName="h-8.5 text-xs font-medium rounded-lg border-border/70"
+              />
 
               {isFetching && !isLoading && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />

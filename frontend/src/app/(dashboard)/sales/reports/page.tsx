@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { SaleViewModal } from "@/components/sales/sale-view-modal";
 import { printSaleInvoice } from "@/components/sales/sale-export-utils";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -269,51 +270,69 @@ export default function SalesReportPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
             {/* Customer Dropdown Filter */}
-            <select
+            <CustomSelect
               value={selectedCustomerId}
-              onChange={(e) => {
-                setSelectedCustomerId(e.target.value);
+              onValueChange={(val) => {
+                setSelectedCustomerId(val);
                 setPage(1);
               }}
-              className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">All Customers</option>
-              {customers.map((cust) => (
-                <option key={cust.id} value={cust.id}>
-                  {cust.name} {cust.phone ? `(${cust.phone})` : ""}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "All Customers" },
+                ...customers.map((cust) => ({
+                  value: cust.id,
+                  label: `${cust.name}${cust.phone ? ` (${cust.phone})` : ""}`,
+                  keywords: `${cust.name} ${cust.phone || ""}`,
+                })),
+              ]}
+              placeholder="All Customers"
+              searchPlaceholder="Search customer name or phone..."
+              emptyText="No customers found"
+              searchable={true}
+              ariaLabel="Filter by customer"
+              className="w-full sm:w-48"
+              triggerClassName="h-9 text-xs font-medium rounded-xl border-border/60 bg-background/80"
+            />
 
-            <select
+            <CustomSelect
               value={paymentStatus}
-              onChange={(e) => {
-                setPaymentStatus(e.target.value);
+              onValueChange={(val) => {
+                setPaymentStatus(val);
                 setPage(1);
               }}
-              className="flex h-9 w-full sm:w-36 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">All Statuses</option>
-              <option value="paid">Paid</option>
-              <option value="partial">Partial</option>
-              <option value="due">Due</option>
-            </select>
+              options={[
+                { value: "", label: "All Statuses" },
+                { value: "paid", label: "Paid" },
+                { value: "partial", label: "Partial" },
+                { value: "due", label: "Due" },
+              ]}
+              placeholder="All Statuses"
+              searchable={false}
+              ariaLabel="Filter by payment status"
+              className="w-full sm:w-36"
+              triggerClassName="h-9 text-xs font-medium rounded-xl border-border/60 bg-background/80"
+            />
 
-            <select
+            <CustomSelect
               value={selectedProductId}
-              onChange={(e) => {
-                setSelectedProductId(e.target.value);
+              onValueChange={(val) => {
+                setSelectedProductId(val);
                 setPage(1);
               }}
-              className="flex h-10 w-full sm:w-48 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              <option value="">All Products</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "All Products" },
+                ...products.map((product) => ({
+                  value: product.id,
+                  label: product.name,
+                })),
+              ]}
+              placeholder="All Products"
+              searchPlaceholder="Search product..."
+              emptyText="No products found"
+              searchable={true}
+              ariaLabel="Filter by product"
+              className="w-full sm:w-48"
+              triggerClassName="h-9 text-xs font-medium rounded-xl border-border/60 bg-background/80"
+            />
           </div>
         </div>
 

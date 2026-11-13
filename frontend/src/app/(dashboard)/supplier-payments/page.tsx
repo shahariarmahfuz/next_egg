@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -156,36 +158,44 @@ export default function ManageSupplierPaymentsPage() {
               </div>
 
               {/* Payment Method */}
-              <select
+              <CustomSelect
                 value={paymentMethod}
-                onChange={(e) => {
-                  setPaymentMethod(e.target.value);
+                onValueChange={(val) => {
+                  setPaymentMethod(val);
                   setPage(1);
                 }}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">All Payment Methods</option>
-                <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="cheque">Cheque</option>
-                <option value="card">Card</option>
-                <option value="mobile_wallet">Mobile Wallet</option>
-              </select>
+                options={[
+                  { value: "", label: "All Payment Methods" },
+                  { value: "cash", label: "Cash" },
+                  { value: "bank_transfer", label: "Bank Transfer" },
+                  { value: "cheque", label: "Cheque" },
+                  { value: "card", label: "Card" },
+                  { value: "mobile_wallet", label: "Mobile Wallet" },
+                ]}
+                placeholder="All Payment Methods"
+                searchable={false}
+                ariaLabel="Filter by payment method"
+                triggerClassName="h-9 text-xs"
+              />
 
               {/* Sort By */}
-              <select
+              <CustomSelect
                 value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
+                onValueChange={(val) => {
+                  setSortBy(val);
                   setPage(1);
                 }}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="amount_desc">Highest Amount</option>
-                <option value="amount_asc">Lowest Amount</option>
-              </select>
+                options={[
+                  { value: "newest", label: "Newest First" },
+                  { value: "oldest", label: "Oldest First" },
+                  { value: "amount_desc", label: "Highest Amount" },
+                  { value: "amount_asc", label: "Lowest Amount" },
+                ]}
+                placeholder="Sort by"
+                searchable={false}
+                ariaLabel="Sort payments"
+                triggerClassName="h-9 text-xs"
+              />
 
               {/* Date Range */}
               <div className="flex gap-2 col-span-1 sm:col-span-2 lg:col-span-1">

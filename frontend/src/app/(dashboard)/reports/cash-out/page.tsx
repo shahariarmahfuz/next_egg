@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomSelect } from "@/components/ui/custom-select";
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -360,21 +362,28 @@ export default function CashOutReportPage() {
             <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
               {/* Creator / User Dropdown */}
               {canViewUsers && usersList.length > 0 && (
-                <select
+                <CustomSelect
                   value={selectedUserId}
-                  onChange={(e) => {
-                    setSelectedUserId(e.target.value);
+                  onValueChange={(val) => {
+                    setSelectedUserId(val);
                     setPage(1);
                   }}
-                  className="flex h-9 w-full sm:w-48 items-center justify-between rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">All Creators</option>
-                  {usersList.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name || u.username}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All Creators" },
+                    ...usersList.map((u) => ({
+                      value: u.id,
+                      label: u.full_name || u.username,
+                      keywords: `${u.full_name || ""} ${u.username || ""}`,
+                    })),
+                  ]}
+                  placeholder="All Creators"
+                  searchPlaceholder="Search creator..."
+                  emptyText="No users found"
+                  searchable={true}
+                  ariaLabel="Filter by creator"
+                  className="w-full sm:w-48"
+                  triggerClassName="h-9 text-xs font-medium rounded-xl border-border/60 bg-background/80"
+                />
               )}
 
               {/* Reset Filters */}

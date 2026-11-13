@@ -29,6 +29,7 @@ import { formatCurrency, formatDate } from "@/utils/formatters";
 
 import { toast } from "sonner";
 import { HardDeleteModal } from "@/components/ui/hard-delete-modal";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 export default function ManageSalesPage() {
   const queryClient = useQueryClient();
@@ -166,38 +167,48 @@ export default function ManageSalesPage() {
               />
             </div>
 
-            <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 w-full md:w-auto items-center">
               {/* Payment Status Selector */}
-              <select
+              <CustomSelect
                 value={paymentStatus}
-                onChange={(e) => {
-                  setPaymentStatus(e.target.value);
+                onValueChange={(val) => {
+                  setPaymentStatus(val);
                   setPage(1);
                 }}
-                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">All Payment Statuses</option>
-                <option value="paid">Paid</option>
-                <option value="partial">Partial</option>
-                <option value="unpaid">Unpaid</option>
-              </select>
+                options={[
+                  { value: "", label: "All Payment Statuses" },
+                  { value: "paid", label: "Paid" },
+                  { value: "partial", label: "Partial" },
+                  { value: "unpaid", label: "Unpaid" },
+                ]}
+                placeholder="All Payment Statuses"
+                searchable={false}
+                ariaLabel="Filter by payment status"
+                className="w-full sm:w-44"
+                triggerClassName="h-10 text-xs"
+              />
 
               {/* Date Filter Selector */}
-              <select
+              <CustomSelect
                 value={dateFilter}
-                onChange={(e) => {
-                  setDateFilter(e.target.value);
+                onValueChange={(val) => {
+                  setDateFilter(val);
                   setPage(1);
                 }}
-                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="all">All Dates</option>
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-                <option value="custom">Custom Date Range</option>
-              </select>
+                options={[
+                  { value: "all", label: "All Dates" },
+                  { value: "today", label: "Today" },
+                  { value: "yesterday", label: "Yesterday" },
+                  { value: "week", label: "This Week" },
+                  { value: "month", label: "This Month" },
+                  { value: "custom", label: "Custom Date Range" },
+                ]}
+                placeholder="All Dates"
+                searchable={false}
+                ariaLabel="Filter by date"
+                className="w-full sm:w-40"
+                triggerClassName="h-10 text-xs"
+              />
             </div>
           </div>
 
