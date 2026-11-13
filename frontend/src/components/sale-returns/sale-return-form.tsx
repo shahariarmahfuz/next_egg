@@ -190,6 +190,22 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
     }
   };
 
+  const toggleItemSelection = (idx: number, isSelected: boolean, returnQty: number, returnableQty: number) => {
+    const nextVal = !isSelected;
+    setValue(`items.${idx}.selected`, nextVal);
+    if (nextVal && returnQty === 0) {
+      setValue(`items.${idx}.return_qty`, Math.min(1, returnableQty));
+    }
+  };
+
+  const updateReturnQty = (idx: number, rawValue: string, isSelected: boolean) => {
+    const val = parseFloat(rawValue) || 0;
+    setValue(`items.${idx}.return_qty`, val);
+    if (val > 0 && !isSelected) {
+      setValue(`items.${idx}.selected`, true);
+    }
+  };
+
   const handleFormSubmit = async (values: SaleReturnFormValues) => {
     // Validate individual return quantities against returnable_qty
     let hasQtyError = false;
@@ -436,63 +452,161 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                 No returnable products found for this sale.
               </div>
             ) : (
-              <div className="overflow-x-auto border rounded-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase text-[10px]">
-                      <th className="p-3 text-center">Select</th>
-                      <th className="p-3">Product Name</th>
-                      <th className="p-3 text-center">Sold Qty</th>
-                      <th className="p-3 text-center">Prev Returned</th>
-                      <th className="p-3 text-center">Returnable Qty</th>
-                      <th className="p-3 text-right">Unit Price</th>
-                      <th className="p-3 text-center w-32">Return Qty</th>
-                      <th className="p-3 text-right">Return Amount ($)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {fields.map((field, idx) => {
-                      const itemWatch = watchedItems[idx] || {};
-                      const isSelected = itemWatch.selected;
-                      const returnQty = itemWatch.return_qty || 0;
-                      const lineTotal = isSelected ? returnQty * field.unit_price : 0;
+              <>
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto border rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase text-[10px]">
+                        <th className="p-3 text-center">Select</th>
+                        <th className="p-3">Product Name</th>
+                        <th className="p-3 text-center">Sold Qty</th>
+                        <th className="p-3 text-center">Prev Returned</th>
+                        <th className="p-3 text-center">Returnable Qty</th>
+                        <th className="p-3 text-right">Unit Price</th>
+                        <th className="p-3 text-center w-32">Return Qty</th>
+                        <th className="p-3 text-right">Return Amount ($)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {fields.map((field, idx) => {
+                        const itemWatch = watchedItems[idx] || {};
+                        const isSelected = !!itemWatch.selected;
+                        const returnQty = itemWatch.return_qty || 0;
+                        const lineTotal = isSelected ? returnQty * field.unit_price : 0;
 
-                      return (
-                        <tr
-                          key={field.id}
-                          className={`transition-colors ${isSelected ? "bg-amber-500/5 font-semibold" : "hover:bg-accent/40"}`}
-                        >
-                          <td className="p-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextVal = !isSelected;
-                                setValue(`items.${idx}.selected`, nextVal);
-                                if (nextVal && returnQty === 0) {
-                                  setValue(`items.${idx}.return_qty`, Math.min(1, field.returnable_qty));
-                                }
-                              }}
-                              className="text-primary hover:text-primary/80"
-                            >
-                              {isSelected ? (
-                                <CheckSquare className="h-5 w-5 text-amber-500" />
-                              ) : (
-                                <Square className="h-5 w-5 text-muted-foreground" />
+                        return (
+                          <tr
+                            key={field.id}
+                            className={`transition-colors ${isSelected ? "bg-amber-500/5 font-semibold" : "hover:bg-accent/40"}`}
+                          >
+                            <td className="p-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => toggleItemSelection(idx, isSelected, returnQty, field.returnable_qty)}
+                                className="text-primary hover:text-primary/80"
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="h-5 w-5 text-amber-500" />
+                                ) : (
+                                  <Square className="h-5 w-5 text-muted-foreground" />
+                                )}
+                              </button>
+                            </td>
+
+                            <td className="p-3">
+                              <div className="font-bold text-foreground">{field.product_name}</div>
+                              <div className="text-[10px] text-muted-foreground ">{field.product_code}</div>
+                            </td>
+
+                            <td className="p-3 text-center ">{field.sold_quantity} {field.unit}</td>
+                            <td className="p-3 text-center text-muted-foreground">{field.previously_returned_qty} {field.unit}</td>
+                            <td className="p-3 text-center font-bold text-emerald-500">{field.returnable_qty} {field.unit}</td>
+                            <td className="p-3 text-right ">{formatCurrency(field.unit_price)}</td>
+
+                            <td className="p-3 text-center">
+                              <Input
+                                type="number"
+                                step="1"
+                                min="0"
+                                max={field.returnable_qty}
+                                disabled={!isSelected}
+                                value={returnQty}
+                                onChange={(e) => updateReturnQty(idx, e.target.value, isSelected)}
+                                className="w-24 text-center text-xs font-bold"
+                              />
+                              {errors.items?.[idx]?.return_qty && (
+                                <p className="text-[10px] text-destructive mt-0.5">
+                                  {errors.items[idx]?.return_qty?.message}
+                                </p>
                               )}
-                            </button>
-                          </td>
+                            </td>
 
-                          <td className="p-3">
-                            <div className="font-bold text-foreground">{field.product_name}</div>
-                            <div className="text-[10px] text-muted-foreground ">{field.product_code}</div>
-                          </td>
+                            <td className="p-3 text-right font-bold text-amber-500">
+                              {formatCurrency(lineTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                          <td className="p-3 text-center ">{field.sold_quantity} {field.unit}</td>
-                          <td className="p-3 text-center text-muted-foreground">{field.previously_returned_qty} {field.unit}</td>
-                          <td className="p-3 text-center font-bold text-emerald-500">{field.returnable_qty} {field.unit}</td>
-                          <td className="p-3 text-right ">{formatCurrency(field.unit_price)}</td>
+                {/* Mobile Card Layout */}
+                <div className="md:hidden space-y-3">
+                  {fields.map((field, idx) => {
+                    const itemWatch = watchedItems[idx] || {};
+                    const isSelected = !!itemWatch.selected;
+                    const returnQty = itemWatch.return_qty || 0;
+                    const lineTotal = isSelected ? returnQty * field.unit_price : 0;
 
-                          <td className="p-3 text-center">
+                    return (
+                      <div
+                        key={`mobile-${field.id}`}
+                        className={cn(
+                          "rounded-xl border p-3.5 space-y-3 transition-colors",
+                          isSelected ? "bg-amber-500/5 border-amber-500/40" : "bg-card/50"
+                        )}
+                      >
+                        {/* Top row: Select toggle + Product info + Unit price */}
+                        <button
+                          type="button"
+                          onClick={() => toggleItemSelection(idx, isSelected, returnQty, field.returnable_qty)}
+                          className="w-full flex items-start justify-between gap-3 text-left"
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            {isSelected ? (
+                              <CheckSquare className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                            ) : (
+                              <Square className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                            )}
+                            <div className="min-w-0">
+                              <div className="font-bold text-sm text-foreground leading-snug break-words">
+                                {field.product_name}
+                              </div>
+                              {field.product_code && (
+                                <div className="text-[11px] text-muted-foreground mt-0.5">
+                                  {field.product_code}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-[10px] text-muted-foreground uppercase">Unit Price</div>
+                            <div className="text-xs font-semibold text-foreground">
+                              {formatCurrency(field.unit_price)}
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Middle row: Quantities summary */}
+                        <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-2.5 text-center">
+                          <div>
+                            <div className="text-[10px] text-muted-foreground uppercase">Sold</div>
+                            <div className="text-xs font-semibold text-foreground mt-0.5">
+                              {field.sold_quantity} {field.unit}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground uppercase">Returned</div>
+                            <div className="text-xs font-medium text-muted-foreground mt-0.5">
+                              {field.previously_returned_qty} {field.unit}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-muted-foreground uppercase">Returnable</div>
+                            <div className="text-xs font-bold text-emerald-500 mt-0.5">
+                              {field.returnable_qty} {field.unit}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom row: Return Qty input + Line total */}
+                        <div className="grid grid-cols-2 gap-3 items-end pt-0.5">
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-semibold text-muted-foreground block">
+                              Return Qty ({field.unit})
+                            </label>
                             <Input
                               type="number"
                               step="1"
@@ -500,31 +614,27 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                               max={field.returnable_qty}
                               disabled={!isSelected}
                               value={returnQty}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
-                                setValue(`items.${idx}.return_qty`, val);
-                                if (val > 0 && !isSelected) {
-                                  setValue(`items.${idx}.selected`, true);
-                                }
-                              }}
-                              className="w-24 text-center text-xs font-bold"
+                              onChange={(e) => updateReturnQty(idx, e.target.value, isSelected)}
+                              className="h-9 text-center text-sm font-bold"
                             />
                             {errors.items?.[idx]?.return_qty && (
-                              <p className="text-[10px] text-destructive mt-0.5">
+                              <p className="text-[10px] text-destructive">
                                 {errors.items[idx]?.return_qty?.message}
                               </p>
                             )}
-                          </td>
-
-                          <td className="p-3 text-right font-bold text-amber-500">
-                            {formatCurrency(lineTotal)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          </div>
+                          <div className="text-right pb-1">
+                            <div className="text-[11px] text-muted-foreground font-medium">Return Amount</div>
+                            <div className="text-base font-extrabold text-amber-500">
+                              {formatCurrency(lineTotal)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
 
             {errors.items && typeof errors.items.message === "string" && (
@@ -612,11 +722,11 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
             </div>
 
             {/* Submit Action */}
-            <div className="pt-4 flex justify-end gap-3 border-t">
+            <div className="pt-4 flex flex-col sm:flex-row sm:justify-end gap-3 border-t">
               <Button
                 type="submit"
                 disabled={isSubmitting || calculatedReturnTotal <= 0}
-                className="bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-500/20 px-6 font-semibold"
+                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-500/20 px-6 font-semibold"
               >
                 {isSubmitting ? (
                   <>
