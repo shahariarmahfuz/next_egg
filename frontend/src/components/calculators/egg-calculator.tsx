@@ -1,18 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Trash2,
   RotateCcw,
   Copy,
   Check,
-  Calculator,
   AlertTriangle,
   Layers,
   X,
   Package,
-  CalendarDays,
   BookmarkCheck,
   History,
 } from "lucide-react";
@@ -24,8 +23,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-
-type LooseCategoryKey = "good" | "cracked" | "broken" | "spoiled";
+import {
+  LooseCategoryKey,
+  StackRow,
+  CalculatorState,
+  CalculatorHistoryEntry,
+  EGGS_PER_TRAY,
+  readCalculatorState,
+  writeCalculatorState,
+  clearCalculatorState,
+  readCalculatorHistory,
+  writeCalculatorHistory,
+  normalizeLooseEntries,
+  formatStockVerificationText,
+} from "./egg-calculator-storage";
 
 interface LooseCategoryConfig {
   key: LooseCategoryKey;
@@ -56,77 +67,16 @@ const LOOSE_CATEGORIES: LooseCategoryConfig[] = [
   },
 ];
 
-interface StackRow {
-  id: string;
-  traysPerStack: number | "";
-  stacksCount: number | "";
-}
-
-interface CalculatorState {
-  eggsPerTray: number;
-  stacks: StackRow[];
-  looseEntries?: Record<LooseCategoryKey, number[]>;
-  nextDaySell?: number | "";
-  selectedProductId?: string;
-  // Legacy single-value compatibility
-  looseGood?: number | "";
-  looseCracked?: number | "";
-  looseBroken?: number | "";
-  looseSpoiled?: number | "";
-}
-
-export interface CalculatorHistoryEntry {
-  id: string;
-  createdAt: string;
-  formattedDate: string;
-  productId?: string;
-  productName?: string;
-  systemStock?: number | null;
-  stacks: StackRow[];
-  looseEntries: Record<LooseCategoryKey, number[]>;
-  nextDaySell: number | "";
-  totalTrays: number;
-  totalTrayEggs: number;
-  totalLooseEggs: number;
-  nextDaySellEggs: number;
-  grandTotalEggs: number;
-  grandTotalConversion: { fullTrays: number; remainderEggs: number };
-  stockDifference?: number | null;
-}
-
-const STORAGE_KEY = "egg_calculator_v1";
-const HISTORY_STORAGE_KEY = "egg_calculator_history_v1";
-const EGGS_PER_TRAY = 30;
-
-const DEFAULT_STATE: CalculatorState = {
-  eggsPerTray: EGGS_PER_TRAY,
-  stacks: [
-    { id: "1", traysPerStack: 20, stacksCount: "" },
-  ],
-  looseEntries: {
-    good: [],
-    cracked: [],
-    broken: [],
-    spoiled: [],
-  },
-  nextDaySell: "",
-};
-
 export function EggCalculator() {
+  const router = useRouter();
   const validEggsPerTray = EGGS_PER_TRAY;
+  const hasHydratedRef = useRef(false);
   const [stacks, setStacks] = useState<StackRow[]>([
     { id: "1", traysPerStack: 20, stacksCount: "" },
   ]);
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<"calculator" | "history">("calculator");
-
   // Product selection & verification state
   const [selectedProductId, setSelectedProductId] = useState<string>("");
-
-  // History state & filter
-  const [history, setHistory] = useState<CalculatorHistoryEntry[]>([]);
-  const [historyProductFilter, setHistoryProductFilter] = useState<string>("all");
 
   // Fetch active products for optional stock verification (Read-only)
   const { data: productsData } = useQuery({
@@ -169,77 +119,54 @@ export function EggCalculator() {
   const [rowToDelete, setRowToDelete] = useState<StackRow | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
-  // Restore history from localStorage
-  useEffect(() => {
-    try {
-      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (savedHistory) {
-        const parsed = JSON.parse(savedHistory);
-        if (Array.isArray(parsed)) setHistory(parsed);
-      }
-    } catch (err) {
-      console.warn("Failed to load calculator history from localStorage:", err);
-    }
-  }, []);
-
   // Restore from localStorage on initial mount with backward compatibility
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as CalculatorState;
-        if (Array.isArray(parsed.stacks) && parsed.stacks.length > 0) setStacks(parsed.stacks);
-
-        if (parsed.selectedProductId) {
-          setSelectedProductId(parsed.selectedProductId);
-        }
-
-        if (parsed.looseEntries && typeof parsed.looseEntries === "object") {
-          setLooseEntries({
-            good: Array.isArray(parsed.looseEntries.good) ? parsed.looseEntries.good : [],
-            cracked: Array.isArray(parsed.looseEntries.cracked) ? parsed.looseEntries.cracked : [],
-            broken: Array.isArray(parsed.looseEntries.broken) ? parsed.looseEntries.broken : [],
-            spoiled: Array.isArray(parsed.looseEntries.spoiled) ? parsed.looseEntries.spoiled : [],
-          });
-        } else {
-          // Legacy single-number migration
-          const migrateLegacy = (val: number | "" | undefined): number[] => {
-            const num = Number(val);
-            return !isNaN(num) && num > 0 ? [num] : [];
-          };
-
-          setLooseEntries({
-            good: migrateLegacy(parsed.looseGood),
-            cracked: migrateLegacy(parsed.looseCracked),
-            broken: migrateLegacy(parsed.looseBroken),
-            spoiled: migrateLegacy(parsed.looseSpoiled),
-          });
-        }
-
-        if (parsed.nextDaySell !== undefined) {
-          const nds = parsed.nextDaySell === "" ? "" : Number(parsed.nextDaySell);
-          setNextDaySell(!isNaN(Number(nds)) ? nds : "");
-        }
+    const parsed = readCalculatorState();
+    if (parsed) {
+      if (Array.isArray(parsed.stacks) && parsed.stacks.length > 0) {
+        setStacks(parsed.stacks);
       }
-    } catch (err) {
-      console.warn("Failed to load calculator state from localStorage:", err);
+
+      if (parsed.selectedProductId) {
+        setSelectedProductId(parsed.selectedProductId);
+      }
+
+      if (parsed.looseEntries && typeof parsed.looseEntries === "object") {
+        setLooseEntries(normalizeLooseEntries(parsed.looseEntries));
+      } else {
+        // Legacy single-number migration
+        const migrateLegacy = (val: number | "" | undefined): number[] => {
+          const num = Number(val);
+          return !isNaN(num) && num > 0 ? [num] : [];
+        };
+
+        setLooseEntries({
+          good: migrateLegacy(parsed.looseGood),
+          cracked: migrateLegacy(parsed.looseCracked),
+          broken: migrateLegacy(parsed.looseBroken),
+          spoiled: migrateLegacy(parsed.looseSpoiled),
+        });
+      }
+
+      if (parsed.nextDaySell !== undefined) {
+        const nds = parsed.nextDaySell === "" ? "" : Number(parsed.nextDaySell);
+        setNextDaySell(!isNaN(Number(nds)) ? nds : "");
+      }
     }
+    hasHydratedRef.current = true;
   }, []);
 
-  // Persist to localStorage on state change
+  // Persist to localStorage on state change (after initial hydration)
   useEffect(() => {
-    try {
-      const state: CalculatorState = {
-        eggsPerTray: EGGS_PER_TRAY,
-        stacks,
-        looseEntries,
-        nextDaySell,
-        selectedProductId,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (err) {
-      console.warn("Failed to save calculator state to localStorage:", err);
-    }
+    if (!hasHydratedRef.current) return;
+    const state: CalculatorState = {
+      eggsPerTray: EGGS_PER_TRAY,
+      stacks,
+      looseEntries,
+      nextDaySell,
+      selectedProductId,
+    };
+    writeCalculatorState(state);
   }, [stacks, looseEntries, nextDaySell, selectedProductId]);
 
   // Calculations
@@ -406,7 +333,7 @@ export function EggCalculator() {
     });
     setNextDaySell("");
     setSelectedProductId("");
-    localStorage.removeItem(STORAGE_KEY);
+    clearCalculatorState();
     setIsResetModalOpen(false);
     toast.success("Calculator reset to initial defaults.");
   };
@@ -425,18 +352,11 @@ export function EggCalculator() {
       if (numLooseSpoiled > 0) looseLines.push(`+ নষ্ট ডিম: ${numLooseSpoiled.toLocaleString()} টি`);
       if (nextDaySellEggs > 0) looseLines.push(`+ পরের দিনের বিক্রি: ${nextDaySellEggs.toLocaleString()} টি`);
 
-      let stockVerificationText = "";
-      if (selectedProduct) {
-        const sys = selectedProduct.current_stock ?? 0;
-        const diff = grandTotalEggs - sys;
-        const diffStr =
-          diff === 0
-            ? "হুবহু মিলে গেছে"
-            : diff < 0
-            ? `${diff.toLocaleString()} টি ঘাটতি (Shortage)`
-            : `+${diff.toLocaleString()} টি অতিরিক্ত (Surplus)`;
-        stockVerificationText = `\n------------------------------\nপণ্য: ${selectedProduct.name}\nসিস্টেম স্টক: ${sys.toLocaleString()} টি\nস্টক যাচাই: ${diffStr}`;
-      }
+      const stockVerificationText = formatStockVerificationText(
+        selectedProduct?.name,
+        selectedProduct?.current_stock,
+        grandTotalEggs
+      );
 
       const text = `🥚 ডিমের হিসাব বিবরণী
 ------------------------------
@@ -449,13 +369,13 @@ ${looseLines.length > 0 ? `\n${looseLines.join("\n")}\n` : ""}------------------
 সর্বমোট ডিম: ${grandTotalEggs.toLocaleString()} টি
 ট্রে হিসেবে: ${grandTotalConversion.fullTrays} ট্রে, ${grandTotalConversion.remainderEggs} ডিম${stockVerificationText}
 ------------------------------
-NextEgg Poultry ERP`;
+Akota Poultry`;
 
       await navigator.clipboard.writeText(text);
       setIsCopied(true);
       toast.success("হিসাবের সারসংক্ষেপ কপি করা হয়েছে!");
       setTimeout(() => setIsCopied(false), 2500);
-    } catch (err) {
+    } catch {
       toast.error("Failed to copy to clipboard.");
     }
   };
@@ -492,160 +412,19 @@ NextEgg Poultry ERP`;
       stockDifference: stockDifference ?? null,
     };
 
-    const updatedHistory = [newEntry, ...history];
-    setHistory(updatedHistory);
-    try {
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
-    } catch (err) {
-      console.warn("Failed to save history to localStorage:", err);
-    }
-    toast.success("হিসাবটি সফলভাবে হিস্ট্রিতে সংরক্ষণ করা হয়েছে!");
-  };
-
-  const handleLoadFromHistory = (entry: CalculatorHistoryEntry) => {
-    if (Array.isArray(entry.stacks) && entry.stacks.length > 0) {
-      setStacks(entry.stacks);
-    }
-    if (entry.looseEntries) {
-      setLooseEntries(entry.looseEntries);
-    }
-    setNextDaySell(entry.nextDaySell ?? "");
-    if (entry.productId) {
-      setSelectedProductId(entry.productId);
-    }
-    setActiveTab("calculator");
-    toast.success("হিসাবটি ক্যালকুলেটরে লোড করা হয়েছে!");
-  };
-
-  const handleDeleteHistoryItem = (id: string) => {
-    const updated = history.filter((item) => item.id !== id);
-    setHistory(updated);
-    try {
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.warn("Failed to update history in localStorage:", err);
-    }
-    toast.success("হিস্ট্রি আইটেম মুছে ফেলা হয়েছে।");
-  };
-
-  const handleClearAllHistory = () => {
-    if (
-      typeof window !== "undefined" &&
-      window.confirm("আপনি কি নিশ্চিত যে সকল সংরক্ষিত হিস্ট্রি মুছে ফেলতে চান?")
-    ) {
-      setHistory([]);
-      try {
-        localStorage.removeItem(HISTORY_STORAGE_KEY);
-      } catch (err) {
-        console.warn("Failed to clear history from localStorage:", err);
-      }
-      toast.success("সকল হিস্ট্রি মুছে ফেলা হয়েছে।");
-    }
-  };
-
-  const handleCopyHistoryItem = async (entry: CalculatorHistoryEntry) => {
-    try {
-      const stacksBreakdown = entry.stacks
-        .map(
-          (r) =>
-            `${r.traysPerStack || 0} × ${r.stacksCount || 0} = ${(Number(r.traysPerStack) || 0) * (Number(r.stacksCount) || 0)}`
-        )
-        .join("\n");
-
-      let stockVerificationText = "";
-      if (entry.productName && entry.systemStock !== null && entry.systemStock !== undefined) {
-        const diff = entry.stockDifference ?? (entry.grandTotalEggs - entry.systemStock);
-        const diffStr =
-          diff === 0
-            ? "হুবহু মিলে গেছে"
-            : diff < 0
-            ? `${diff.toLocaleString()} টি ঘাটতি (Shortage)`
-            : `+${diff.toLocaleString()} টি অতিরিক্ত (Surplus)`;
-        stockVerificationText = `\n------------------------------\nপণ্য: ${entry.productName}\nসিস্টেম স্টক: ${entry.systemStock.toLocaleString()} টি\nস্টক যাচাই: ${diffStr}`;
-      }
-
-      const text = `🥚 ডিমের হিসাব বিবরণী (${entry.formattedDate})
-------------------------------
-${stacksBreakdown}
-------------------------------
-মোট ট্রে: ${entry.totalTrays.toLocaleString()} ট্রে
-ট্রে ডিম: ${entry.totalTrayEggs.toLocaleString()} টি
-খোলা ডিম: ${entry.totalLooseEggs.toLocaleString()} টি
-------------------------------
-সর্বমোট ডিম: ${entry.grandTotalEggs.toLocaleString()} টি
-ট্রে হিসেবে: ${entry.grandTotalConversion.fullTrays} ট্রে, ${entry.grandTotalConversion.remainderEggs} ডিম${stockVerificationText}
-------------------------------
-NextEgg Poultry ERP`;
-
-      await navigator.clipboard.writeText(text);
-      toast.success("হিসাব ক্লিপবোর্ডে কপি করা হয়েছে!");
-    } catch (err) {
-      toast.error("Failed to copy to clipboard.");
-    }
-  };
-
-  const filteredHistory = useMemo(() => {
-    if (historyProductFilter === "all") return history;
-    return history.filter((h) => h.productName === historyProductFilter);
-  }, [history, historyProductFilter]);
-
-  const historyProductOptions = useMemo(() => {
-    const names = new Set<string>();
-    history.forEach((h) => {
-      if (h.productName) names.add(h.productName);
+    const existingHistory = readCalculatorHistory();
+    writeCalculatorHistory([newEntry, ...existingHistory]);
+    toast.success("হিসাবটি সফলভাবে হিস্ট্রিতে সংরক্ষণ করা হয়েছে!", {
+      action: {
+        label: "হিস্ট্রি দেখুন",
+        onClick: () => router.push("/calculators/history"),
+      },
     });
-    return Array.from(names);
-  }, [history]);
+  };
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
-      {/* Navigation Tabs Header: Calculator vs History Log */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant={activeTab === "calculator" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("calculator")}
-            className="h-8.5 text-xs font-bold gap-1.5 rounded-lg"
-          >
-            <Calculator className="h-3.5 w-3.5" />
-            <span>ক্যালকুলেটর (Calculator)</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant={activeTab === "history" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("history")}
-            className="h-8.5 text-xs font-bold gap-1.5 rounded-lg"
-          >
-            <History className="h-3.5 w-3.5" />
-            <span>হিস্ট্রি লগ (History)</span>
-            {history.length > 0 && (
-              <Badge
-                variant={activeTab === "history" ? "secondary" : "default"}
-                className="ml-1 text-[10px] px-1.5 py-0 font-mono"
-              >
-                {history.length}
-              </Badge>
-            )}
-          </Button>
-        </div>
-
-        {activeTab === "calculator" && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-            <span>স্ট্যান্ডার্ড:</span>
-            <Badge variant="outline" className="font-semibold text-[11px]">
-              {validEggsPerTray} ডিম / ট্রে
-            </Badge>
-          </div>
-        )}
-      </div>
-
-      {/* TAB 1: CALCULATOR */}
-      {activeTab === "calculator" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Left Column: Tray Stacks & Loose/Damaged Categories (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
             {/* Tray Stacks Card */}
@@ -1245,194 +1024,6 @@ NextEgg Poultry ERP`;
           </Card>
         </div>
       </div>
-      )}
-
-      {/* TAB 2: HISTORY LOG */}
-      {activeTab === "history" && (
-        <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
-          <CardHeader className="p-3.5 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <History className="h-4 w-4 text-primary" />
-                <span>ক্যালকুলেটর হিস্ট্রি লগ (Calculation History)</span>
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                তারিখ ও পণ্য অনুযায়ী পূর্বে সংরক্ষিত হিসাবসমূহ
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {history.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearAllHistory}
-                  className="h-8 text-xs text-muted-foreground hover:text-destructive border-border/70 rounded-lg gap-1"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>সব মুছুন</span>
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-3.5 sm:p-4 space-y-3">
-            {/* Optional Filter by Product */}
-            {history.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-border/50">
-                <span className="text-xs font-medium text-muted-foreground">পণ্য ফিল্টার:</span>
-                <select
-                  value={historyProductFilter}
-                  onChange={(e) => setHistoryProductFilter(e.target.value)}
-                  className="h-8 text-xs font-medium bg-background border border-border/80 rounded-lg px-2 text-foreground"
-                >
-                  <option value="all">সকল পণ্য ({history.length})</option>
-                  {historyProductOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* History Items List */}
-            {filteredHistory.length === 0 ? (
-              <div className="py-12 text-center space-y-2">
-                <History className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-                <h4 className="text-sm font-semibold text-foreground">কোনো সংরক্ষিত হিস্ট্রি নেই</h4>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                  ক্যালকুলেটরে হিসাব করার পর &quot;হিস্ট্রিতে সংরক্ষণ করুন&quot; বাটনে ক্লিক করলে তা এখানে তারিখ অনুযায়ী সংরক্ষিত থাকবে।
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveTab("calculator")}
-                  className="mt-2 h-8 text-xs font-semibold rounded-lg"
-                >
-                  ক্যালকুলেটরে যান
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredHistory.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 sm:p-4 rounded-xl border border-border/70 bg-muted/10 hover:bg-muted/20 transition-colors space-y-2.5"
-                  >
-                    {/* Item Header */}
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          <span>{item.formattedDate}</span>
-                        </span>
-                        {item.productName ? (
-                          <Badge variant="secondary" className="font-semibold text-xs bg-primary/10 text-primary border-primary/20">
-                            {item.productName}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs text-muted-foreground">
-                            সাধারণ গণনা
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 ml-auto">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleLoadFromHistory(item)}
-                          className="h-7.5 px-2.5 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10 rounded-lg gap-1"
-                          title="এই হিসাবটি ক্যালকুলেটরে লোড করুন"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                          <span>লোড করুন</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCopyHistoryItem(item)}
-                          className="h-7.5 px-2 text-xs text-muted-foreground hover:text-foreground rounded-lg"
-                          title="কপি করুন"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteHistoryItem(item.id)}
-                          className="h-7.5 px-2 text-xs text-muted-foreground hover:text-destructive rounded-lg"
-                          title="মুছে ফেলুন"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Item Body: Result & Breakdown */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs font-mono bg-background p-2.5 rounded-lg border border-border/50">
-                      <div>
-                        <span className="text-muted-foreground text-[11px] block font-sans">সর্বমোট ডিম:</span>
-                        <strong className="text-sm font-bold text-foreground">
-                          {item.grandTotalEggs.toLocaleString()} টি
-                        </strong>
-                        <span className="text-[11px] text-muted-foreground block">
-                          ({item.grandTotalConversion.fullTrays} ট্রে, {item.grandTotalConversion.remainderEggs} ডিম)
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-muted-foreground text-[11px] block font-sans">খাঁচা হিসাব:</span>
-                        <span className="text-foreground">
-                          {item.stacks.map((s) => `${s.traysPerStack || 0}×${s.stacksCount || 0}`).join(" + ")}
-                        </span>
-                        <span className="text-[11px] text-teal-600 dark:text-teal-400 block font-bold">
-                          = {item.totalTrays} ট্রে ({item.totalTrayEggs.toLocaleString()} টি)
-                        </span>
-                      </div>
-
-                      <div>
-                        {item.systemStock !== null && item.systemStock !== undefined ? (
-                          <div>
-                            <span className="text-muted-foreground text-[11px] block font-sans">স্টক তুলনা:</span>
-                            <span className="text-muted-foreground">সিস্টেম: {item.systemStock.toLocaleString()} টি</span>
-                            <div className="mt-0.5">
-                              {item.stockDifference === 0 ? (
-                                <span className="font-bold text-emerald-600 text-xs">✓ হুবহু মিলেছে</span>
-                              ) : (item.stockDifference || 0) < 0 ? (
-                                <span className="font-bold text-destructive text-xs">
-                                  {item.stockDifference?.toLocaleString()} টি ঘাটতি
-                                </span>
-                              ) : (
-                                <span className="font-bold text-blue-600 text-xs">
-                                  +{item.stockDifference?.toLocaleString()} টি অতিরিক্ত
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <span className="text-muted-foreground text-[11px] block font-sans">খোলা ডিম:</span>
-                            <span className="text-foreground">
-                              মোট {item.totalLooseEggs.toLocaleString()} টি
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Confirmation Modal: Delete Stack Row */}
       {rowToDelete && (

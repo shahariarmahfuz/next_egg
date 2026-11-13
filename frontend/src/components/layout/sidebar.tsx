@@ -43,6 +43,7 @@ import {
   Boxes,
   Calculator,
   Egg,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -288,6 +289,11 @@ const CALCULATOR_ITEMS = [
     href: "/calculators/egg",
     label: "Egg Calculator",
     icon: Egg,
+  },
+  {
+    href: "/calculators/history",
+    label: "Calculator History",
+    icon: History,
   },
 ];
 
