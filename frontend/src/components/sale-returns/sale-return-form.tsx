@@ -45,6 +45,8 @@ import { SaleItem, SaleReturnableSummary, SaleReturnItem } from "@/types";
 import { formatCurrency, formatDate } from "./sale-return-export-utils";
 import { toDateTimeLocalStr } from "@/utils/business-date";
 
+const roundAmount = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
+
 const returnItemSchema = z.object({
   product_id: z.string().min(1),
   product_name: z.string(),
@@ -56,6 +58,8 @@ const returnItemSchema = z.object({
   unit_price: z.number(),
   selected: z.boolean(),
   return_qty: z.number().min(0),
+  return_amount: z.number().min(0),
+  is_manual_amount: z.boolean().optional(),
 });
 
 const saleReturnFormSchema = z.object({
@@ -147,6 +151,14 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
 
       const formItems = saleSummary.items.map((item) => {
         const existingInInitial = initialData?.items?.find((i) => i.product_id === item.product_id);
+        const initQty = existingInInitial?.quantity || 0;
+        const initAmount = existingInInitial
+          ? roundAmount(existingInInitial.total_price)
+          : 0;
+        const isManual = existingInInitial
+          ? Math.abs(existingInInitial.total_price - initQty * item.unit_price) > 0.005
+          : false;
+
         return {
           product_id: item.product_id,
           product_name: item.product_name,
@@ -157,7 +169,9 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
           returnable_qty: item.returnable_qty + (existingInInitial?.quantity || 0),
           unit_price: item.unit_price,
           selected: !!existingInInitial,
-          return_qty: existingInInitial?.quantity || 0,
+          return_qty: initQty,
+          return_amount: initAmount,
+          is_manual_amount: isManual,
         };
       });
 
@@ -169,14 +183,16 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
   const watchedRefund = watch("refund_amount") || 0;
 
   // Calculate return grand total
-  const calculatedReturnTotal = watchedItems.reduce((sum, item) => {
-    if (item.selected && item.return_qty > 0) {
-      return sum + item.return_qty * item.unit_price;
-    }
-    return sum;
-  }, 0);
+  const calculatedReturnTotal = roundAmount(
+    watchedItems.reduce((sum, item) => {
+      if (item.selected && item.return_qty > 0) {
+        return sum + (item.return_amount ?? roundAmount(item.return_qty * item.unit_price));
+      }
+      return sum;
+    }, 0)
+  );
 
-  const netCreditToDue = Math.max(0, calculatedReturnTotal - watchedRefund);
+  const netCreditToDue = Math.max(0, roundAmount(calculatedReturnTotal - watchedRefund));
 
   const handleSelectSale = (sale: SaleItem) => {
     if (sale.id !== selectedSaleId) {
@@ -190,20 +206,40 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
     }
   };
 
-  const toggleItemSelection = (idx: number, isSelected: boolean, returnQty: number, returnableQty: number) => {
+  const toggleItemSelection = (
+    idx: number,
+    isSelected: boolean,
+    returnQty: number,
+    returnableQty: number,
+    unitPrice: number,
+    isManualAmount?: boolean
+  ) => {
     const nextVal = !isSelected;
     setValue(`items.${idx}.selected`, nextVal);
     if (nextVal && returnQty === 0) {
-      setValue(`items.${idx}.return_qty`, Math.min(1, returnableQty));
+      const defaultQty = Math.min(1, returnableQty);
+      setValue(`items.${idx}.return_qty`, defaultQty);
+      if (!isManualAmount) {
+        setValue(`items.${idx}.return_amount`, roundAmount(defaultQty * unitPrice));
+      }
     }
   };
 
-  const updateReturnQty = (idx: number, rawValue: string, isSelected: boolean) => {
+  const updateReturnQty = (idx: number, rawValue: string, isSelected: boolean, unitPrice: number) => {
     const val = parseFloat(rawValue) || 0;
     setValue(`items.${idx}.return_qty`, val);
+    setValue(`items.${idx}.return_amount`, roundAmount(val * unitPrice));
+    setValue(`items.${idx}.is_manual_amount`, false);
     if (val > 0 && !isSelected) {
       setValue(`items.${idx}.selected`, true);
     }
+  };
+
+  const updateReturnAmount = (idx: number, rawValue: string) => {
+    const parsed = parseFloat(rawValue);
+    const val = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    setValue(`items.${idx}.return_amount`, val);
+    setValue(`items.${idx}.is_manual_amount`, true);
   };
 
   const handleFormSubmit = async (values: SaleReturnFormValues) => {
@@ -473,7 +509,8 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                         const itemWatch = watchedItems[idx] || {};
                         const isSelected = !!itemWatch.selected;
                         const returnQty = itemWatch.return_qty || 0;
-                        const lineTotal = isSelected ? returnQty * field.unit_price : 0;
+                        const returnAmount = itemWatch.return_amount ?? roundAmount(returnQty * field.unit_price);
+                        const lineTotal = isSelected ? returnAmount : 0;
 
                         return (
                           <tr
@@ -483,7 +520,16 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                             <td className="p-3 text-center">
                               <button
                                 type="button"
-                                onClick={() => toggleItemSelection(idx, isSelected, returnQty, field.returnable_qty)}
+                                onClick={() =>
+                                  toggleItemSelection(
+                                    idx,
+                                    isSelected,
+                                    returnQty,
+                                    field.returnable_qty,
+                                    field.unit_price,
+                                    itemWatch.is_manual_amount
+                                  )
+                                }
                                 className="text-primary hover:text-primary/80"
                               >
                                 {isSelected ? (
@@ -512,7 +558,7 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                                 max={field.returnable_qty}
                                 disabled={!isSelected}
                                 value={returnQty}
-                                onChange={(e) => updateReturnQty(idx, e.target.value, isSelected)}
+                                onChange={(e) => updateReturnQty(idx, e.target.value, isSelected, field.unit_price)}
                                 className="w-24 text-center text-xs font-bold"
                               />
                               {errors.items?.[idx]?.return_qty && (
@@ -522,8 +568,16 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                               )}
                             </td>
 
-                            <td className="p-3 text-right font-bold text-amber-500">
-                              {formatCurrency(lineTotal)}
+                            <td className="p-3 text-right">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                disabled={!isSelected}
+                                value={isSelected ? lineTotal : 0}
+                                onChange={(e) => updateReturnAmount(idx, e.target.value)}
+                                className="w-28 ml-auto text-right text-xs font-bold text-amber-500"
+                              />
                             </td>
                           </tr>
                         );
@@ -538,7 +592,8 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                     const itemWatch = watchedItems[idx] || {};
                     const isSelected = !!itemWatch.selected;
                     const returnQty = itemWatch.return_qty || 0;
-                    const lineTotal = isSelected ? returnQty * field.unit_price : 0;
+                    const returnAmount = itemWatch.return_amount ?? roundAmount(returnQty * field.unit_price);
+                    const lineTotal = isSelected ? returnAmount : 0;
 
                     return (
                       <div
@@ -551,7 +606,16 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                         {/* Top row: Select toggle + Product info + Unit price */}
                         <button
                           type="button"
-                          onClick={() => toggleItemSelection(idx, isSelected, returnQty, field.returnable_qty)}
+                          onClick={() =>
+                            toggleItemSelection(
+                              idx,
+                              isSelected,
+                              returnQty,
+                              field.returnable_qty,
+                              field.unit_price,
+                              itemWatch.is_manual_amount
+                            )
+                          }
                           className="w-full flex items-start justify-between gap-3 text-left"
                         >
                           <div className="flex items-start gap-2.5 min-w-0">
@@ -601,8 +665,8 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                           </div>
                         </div>
 
-                        {/* Bottom row: Return Qty input + Line total */}
-                        <div className="grid grid-cols-2 gap-3 items-end pt-0.5">
+                        {/* Bottom row: Return Qty input + Editable Return Amount */}
+                        <div className="grid grid-cols-2 gap-3 items-start pt-0.5">
                           <div className="space-y-1">
                             <label className="text-[11px] font-semibold text-muted-foreground block">
                               Return Qty ({field.unit})
@@ -614,7 +678,7 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                               max={field.returnable_qty}
                               disabled={!isSelected}
                               value={returnQty}
-                              onChange={(e) => updateReturnQty(idx, e.target.value, isSelected)}
+                              onChange={(e) => updateReturnQty(idx, e.target.value, isSelected, field.unit_price)}
                               className="h-9 text-center text-sm font-bold"
                             />
                             {errors.items?.[idx]?.return_qty && (
@@ -623,11 +687,19 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
                               </p>
                             )}
                           </div>
-                          <div className="text-right pb-1">
-                            <div className="text-[11px] text-muted-foreground font-medium">Return Amount</div>
-                            <div className="text-base font-extrabold text-amber-500">
-                              {formatCurrency(lineTotal)}
-                            </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-semibold text-muted-foreground block text-right">
+                              Return Amount ($)
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              disabled={!isSelected}
+                              value={isSelected ? lineTotal : 0}
+                              onChange={(e) => updateReturnAmount(idx, e.target.value)}
+                              className="h-9 text-right text-sm font-extrabold text-amber-500"
+                            />
                           </div>
                         </div>
                       </div>

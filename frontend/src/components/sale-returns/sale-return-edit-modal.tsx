@@ -30,6 +30,7 @@ export function SaleReturnEditModal({ saleReturn, isOpen, onClose, onSuccess }: 
           product_id: i.product_id,
           quantity: i.return_qty,
           unit_price: i.unit_price,
+          total_price: i.return_amount,
         }));
 
       const payload: SaleReturnUpdatePayload = {

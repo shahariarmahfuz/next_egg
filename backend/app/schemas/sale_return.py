@@ -21,6 +21,7 @@ class SaleReturnItemCreate(BaseModel):
     product_id: str = Field(..., description="Target Product UUID")
     quantity: float = Field(..., gt=0.0, description="Returned Quantity (> 0)")
     unit_price: float = Field(..., ge=0.0, description="Unit Price ($)")
+    total_price: Optional[float] = Field(None, ge=0.0, description="Optional manual line return amount ($)")
 
     @field_validator("quantity")
     def validate_quantity(cls, v: float) -> float:

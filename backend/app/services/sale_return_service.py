@@ -23,6 +23,13 @@ from app.schemas.sale_return import (
 )
 
 
+def _resolve_item_total(quantity: float, unit_price: float, total_price: Optional[float]) -> float:
+    """Uses manual line total when provided, otherwise calculates quantity * unit_price."""
+    if total_price is not None:
+        return round(max(0.0, total_price), 2)
+    return quantity * unit_price
+
+
 class SaleReturnService:
     async def get_sale_returnable_info(self, db: AsyncSession, sale_identifier: str) -> dict:
         """
@@ -125,7 +132,7 @@ class SaleReturnService:
                             f"exceeds remaining returnable quantity ({returnable_qty})."
                         )
 
-                item_total = item_in.quantity * item_in.unit_price
+                item_total = _resolve_item_total(item_in.quantity, item_in.unit_price, item_in.total_price)
                 return_grand_total += item_total
 
                 prepared_items.append({
@@ -335,7 +342,7 @@ class SaleReturnService:
                                 f"Returned quantity ({item_in.quantity}) for product '{product.name}' exceeds returnable limit ({returnable_qty})."
                             )
 
-                    item_total = item_in.quantity * item_in.unit_price
+                    item_total = _resolve_item_total(item_in.quantity, item_in.unit_price, item_in.total_price)
                     new_grand_total += item_total
 
                     ret_item = SaleReturnItem(
