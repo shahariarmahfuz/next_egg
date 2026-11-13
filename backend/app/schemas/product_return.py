@@ -124,8 +124,8 @@ class ProductReturnResponse(BaseModel):
 class PurchaseReturnableItem(BaseModel):
     product_id: str
     product_name: str
-    product_code: str
-    unit: str
+    product_code: Optional[str] = ""
+    unit: Optional[str] = "pcs"
     purchased_quantity: float
     previously_returned_qty: float
     returnable_qty: float
@@ -139,8 +139,8 @@ class PurchaseReturnableSummary(BaseModel):
     purchase_date: datetime
     supplier_id: str
     supplier_name: str
-    supplier_phone: str
-    supplier_code: str
+    supplier_phone: Optional[str] = ""
+    supplier_code: Optional[str] = ""
     grand_total: float
     paid_amount: float
     due_amount: float

@@ -96,7 +96,13 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
   const searchedSales: SaleItem[] = salesSearchData?.data?.items || [];
 
   // Query Returnable Info for selected sale
-  const { data: returnableData, isLoading: isReturnableLoading } = useQuery({
+  const {
+    data: returnableData,
+    isLoading: isReturnableLoading,
+    isError: isReturnableError,
+    error: returnableError,
+    refetch: refetchReturnableInfo,
+  } = useQuery({
     queryKey: ["sale-returnable-info", selectedSaleId],
     queryFn: () => saleReturnService.getReturnableInfo(selectedSaleId),
     enabled: !!selectedSaleId,
@@ -144,8 +150,8 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
         return {
           product_id: item.product_id,
           product_name: item.product_name,
-          product_code: item.product_code,
-          unit: item.unit,
+          product_code: item.product_code || "",
+          unit: item.unit || "pcs",
           sold_quantity: item.sold_quantity,
           previously_returned_qty: item.previously_returned_qty,
           returnable_qty: item.returnable_qty + (existingInInitial?.quantity || 0),
@@ -173,6 +179,9 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
   const netCreditToDue = Math.max(0, calculatedReturnTotal - watchedRefund);
 
   const handleSelectSale = (sale: SaleItem) => {
+    if (sale.id !== selectedSaleId) {
+      replace([]);
+    }
     setSelectedSale(sale);
     setSelectedSaleId(sale.id);
     setValue("sale_id", sale.id);
@@ -407,6 +416,20 @@ export function SaleReturnForm({ initialData, onSubmit, isSubmitting }: SaleRetu
             {isReturnableLoading ? (
               <div className="p-8 text-center text-sm text-muted-foreground flex justify-center items-center gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" /> Loading invoice line items...
+              </div>
+            ) : isReturnableError ? (
+              <div className="p-6 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-sm flex flex-col items-center justify-center gap-3 text-center">
+                <div className="flex items-center gap-2 font-medium">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>
+                    {(returnableError as any)?.response?.data?.message ||
+                      (returnableError as Error)?.message ||
+                      "Failed to load invoice line items."}
+                  </span>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => refetchReturnableInfo()}>
+                  Retry
+                </Button>
               </div>
             ) : fields.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">

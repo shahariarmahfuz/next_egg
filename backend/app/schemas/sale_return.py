@@ -122,8 +122,8 @@ class SaleReturnResponse(BaseModel):
 class SaleReturnableItem(BaseModel):
     product_id: str
     product_name: str
-    product_code: str
-    unit: str
+    product_code: Optional[str] = ""
+    unit: Optional[str] = "pcs"
     sold_quantity: float
     previously_returned_qty: float
     returnable_qty: float
@@ -136,8 +136,8 @@ class SaleReturnableSummary(BaseModel):
     sale_date: datetime
     customer_id: str
     customer_name: str
-    customer_phone: str
-    customer_code: str
+    customer_phone: Optional[str] = ""
+    customer_code: Optional[str] = ""
     grand_total: float
     paid_amount: float
     due_amount: float
