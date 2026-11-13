@@ -22,6 +22,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon\\.ico|icon\\.svg|akota-logo\\.svg|akota-icon\\.svg|apple-touch-icon\\.png|icon-192\\.png|favicon-32x32\\.png).*)",
+    "/((?!api|_next/static|_next/image|favicon\\.ico|icon\\.png|akota-logo\\.png|akota-logo-dark\\.png|akota-mark\\.png|akota-mark-dark\\.png|apple-touch-icon\\.png|icon-192\\.png|favicon-32x32\\.png).*)",
   ],
 };

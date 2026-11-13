@@ -172,9 +172,8 @@ export default function LoginPage() {
   };
 
   const brandName = settings.business_name || DEFAULT_BRAND_NAME;
-  const initial = brandName.charAt(0).toUpperCase();
   const resolvedBrand = resolveBrandingAssets(settings);
-  const logoUrl = !logoError ? resolvedBrand.loginLogo : DEFAULT_BRAND_ASSETS.loginLogo;
+  const useRemoteLoginLogo = resolvedBrand.isRemoteLoginLogo && !logoError;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -185,25 +184,39 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in-50 zoom-in-95 duration-500">
         {/* Brand Header */}
         <div className="text-center space-y-2 flex flex-col items-center">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={brandName}
-              onError={() => {
-                if (!logoError) setLogoError(true);
-              }}
-              className="h-16 w-16 rounded-2xl object-contain shadow-lg shadow-primary/30"
-            />
+          {useRemoteLoginLogo ? (
+            <>
+              <img
+                src={resolvedBrand.loginLogo}
+                alt={brandName}
+                onError={() => setLogoError(true)}
+                className="h-16 w-16 rounded-2xl object-contain bg-white shadow-lg shadow-primary/30"
+              />
+              <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+                <span className="bg-gradient-to-r from-primary via-blue-500 to-indigo-500 bg-clip-text text-transparent">
+                  {brandName}
+                </span>
+              </h1>
+            </>
           ) : (
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/30">
-              {initial}
-            </div>
+            <>
+              <img
+                src={DEFAULT_BRAND_ASSETS.loginLogo}
+                alt={brandName}
+                className="h-28 w-auto object-contain dark:hidden"
+              />
+              <img
+                src={DEFAULT_BRAND_ASSETS.loginLogoDark}
+                alt={brandName}
+                className="hidden dark:block h-28 w-auto object-contain"
+              />
+              {brandName.trim().toLowerCase() !== DEFAULT_BRAND_NAME.toLowerCase() && (
+                <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+                  {brandName}
+                </h1>
+              )}
+            </>
           )}
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-            <span className="bg-gradient-to-r from-primary via-blue-500 to-indigo-500 bg-clip-text text-transparent">
-              {brandName}
-            </span>
-          </h1>
           <p className="text-sm text-muted-foreground">
             Sign in to access your business management portal
           </p>

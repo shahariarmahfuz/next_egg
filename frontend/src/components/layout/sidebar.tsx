@@ -334,22 +334,50 @@ export function SidebarContent({
   const { settings } = useSettingsStore();
 
   const brandName = settings.business_name || DEFAULT_BRAND_NAME;
-  const initial = brandName.charAt(0).toUpperCase();
   const resolvedBrand = resolveBrandingAssets(settings);
-  const [logoSrc, setLogoSrc] = useState<string>(resolvedBrand.businessLogo);
-  const [logoFailed, setLogoFailed] = useState(false);
+  const [remoteFailed, setRemoteFailed] = useState(false);
 
   useEffect(() => {
-    setLogoSrc(resolvedBrand.businessLogo);
-    setLogoFailed(false);
+    setRemoteFailed(false);
   }, [resolvedBrand.businessLogo]);
 
-  const handleLogoError = () => {
-    if (logoSrc !== DEFAULT_BRAND_ASSETS.businessLogo) {
-      setLogoSrc(DEFAULT_BRAND_ASSETS.businessLogo);
-    } else {
-      setLogoFailed(true);
+  const useRemoteLogo = resolvedBrand.isRemoteBusinessLogo && !remoteFailed;
+
+  const renderBrandIcon = (extraClass = "") => {
+    if (useRemoteLogo) {
+      return (
+        <img
+          src={resolvedBrand.businessLogo}
+          alt={brandName}
+          onError={() => setRemoteFailed(true)}
+          className={cn(
+            "h-8 w-8 rounded-lg object-contain bg-white shrink-0 border border-border/50 transition-transform duration-200 ease-out motion-reduce:transform-none",
+            extraClass
+          )}
+        />
+      );
     }
+
+    return (
+      <>
+        <img
+          src={DEFAULT_BRAND_ASSETS.sidebarMark}
+          alt={brandName}
+          className={cn(
+            "h-8 w-8 rounded-lg object-contain shrink-0 dark:hidden transition-transform duration-200 ease-out motion-reduce:transform-none",
+            extraClass
+          )}
+        />
+        <img
+          src={DEFAULT_BRAND_ASSETS.sidebarMarkDark}
+          alt={brandName}
+          className={cn(
+            "hidden dark:block h-8 w-8 rounded-lg object-contain shrink-0 transition-transform duration-200 ease-out motion-reduce:transform-none",
+            extraClass
+          )}
+        />
+      </>
+    );
   };
 
   // Accordion state: default open if current route belongs to a group
@@ -511,35 +539,13 @@ export function SidebarContent({
             onClick={onNavigate}
             className="group/brand flex items-center gap-2.5 min-w-0 transition-opacity hover:opacity-95"
           >
-            {!logoFailed ? (
-              <img
-                src={logoSrc}
-                alt={brandName}
-                onError={handleLogoError}
-                className="h-8 w-8 rounded-lg object-contain shrink-0 transition-transform duration-200 ease-out group-hover/brand:scale-105 motion-reduce:transform-none"
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-500/20 flex items-center justify-center font-bold text-sm shrink-0 transition-transform duration-200 ease-out group-hover/brand:scale-105 motion-reduce:transform-none">
-                {initial}
-              </div>
-            )}
+            {renderBrandIcon("group-hover/brand:scale-105")}
             <span className="font-bold text-[15px] tracking-tight text-foreground truncate transition-colors duration-150 group-hover/brand:text-primary">
               {brandName}
             </span>
           </Link>
         ) : (
-          !logoFailed ? (
-            <img
-              src={logoSrc}
-              alt={brandName}
-              onError={handleLogoError}
-              className="mx-auto h-8 w-8 rounded-lg object-contain shrink-0 transition-transform duration-200 ease-out hover:scale-105 motion-reduce:transform-none"
-            />
-          ) : (
-            <div className="mx-auto h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-500/20 flex items-center justify-center font-bold text-sm shrink-0 transition-transform duration-200 ease-out hover:scale-105 motion-reduce:transform-none">
-              {initial}
-            </div>
-          )
+          renderBrandIcon("mx-auto hover:scale-105")
         )}
 
         {setCollapsed && (

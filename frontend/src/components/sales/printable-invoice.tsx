@@ -248,7 +248,7 @@ export function PrintableInvoice({
         <div className="space-y-2">
           <div className="flex items-center space-x-3">
             {businessInfo.logoUrl ? (
-              <img src={businessInfo.logoUrl} alt={businessInfo.logoText} className="h-10 w-10 rounded-xl object-contain bg-white shrink-0" />
+              <img src={businessInfo.logoUrl} alt={businessInfo.logoText} className="h-12 w-auto max-w-[140px] object-contain shrink-0" />
             ) : (
               <div className="h-10 w-10 rounded-xl bg-gray-900 text-white flex items-center justify-center font-black text-xl shadow-md">
                 {businessInfo.logoText?.charAt(0) || "E"}

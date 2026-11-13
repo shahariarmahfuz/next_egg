@@ -99,6 +99,7 @@ const timeFormats = [
 function AssetPreview({
   url,
   defaultUrl,
+  defaultDarkUrl,
   label,
   fallbackText = "No asset configured",
   className = "h-16 w-16",
@@ -106,6 +107,7 @@ function AssetPreview({
 }: {
   url?: string;
   defaultUrl?: string;
+  defaultDarkUrl?: string;
   label: string;
   fallbackText?: string;
   className?: string;
@@ -113,13 +115,13 @@ function AssetPreview({
 }) {
   const [hasError, setHasError] = useState(false);
 
-  const effectiveUrl = !hasError && url?.trim() ? url.trim() : defaultUrl;
+  const remoteUrl = !hasError && url?.trim() ? url.trim() : "";
 
   useEffect(() => {
     setHasError(false);
   }, [url]);
 
-  if (!effectiveUrl || (hasError && !defaultUrl)) {
+  if (!remoteUrl && !defaultUrl) {
     return (
       <div
         className={`${className} ${
@@ -140,14 +142,29 @@ function AssetPreview({
         isCircle ? "rounded-full" : "rounded-xl"
       } border border-border bg-card/60 overflow-hidden shadow-sm flex items-center justify-center p-1 relative group`}
     >
-      <img
-        src={effectiveUrl}
-        alt={label}
-        className="h-full w-full object-contain"
-        onError={() => {
-          if (url?.trim() && !hasError) setHasError(true);
-        }}
-      />
+      {remoteUrl ? (
+        <img
+          src={remoteUrl}
+          alt={label}
+          className="h-full w-full object-contain"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <>
+          <img
+            src={defaultUrl}
+            alt={label}
+            className={`h-full w-full object-contain ${defaultDarkUrl ? "dark:hidden" : ""}`}
+          />
+          {defaultDarkUrl && (
+            <img
+              src={defaultDarkUrl}
+              alt={label}
+              className="hidden dark:block h-full w-full object-contain"
+            />
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -812,7 +829,13 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                       <span className="text-[11px] font-medium text-muted-foreground mb-2">
                         {watchedLogo?.trim() ? "Remote Logo Preview" : "Default Akota Preview"}
                       </span>
-                      <AssetPreview url={watchedLogo} defaultUrl={DEFAULT_BRAND_ASSETS.businessLogo} label="Business Logo" className="h-16 w-32" />
+                      <AssetPreview
+                        url={watchedLogo}
+                        defaultUrl={DEFAULT_BRAND_ASSETS.businessLogo}
+                        defaultDarkUrl={DEFAULT_BRAND_ASSETS.businessLogoDark}
+                        label="Business Logo"
+                        className="h-16 w-32"
+                      />
                     </div>
                   </div>
 
@@ -857,7 +880,13 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                       <span className="text-[11px] font-medium text-muted-foreground mb-2">
                         {watchedLoginLogo?.trim() ? "Remote Login Preview" : "Default Akota Preview"}
                       </span>
-                      <AssetPreview url={watchedLoginLogo || watchedLogo} defaultUrl={DEFAULT_BRAND_ASSETS.loginLogo} label="Login Logo" className="h-14 w-28" />
+                      <AssetPreview
+                        url={watchedLoginLogo || watchedLogo}
+                        defaultUrl={DEFAULT_BRAND_ASSETS.loginLogo}
+                        defaultDarkUrl={DEFAULT_BRAND_ASSETS.loginLogoDark}
+                        label="Login Logo"
+                        className="h-14 w-28"
+                      />
                     </div>
                   </div>
 
