@@ -293,24 +293,24 @@ Akota Poultry`;
       )}
 
       <Card className="rounded-xl border-border/70 bg-card shadow-xs overflow-hidden">
-        <CardHeader className="p-3.5 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <CardTitle className="text-sm font-bold text-foreground flex flex-wrap items-center gap-2">
-              <History className="h-4 w-4 text-primary" />
-              <span>ক্যালকুলেটর হিস্ট্রি লগ (Calculation History)</span>
-              <Badge variant="secondary" className="text-[11px] px-1.5 py-0 font-mono">
+        <CardHeader className="p-3.5 sm:p-4 border-b border-border/60 bg-muted/15 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+          <div className="min-w-0">
+            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+              <History className="h-4 w-4 text-primary shrink-0" />
+              <span className="truncate">ক্যালকুলেটর হিস্ট্রি লগ</span>
+              <Badge variant="secondary" className="text-[11px] px-1.5 py-0 font-mono shrink-0">
                 {historyItems.length}
               </Badge>
             </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5">
-              <UserIcon className="h-3 w-3 text-primary shrink-0" />
-              <span>
-                {user?.full_name || user?.username || "User"} — আপনার ব্যক্তিগত তারিখ অনুযায়ী সংরক্ষিত হিসাবসমূহ
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 min-w-0">
+              <UserIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="truncate">
+                {user?.full_name || user?.username || "User"} — ব্যক্তিগত হিসাব
               </span>
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               type="button"
               variant="outline"
@@ -338,104 +338,127 @@ Akota Poultry`;
           </div>
         </CardHeader>
 
-        <CardContent className="p-3.5 sm:p-4 space-y-3">
-          {/* Date Filter (Daily Default + Date Picker + All Dates) & Product Filter */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pb-3 border-b border-border/50">
-            <div className="flex flex-wrap items-center gap-1.5">
+        <CardContent className="p-3 sm:p-4 space-y-3">
+          {/* Organized Date & Product Filter Toolbar */}
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-2 sm:p-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+            {/* Date Navigation Row */}
+            <div className="flex items-center gap-1.5 w-full lg:w-auto">
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => {
+                  setFilterMode("daily");
+                  setSelectedDate((prev) => shiftDateStr(prev, -1));
+                  setProductFilter("all");
+                }}
+                className="h-8.5 w-8.5 shrink-0 rounded-lg bg-background"
+                title="আগের দিন"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    setSelectedDate(val);
+                    setFilterMode("daily");
+                    setProductFilter("all");
+                  }
+                }}
+                className={`h-8.5 flex-1 min-w-0 lg:w-[148px] lg:flex-initial text-xs font-semibold rounded-lg px-2 bg-background ${
+                  filterMode === "daily"
+                    ? "border-primary/50"
+                    : "opacity-70"
+                }`}
+              />
+
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => {
+                  setFilterMode("daily");
+                  setSelectedDate((prev) => shiftDateStr(prev, 1));
+                  setProductFilter("all");
+                }}
+                className="h-8.5 w-8.5 shrink-0 rounded-lg bg-background"
+                title="পরের দিন"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+
               <Button
                 type="button"
                 size="sm"
-                variant={isTodaySelected ? "default" : "outline"}
+                variant={isTodaySelected ? "secondary" : "outline"}
                 onClick={() => {
                   setFilterMode("daily");
                   setSelectedDate(getTodayDateStr());
                   setProductFilter("all");
                 }}
-                className="h-8 px-2.5 text-xs font-semibold rounded-lg"
+                className={`h-8.5 px-2.5 text-xs font-semibold rounded-lg shrink-0 ${
+                  isTodaySelected
+                    ? "bg-primary/10 text-primary border border-primary/30 hover:bg-primary/15"
+                    : "bg-background"
+                }`}
               >
-                আজকের (Daily)
-              </Button>
-
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  onClick={() => {
-                    setFilterMode("daily");
-                    setSelectedDate((prev) => shiftDateStr(prev, -1));
-                    setProductFilter("all");
-                  }}
-                  className="h-8 w-8 rounded-lg"
-                  title="আগের দিন"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val) {
-                      setSelectedDate(val);
-                      setFilterMode("daily");
-                      setProductFilter("all");
-                    }
-                  }}
-                  className={`h-8 w-[142px] text-xs font-medium rounded-lg px-2 ${
-                    filterMode === "daily"
-                      ? "border-primary/60 bg-background"
-                      : "opacity-75 bg-muted/30"
-                  }`}
-                />
-
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  onClick={() => {
-                    setFilterMode("daily");
-                    setSelectedDate((prev) => shiftDateStr(prev, 1));
-                    setProductFilter("all");
-                  }}
-                  className="h-8 w-8 rounded-lg"
-                  title="পরের দিন"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <Button
-                type="button"
-                size="sm"
-                variant={filterMode === "all" ? "default" : "outline"}
-                onClick={() => {
-                  setFilterMode("all");
-                  setProductFilter("all");
-                }}
-                className="h-8 px-2.5 text-xs font-semibold rounded-lg"
-              >
-                সকল তারিখ
+                আজ
               </Button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">পণ্য:</span>
+            {/* Mode Segmented Toggle + Product Filter */}
+            <div className="flex items-center gap-2 w-full lg:w-auto">
+              <div className="inline-grid grid-cols-2 p-0.5 rounded-lg bg-background border border-border/70 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterMode("daily");
+                    setProductFilter("all");
+                  }}
+                  className={`h-7 px-2.5 text-xs font-semibold rounded-md transition-colors ${
+                    filterMode === "daily"
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  দৈনিক
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterMode("all");
+                    setProductFilter("all");
+                  }}
+                  className={`h-7 px-2.5 text-xs font-semibold rounded-md transition-colors ${
+                    filterMode === "all"
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  সব তারিখ
+                </button>
+              </div>
+
               <select
                 value={productFilter}
                 onChange={(e) => setProductFilter(e.target.value)}
-                className="h-8 text-xs font-medium bg-background border border-border/80 rounded-lg px-2 text-foreground"
+                aria-label="পণ্য ফিল্টার"
+                className="h-8.5 flex-1 min-w-0 lg:w-44 lg:flex-initial text-xs font-medium bg-background border border-border/70 rounded-lg px-2 text-foreground"
               >
-                <option value="all">সকল পণ্য</option>
+                <option value="all">পণ্য: সকল পণ্য</option>
                 {productOptions.map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>
                 ))}
               </select>
+
               {isFetching && !isLoading && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
               )}
             </div>
           </div>
