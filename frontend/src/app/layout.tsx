@@ -4,13 +4,21 @@ import { Providers } from "@/providers/providers";
 
 export const metadata: Metadata = {
   title: {
-    default: "Enterprise Business Management System",
-    template: "%s | Enterprise Hub",
+    default: "Akota Poultry",
+    template: "%s | Akota Poultry",
   },
   description:
-    "Production-grade, highly scalable Business Management System built with Next.js 16+, FastAPI, SQLAlchemy, and Turso libSQL.",
-  keywords: ["Business Management", "Enterprise API", "Next.js", "FastAPI", "Turso"],
-  authors: [{ name: "Architecture Team" }],
+    "Akota Poultry business, inventory, sales, farm production, and cash management portal.",
+  keywords: ["Akota Poultry", "Poultry Management", "Egg Trading", "Inventory", "Cash Book"],
+  authors: [{ name: "Akota Poultry" }],
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   robots: {
     index: true,
     follow: true,

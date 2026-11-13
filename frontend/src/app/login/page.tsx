@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSettingsStore } from "@/store/settings";
+import { DEFAULT_BRAND_ASSETS, DEFAULT_BRAND_NAME, resolveBrandingAssets } from "@/lib/branding";
 import { authService } from "@/services/api";
 import { toast } from "sonner";
 
@@ -170,9 +171,10 @@ export default function LoginPage() {
     setConfirmPassword("");
   };
 
-  const brandName = settings.business_name || "Enterprise Hub";
+  const brandName = settings.business_name || DEFAULT_BRAND_NAME;
   const initial = brandName.charAt(0).toUpperCase();
-  const logoUrl = !logoError ? (settings.login_logo_url || settings.business_logo || settings.app_icon_url) : null;
+  const resolvedBrand = resolveBrandingAssets(settings);
+  const logoUrl = !logoError ? resolvedBrand.loginLogo : DEFAULT_BRAND_ASSETS.loginLogo;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -187,8 +189,10 @@ export default function LoginPage() {
             <img
               src={logoUrl}
               alt={brandName}
-              onError={() => setLogoError(true)}
-              className="h-16 w-16 rounded-2xl object-contain bg-white shadow-lg shadow-primary/30"
+              onError={() => {
+                if (!logoError) setLogoError(true);
+              }}
+              className="h-16 w-16 rounded-2xl object-contain shadow-lg shadow-primary/30"
             />
           ) : (
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/30">

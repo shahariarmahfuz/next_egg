@@ -5,6 +5,7 @@ import { useSettingsStore } from "@/store/settings";
 import { apiClient } from "@/lib/api-client";
 
 import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
+import { DEFAULT_BRAND_NAME, resolveBrandingAssets } from "@/lib/branding";
 import { normalizeDateFormat, normalizeTimeFormat } from "@/utils/formatters";
 
 interface SettingsProviderProps {
@@ -44,28 +45,28 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const { settings } = useSettingsStore();
   useEffect(() => {
-    if (isLoaded && settings.business_name) {
-      document.title = settings.business_name;
+    if (!isLoaded) return;
+
+    document.title = settings.business_name?.trim() || DEFAULT_BRAND_NAME;
+
+    const resolved = resolveBrandingAssets(settings);
+
+    let iconLink: HTMLLinkElement | null = document.querySelector("link[rel='icon']");
+    if (!iconLink) {
+      iconLink = document.createElement("link");
+      iconLink.rel = "icon";
+      document.head.appendChild(iconLink);
     }
-    if (isLoaded && settings.favicon_url) {
-      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        document.head.appendChild(link);
-      }
-      link.href = settings.favicon_url;
+    iconLink.href = resolved.favicon;
+
+    let appleLink: HTMLLinkElement | null = document.querySelector("link[rel='apple-touch-icon']");
+    if (!appleLink) {
+      appleLink = document.createElement("link");
+      appleLink.rel = "apple-touch-icon";
+      document.head.appendChild(appleLink);
     }
-    if (isLoaded && settings.app_icon_url) {
-      let appleLink: HTMLLinkElement | null = document.querySelector("link[rel='apple-touch-icon']");
-      if (!appleLink) {
-        appleLink = document.createElement("link");
-        appleLink.rel = "apple-touch-icon";
-        document.head.appendChild(appleLink);
-      }
-      appleLink.href = settings.app_icon_url;
-    }
-  }, [settings.business_name, settings.favicon_url, settings.app_icon_url, isLoaded]);
+    appleLink.href = resolved.appIcon;
+  }, [settings, settings.business_name, settings.favicon_url, settings.app_icon_url, isLoaded]);
 
   // Wait until settings are loaded to prevent hydration mismatch with formats
   if (!isLoaded) {

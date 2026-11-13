@@ -5,6 +5,7 @@ import { formatCurrency, formatDate } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 
 import { useSettingsStore } from "@/store/settings";
+import { DEFAULT_BRAND_NAME, resolveBrandingAssets } from "@/lib/branding";
 
 export type PrintTemplateFormat = "a4" | "a5" | "pos_80mm";
 
@@ -18,16 +19,17 @@ export function PrintableInvoice({
   template,
 }: PrintableInvoiceProps) {
   const { settings } = useSettingsStore();
+  const resolvedBrand = resolveBrandingAssets(settings);
 
   const businessInfo = {
-    name: settings.business_name || "Enterprise POS Systems Ltd.",
-    logoText: settings.business_name || "ENTERPRISE",
+    name: settings.business_name || DEFAULT_BRAND_NAME,
+    logoText: settings.business_name || DEFAULT_BRAND_NAME,
     address: settings.business_address || "Level 8, Commerce Tower, Tech Zone, Dhaka 1212",
     phone: settings.business_phone || "+880 1711-000999",
     email: settings.business_email || "billing@enterprisepos.com",
     website: settings.website || "www.enterprisepos.com",
     poweredBy: "Powered by Enterprise POS Hub",
-    logoUrl: settings.business_logo || "",
+    logoUrl: resolvedBrand.businessLogo,
   };
 
   // 1. THERMAL POS 80MM RECEIPT FORMAT

@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/providers/auth-provider";
 import { useSettingsStore } from "@/store/settings";
+import { DEFAULT_BRAND_ASSETS, DEFAULT_BRAND_NAME, resolveBrandingAssets } from "@/lib/branding";
 
 /* -------------------------------------------------------------------------
    Adaptive Menu Density Context (Compact, Normal, Comfortable)
@@ -332,8 +333,24 @@ export function SidebarContent({
   const { user, logout, hasPermission } = useAuth();
   const { settings } = useSettingsStore();
 
-  const brandName = settings.business_name || "Enterprise Hub";
+  const brandName = settings.business_name || DEFAULT_BRAND_NAME;
   const initial = brandName.charAt(0).toUpperCase();
+  const resolvedBrand = resolveBrandingAssets(settings);
+  const [logoSrc, setLogoSrc] = useState<string>(resolvedBrand.businessLogo);
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  useEffect(() => {
+    setLogoSrc(resolvedBrand.businessLogo);
+    setLogoFailed(false);
+  }, [resolvedBrand.businessLogo]);
+
+  const handleLogoError = () => {
+    if (logoSrc !== DEFAULT_BRAND_ASSETS.businessLogo) {
+      setLogoSrc(DEFAULT_BRAND_ASSETS.businessLogo);
+    } else {
+      setLogoFailed(true);
+    }
+  };
 
   // Accordion state: default open if current route belongs to a group
   const [expandedGroup, setExpandedGroup] = useState<string | null>(() => getActiveGroup(pathname));
@@ -494,11 +511,12 @@ export function SidebarContent({
             onClick={onNavigate}
             className="group/brand flex items-center gap-2.5 min-w-0 transition-opacity hover:opacity-95"
           >
-            {settings.business_logo ? (
+            {!logoFailed ? (
               <img
-                src={settings.business_logo}
+                src={logoSrc}
                 alt={brandName}
-                className="h-8 w-8 rounded-lg object-contain bg-white shrink-0 border border-border/50 transition-transform duration-200 ease-out group-hover/brand:scale-105 motion-reduce:transform-none"
+                onError={handleLogoError}
+                className="h-8 w-8 rounded-lg object-contain shrink-0 transition-transform duration-200 ease-out group-hover/brand:scale-105 motion-reduce:transform-none"
               />
             ) : (
               <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-500/20 flex items-center justify-center font-bold text-sm shrink-0 transition-transform duration-200 ease-out group-hover/brand:scale-105 motion-reduce:transform-none">
@@ -510,11 +528,12 @@ export function SidebarContent({
             </span>
           </Link>
         ) : (
-          settings.business_logo ? (
+          !logoFailed ? (
             <img
-              src={settings.business_logo}
+              src={logoSrc}
               alt={brandName}
-              className="mx-auto h-8 w-8 rounded-lg object-contain bg-white shrink-0 border border-border/50 transition-transform duration-200 ease-out hover:scale-105 motion-reduce:transform-none"
+              onError={handleLogoError}
+              className="mx-auto h-8 w-8 rounded-lg object-contain shrink-0 transition-transform duration-200 ease-out hover:scale-105 motion-reduce:transform-none"
             />
           ) : (
             <div className="mx-auto h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 border border-blue-500/20 flex items-center justify-center font-bold text-sm shrink-0 transition-transform duration-200 ease-out hover:scale-105 motion-reduce:transform-none">

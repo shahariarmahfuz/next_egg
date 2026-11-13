@@ -43,6 +43,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
 import { STATIC_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
+import { DEFAULT_BRAND_ASSETS, DEFAULT_BRAND_NAME } from "@/lib/branding";
 import { useAuth } from "@/providers/auth-provider";
 import { supplierService, customerService, settingsService } from "@/services/api";
 
@@ -97,12 +98,14 @@ const timeFormats = [
 
 function AssetPreview({
   url,
+  defaultUrl,
   label,
   fallbackText = "No asset configured",
   className = "h-16 w-16",
   isCircle = false,
 }: {
   url?: string;
+  defaultUrl?: string;
   label: string;
   fallbackText?: string;
   className?: string;
@@ -110,11 +113,13 @@ function AssetPreview({
 }) {
   const [hasError, setHasError] = useState(false);
 
+  const effectiveUrl = !hasError && url?.trim() ? url.trim() : defaultUrl;
+
   useEffect(() => {
     setHasError(false);
   }, [url]);
 
-  if (!url || hasError) {
+  if (!effectiveUrl || (hasError && !defaultUrl)) {
     return (
       <div
         className={`${className} ${
@@ -136,10 +141,12 @@ function AssetPreview({
       } border border-border bg-card/60 overflow-hidden shadow-sm flex items-center justify-center p-1 relative group`}
     >
       <img
-        src={url}
+        src={effectiveUrl}
         alt={label}
         className="h-full w-full object-contain"
-        onError={() => setHasError(true)}
+        onError={() => {
+          if (url?.trim() && !hasError) setHasError(true);
+        }}
       />
     </div>
   );
@@ -371,7 +378,21 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
   const watchedLoginLogo = form.watch("login_logo_url");
   const watchedFavicon = form.watch("favicon_url");
   const watchedAppIcon = form.watch("app_icon_url");
-  const watchedBusinessName = form.watch("business_name") || "Next Egg Enterprise";
+  const watchedBusinessName = form.watch("business_name") || DEFAULT_BRAND_NAME;
+  const hasAnyRemoteBrand = Boolean(
+    watchedLogo?.trim() ||
+      watchedLoginLogo?.trim() ||
+      watchedFavicon?.trim() ||
+      watchedAppIcon?.trim()
+  );
+
+  const handleUseBuiltInDefaults = () => {
+    form.setValue("business_logo", "", { shouldDirty: true });
+    form.setValue("login_logo_url", "", { shouldDirty: true });
+    form.setValue("favicon_url", "", { shouldDirty: true });
+    form.setValue("app_icon_url", "", { shouldDirty: true });
+    toast.info("Cleared remote URLs to use built-in Akota Poultry defaults. Click Save Changes to apply.");
+  };
 
   if (!canView) {
     return (
@@ -722,33 +743,63 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
             <TabsContent value="branding" className="space-y-6">
               <Card className="glass-card border-none shadow-xl shadow-black/5 bg-gradient-to-br from-card/80 to-accent/20">
                 <CardHeader className="border-b border-border/50 bg-accent/20">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-lg flex items-center">
                         <Sparkles className="w-5 h-5 mr-2 text-primary" /> Business Branding Assets
                       </CardTitle>
                       <CardDescription>
-                        Configure public URL links for all application assets. Images must be direct web links (HTTPS/HTTP). No file uploads required.
+                        Paste remote HTTPS/HTTP URLs to override branding, or leave blank to use the built-in optimized Akota Poultry logo and icons.
                       </CardDescription>
                     </div>
-                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Owner Authorized
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {hasAnyRemoteBrand && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleUseBuiltInDefaults}
+                          className="h-7 text-xs gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" /> Disable Remote (Use Default)
+                        </Button>
+                      )}
+                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Owner Authorized
+                      </span>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-8">
                   {/* Business Logo Asset */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start p-4 rounded-xl border border-border/50 bg-card/40">
                     <div className="lg:col-span-2 space-y-2">
-                      <label className="text-sm font-semibold flex items-center gap-2">
-                        <Building className="w-4 h-4 text-primary" /> Main Business Logo URL
-                      </label>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-semibold flex items-center gap-2">
+                          <Building className="w-4 h-4 text-primary" /> Main Business Logo URL
+                        </label>
+                        {watchedLogo?.trim() ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => form.setValue("business_logo", "", { shouldDirty: true })}
+                            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            Use Default
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            Built-in Akota Default
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Displayed in the sidebar navigation header, printable invoices, and official reports.
+                        Displayed in the sidebar navigation header, printable invoices, and official reports. Leave blank to use built-in Akota Poultry mark.
                       </p>
                       <Input
                         {...form.register("business_logo")}
-                        placeholder="https://example.com/assets/logo.png"
+                        placeholder="https://example.com/assets/logo.png (optional)"
                         className="bg-background/50 font-mono text-xs"
                       />
                       {form.formState.errors.business_logo && (
@@ -758,23 +809,42 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                       )}
                     </div>
                     <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-accent/20 border border-border/40">
-                      <span className="text-[11px] font-medium text-muted-foreground mb-2">Live Logo Preview</span>
-                      <AssetPreview url={watchedLogo} label="Business Logo" className="h-16 w-32" />
+                      <span className="text-[11px] font-medium text-muted-foreground mb-2">
+                        {watchedLogo?.trim() ? "Remote Logo Preview" : "Default Akota Preview"}
+                      </span>
+                      <AssetPreview url={watchedLogo} defaultUrl={DEFAULT_BRAND_ASSETS.businessLogo} label="Business Logo" className="h-16 w-32" />
                     </div>
                   </div>
 
                   {/* Login Page Logo Asset */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start p-4 rounded-xl border border-border/50 bg-card/40">
                     <div className="lg:col-span-2 space-y-2">
-                      <label className="text-sm font-semibold flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-primary" /> Login Page Logo / Brand URL
-                      </label>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-semibold flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-primary" /> Login Page Logo / Brand URL
+                        </label>
+                        {watchedLoginLogo?.trim() ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => form.setValue("login_logo_url", "", { shouldDirty: true })}
+                            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            Use Default
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            Built-in Akota Default
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Displayed prominently at the top of the sign-in / authentication card.
+                        Displayed prominently at the top of the sign-in card. Falls back to Business Logo or built-in Akota mark when blank.
                       </p>
                       <Input
                         {...form.register("login_logo_url")}
-                        placeholder="https://example.com/assets/login-banner.png"
+                        placeholder="https://example.com/assets/login-banner.png (optional)"
                         className="bg-background/50 font-mono text-xs"
                       />
                       {form.formState.errors.login_logo_url && (
@@ -784,23 +854,42 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                       )}
                     </div>
                     <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-accent/20 border border-border/40">
-                      <span className="text-[11px] font-medium text-muted-foreground mb-2">Login Brand Preview</span>
-                      <AssetPreview url={watchedLoginLogo || watchedLogo} label="Login Logo" className="h-14 w-28" />
+                      <span className="text-[11px] font-medium text-muted-foreground mb-2">
+                        {watchedLoginLogo?.trim() ? "Remote Login Preview" : "Default Akota Preview"}
+                      </span>
+                      <AssetPreview url={watchedLoginLogo || watchedLogo} defaultUrl={DEFAULT_BRAND_ASSETS.loginLogo} label="Login Logo" className="h-14 w-28" />
                     </div>
                   </div>
 
                   {/* Favicon Asset */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start p-4 rounded-xl border border-border/50 bg-card/40">
                     <div className="lg:col-span-2 space-y-2">
-                      <label className="text-sm font-semibold flex items-center gap-2">
-                        <Globe className="w-4 h-4 text-primary" /> Browser Tab Favicon URL
-                      </label>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-semibold flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-primary" /> Browser Tab Favicon URL
+                        </label>
+                        {watchedFavicon?.trim() ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => form.setValue("favicon_url", "", { shouldDirty: true })}
+                            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            Use Default
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            Built-in Akota Default
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Direct icon URL loaded dynamically into the browser tab title bar (recommended: 32x32 PNG/ICO).
+                        Optional remote icon URL for the browser tab. Leave blank to use the built-in Akota Poultry SVG/ICO favicon.
                       </p>
                       <Input
                         {...form.register("favicon_url")}
-                        placeholder="https://example.com/assets/favicon.ico"
+                        placeholder="https://example.com/assets/favicon.ico (optional)"
                         className="bg-background/50 font-mono text-xs"
                       />
                       {form.formState.errors.favicon_url && (
@@ -812,7 +901,7 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                     <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-accent/20 border border-border/40">
                       <span className="text-[11px] font-medium text-muted-foreground mb-2">Browser Tab Preview</span>
                       <div className="w-full max-w-[200px] h-8 bg-background border border-border rounded-t-lg px-2 flex items-center gap-2 text-xs shadow-sm">
-                        <AssetPreview url={watchedFavicon} label="Favicon" className="h-4 w-4" />
+                        <AssetPreview url={watchedFavicon} defaultUrl={DEFAULT_BRAND_ASSETS.favicon} label="Favicon" className="h-4 w-4" />
                         <span className="truncate text-[10px] font-medium text-foreground">
                           {watchedBusinessName}
                         </span>
@@ -824,15 +913,32 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                   {/* Application / Mobile Icon Asset */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start p-4 rounded-xl border border-border/50 bg-card/40">
                     <div className="lg:col-span-2 space-y-2">
-                      <label className="text-sm font-semibold flex items-center gap-2">
-                        <Smartphone className="w-4 h-4 text-primary" /> Mobile / App Icon URL
-                      </label>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-semibold flex items-center gap-2">
+                          <Smartphone className="w-4 h-4 text-primary" /> Mobile / App Icon URL
+                        </label>
+                        {watchedAppIcon?.trim() ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => form.setValue("app_icon_url", "", { shouldDirty: true })}
+                            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            Use Default
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            Built-in Akota Default
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Applied as the Apple Touch Icon and mobile home screen bookmark shortcut (recommended: 180x180 PNG).
+                        Optional remote PNG URL for Apple Touch Icon / mobile home screen shortcut. Leave blank to use built-in Akota Poultry 180×180 icon.
                       </p>
                       <Input
                         {...form.register("app_icon_url")}
-                        placeholder="https://example.com/assets/apple-touch-icon.png"
+                        placeholder="https://example.com/assets/apple-touch-icon.png (optional)"
                         className="bg-background/50 font-mono text-xs"
                       />
                       {form.formState.errors.app_icon_url && (
@@ -842,8 +948,10 @@ export default function SettingsPage({ defaultTab = "business" }: { defaultTab?:
                       )}
                     </div>
                     <div className="flex flex-col items-center justify-center p-3 rounded-lg bg-accent/20 border border-border/40">
-                      <span className="text-[11px] font-medium text-muted-foreground mb-2">Mobile Icon Preview</span>
-                      <AssetPreview url={watchedAppIcon} label="App Icon" className="h-14 w-14" />
+                      <span className="text-[11px] font-medium text-muted-foreground mb-2">
+                        {watchedAppIcon?.trim() ? "Remote Icon Preview" : "Default Akota Preview"}
+                      </span>
+                      <AssetPreview url={watchedAppIcon} defaultUrl={DEFAULT_BRAND_ASSETS.appIcon} label="App Icon" className="h-14 w-14" />
                     </div>
                   </div>
                 </CardContent>
