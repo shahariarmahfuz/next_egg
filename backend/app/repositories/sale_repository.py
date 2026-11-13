@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem
+from app.models.sale_return import SaleReturn, SaleReturnItem
 from app.repositories.base import BaseRepository
 from app.schemas.sale import SaleCreate, SaleUpdate
 
@@ -186,6 +187,34 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
             total_due = round(float(row.total_due or 0.0), 2)
             total_items_sold = round(float(row.total_items_sold or 0.0), 4)
 
+            ret_refund_expr = case(
+                (SaleReturn.grand_total > 0, SaleReturnItem.total_price * (SaleReturn.refund_amount / SaleReturn.grand_total)),
+                else_=0.0,
+            )
+            ret_prod_query = (
+                select(
+                    func.coalesce(func.sum(SaleReturnItem.total_price), 0.0).label("total_return_amount"),
+                    func.coalesce(func.sum(ret_refund_expr), 0.0).label("total_refund_amount"),
+                    func.coalesce(func.sum(SaleReturnItem.quantity), 0.0).label("total_return_units"),
+                )
+                .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
+                .join(Customer, SaleReturn.customer_id == Customer.id)
+                .outerjoin(Sale, SaleReturn.sale_id == Sale.id)
+                .where(SaleReturnItem.product_id == clean_product_id)
+            )
+            ret_prod_query = self._apply_sale_return_filters(
+                ret_prod_query,
+                search=search,
+                customer_id=customer_id,
+                payment_status=payment_status,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            ret_row = (await db.execute(ret_prod_query)).one()
+            total_return_amount = round(float(ret_row.total_return_amount or 0.0), 2)
+            total_refund_amount = round(float(ret_row.total_refund_amount or 0.0), 2)
+            total_return_units = round(float(ret_row.total_return_units or 0.0), 4)
+
             return {
                 "total_sales": total_sales,
                 "total_invoices": total_sales,
@@ -202,6 +231,11 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
                 "due_amount": total_due,
                 "total_items_sold": total_items_sold,
                 "total_units": total_items_sold,
+                "total_return_amount": total_return_amount,
+                "total_refund_amount": total_refund_amount,
+                "total_return_units": total_return_units,
+                "net_sale_amount": round(total_sale_amount - total_return_amount, 2),
+                "net_units_sold": round(total_items_sold - total_return_units, 4),
             }
 
         # Otherwise (All Products), compute invoice-level totals
@@ -272,23 +306,102 @@ class SaleRepository(BaseRepository[Sale, SaleCreate, SaleUpdate]):
         items_res = await db.execute(items_query)
         total_items_sold = items_res.scalar() or 0.0
 
+        ret_header_query = (
+            select(
+                func.coalesce(func.sum(SaleReturn.grand_total), 0.0).label("total_return_amount"),
+                func.coalesce(func.sum(SaleReturn.refund_amount), 0.0).label("total_refund_amount"),
+            )
+            .join(Customer, SaleReturn.customer_id == Customer.id)
+            .outerjoin(Sale, SaleReturn.sale_id == Sale.id)
+        )
+        ret_header_query = self._apply_sale_return_filters(
+            ret_header_query,
+            search=search,
+            customer_id=customer_id,
+            payment_status=payment_status,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        ret_header_row = (await db.execute(ret_header_query)).one()
+        total_return_amount = round(float(ret_header_row.total_return_amount or 0.0), 2)
+        total_refund_amount = round(float(ret_header_row.total_refund_amount or 0.0), 2)
+
+        ret_items_query = (
+            select(func.coalesce(func.sum(SaleReturnItem.quantity), 0.0))
+            .join(SaleReturn, SaleReturnItem.sale_return_id == SaleReturn.id)
+            .join(Customer, SaleReturn.customer_id == Customer.id)
+            .outerjoin(Sale, SaleReturn.sale_id == Sale.id)
+        )
+        ret_items_query = self._apply_sale_return_filters(
+            ret_items_query,
+            search=search,
+            customer_id=customer_id,
+            payment_status=payment_status,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        total_return_units = round(float((await db.execute(ret_items_query)).scalar() or 0.0), 4)
+
+        total_sale_amount_val = float(row.total_sale_amount)
+        total_items_sold_val = float(total_items_sold)
+
         return {
             "total_sales": int(row.total_sales),
             "total_invoices": int(row.total_sales),
             "total_sales_count": int(row.total_sales),
             "total_count": int(row.total_sales),
             "count": int(row.total_sales),
-            "total_sale_amount": float(row.total_sale_amount),
-            "total_amount": float(row.total_sale_amount),
-            "total_revenue": float(row.total_sale_amount),
+            "total_sale_amount": total_sale_amount_val,
+            "total_amount": total_sale_amount_val,
+            "total_revenue": total_sale_amount_val,
             "total_discount": float(row.total_discount),
             "total_paid": float(row.total_paid),
             "paid_amount": float(row.total_paid),
             "total_due": float(row.total_due),
             "due_amount": float(row.total_due),
-            "total_items_sold": float(total_items_sold),
-            "total_units": float(total_items_sold),
+            "total_items_sold": total_items_sold_val,
+            "total_units": total_items_sold_val,
+            "total_return_amount": total_return_amount,
+            "total_refund_amount": total_refund_amount,
+            "total_return_units": total_return_units,
+            "net_sale_amount": round(total_sale_amount_val - total_return_amount, 2),
+            "net_units_sold": round(total_items_sold_val - total_return_units, 4),
         }
+
+    def _apply_sale_return_filters(
+        self,
+        query,
+        *,
+        search: Optional[str] = None,
+        customer_id: Optional[str] = None,
+        payment_status: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ):
+        if search:
+            pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    SaleReturn.return_no.ilike(pattern),
+                    Sale.invoice_no.ilike(pattern),
+                    Customer.name.ilike(pattern),
+                    Customer.customer_code.ilike(pattern),
+                    Customer.phone.ilike(pattern),
+                )
+            )
+        if customer_id:
+            query = query.where(SaleReturn.customer_id == customer_id)
+        if payment_status and payment_status.strip():
+            clean_status = payment_status.strip().lower()
+            if clean_status == "due":
+                query = query.where(Sale.due_amount > 0)
+            else:
+                query = query.where(Sale.payment_status == payment_status.strip())
+        if start_date:
+            query = query.where(SaleReturn.return_date >= start_date)
+        if end_date:
+            query = query.where(SaleReturn.return_date <= end_date)
+        return query
 
 
 

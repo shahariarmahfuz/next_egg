@@ -126,4 +126,9 @@ class SaleReportSummary(BaseModel):
     due_amount: Optional[float] = Field(None, description="Alias for total_due")
     total_items_sold: float = Field(..., description="Total Line Items Sold Quantity")
     total_units: Optional[float] = Field(None, description="Alias for total_items_sold")
+    total_return_amount: Optional[float] = Field(0.0, description="Total Sale Return Amount ($)")
+    total_refund_amount: Optional[float] = Field(0.0, description="Total Cash Refunded on Sale Returns ($)")
+    total_return_units: Optional[float] = Field(0.0, description="Total Returned Units")
+    net_sale_amount: Optional[float] = Field(None, description="Net Sale Revenue after returns ($)")
+    net_units_sold: Optional[float] = Field(None, description="Net Units Sold after returns")
 

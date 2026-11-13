@@ -102,6 +102,11 @@ export default function SalesReportPage() {
   const totalPaid = aggregate.total_paid ?? aggregate.paid_amount ?? 0;
   const totalDue = aggregate.total_due ?? aggregate.due_amount ?? 0;
   const totalUnits = aggregate.total_units ?? aggregate.total_items_sold ?? 0;
+  const totalReturnAmount = aggregate.total_return_amount ?? 0;
+  const totalRefundAmount = aggregate.total_refund_amount ?? 0;
+  const totalReturnUnits = aggregate.total_return_units ?? 0;
+  const netSaleAmount = aggregate.net_sale_amount ?? (totalSales - totalReturnAmount);
+  const netUnitsSold = aggregate.net_units_sold ?? (totalUnits - totalReturnUnits);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -181,6 +186,13 @@ export default function SalesReportPage() {
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-black tracking-tight text-blue-600 dark:text-blue-300 truncate" title={formatCurrency(totalSales)}>{formatCurrency(totalSales)}</div>
+            {totalReturnAmount > 0 && (
+              <div className="mt-1 text-[11px] font-medium text-muted-foreground truncate">
+                <span className="text-orange-600 dark:text-orange-400">Ret: -{formatCurrency(totalReturnAmount)}</span>
+                {" • "}
+                <span className="font-semibold text-foreground">Net: {formatCurrency(netSaleAmount)}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -195,6 +207,13 @@ export default function SalesReportPage() {
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-300 truncate" title={formatCurrency(totalPaid)}>{formatCurrency(totalPaid)}</div>
+            {totalRefundAmount > 0 && (
+              <div className="mt-1 text-[11px] font-medium text-muted-foreground truncate">
+                <span className="text-orange-600 dark:text-orange-400">Refund: -{formatCurrency(totalRefundAmount)}</span>
+                {" • "}
+                <span className="font-semibold text-foreground">Net: {formatCurrency(totalPaid - totalRefundAmount)}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -223,6 +242,13 @@ export default function SalesReportPage() {
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-black tracking-tight text-purple-600 dark:text-purple-300 truncate" title={formatNumber(totalUnits)}>{formatNumber(totalUnits)}</div>
+            {totalReturnUnits > 0 && (
+              <div className="mt-1 text-[11px] font-medium text-muted-foreground truncate">
+                <span className="text-orange-600 dark:text-orange-400">Ret: -{formatNumber(totalReturnUnits)}</span>
+                {" • "}
+                <span className="font-semibold text-foreground">Net: {formatNumber(netUnitsSold)}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

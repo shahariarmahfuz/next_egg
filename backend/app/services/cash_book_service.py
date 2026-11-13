@@ -210,6 +210,37 @@ class CashBookService:
                 "credit": Decimal("0.00"),
             })
 
+        # E. Sale Return Cash Refunds (Cash Outflow)
+        q_curr_sret_refunds = (
+            select(SaleReturn)
+            .options(selectinload(SaleReturn.customer))
+            .where(
+                SaleReturn.return_date >= start_utc,
+                SaleReturn.return_date <= end_utc,
+                SaleReturn.refund_amount > 0,
+            )
+        )
+        sret_refund_records = (await db.execute(q_curr_sret_refunds)).scalars().all()
+        for sr in sret_refund_records:
+            cust_name = sr.customer.name if sr.customer else "Walk-in Customer"
+            cust_code = sr.customer.customer_code if (sr.customer and sr.customer.customer_code) else "—"
+            desc = (
+                f"Sale Return Refund - {sr.reason.strip()}"
+                if (sr.reason and sr.reason.strip())
+                else "Sale Return Refund"
+            )
+            raw_transactions.append({
+                "id": f"sret-{sr.id}",
+                "timestamp": sr.return_date,
+                "description": desc,
+                "code": cust_code,
+                "name": cust_name,
+                "invoice": sr.return_no,
+                "transaction_type": "sale_return",
+                "debit": Decimal(str(sr.refund_amount)),
+                "credit": Decimal("0.00"),
+            })
+
         # 5. Sort transactions chronologically
         raw_transactions.sort(key=lambda item: (item["timestamp"], item["id"]))
 
@@ -220,6 +251,7 @@ class CashBookService:
         total_debit_dec = Decimal("0.00")
         total_expense_dec = Decimal("0.00")
         total_cash_out_dec = Decimal("0.00")
+        total_refund_dec = Decimal("0.00")
 
         # Opening row for Previous / Opening Balance = 0.00
         start_local_dt = start_utc.astimezone(tz)
@@ -250,6 +282,8 @@ class CashBookService:
                 total_expense_dec += debit_val
             elif tx_type == "cash_out":
                 total_cash_out_dec += debit_val
+            elif tx_type == "sale_return":
+                total_refund_dec += debit_val
 
             running_balance = (running_balance + credit_val - debit_val).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -484,14 +518,16 @@ class CashBookService:
                         tracked_sold = 0.0
 
                     gross_sales = float(day_sales_map.get(prod.id, 0.0))
-                    sret_qty = float(day_sret_map.get(prod.id, 0.0))
-                    
-                    # Regular sales = Gross sales - tracked customer sales - sale returns
-                    regular_sold = round(max(0.0, gross_sales - tracked_sold - sret_qty), 4)
+                    sret_qty = round(float(day_sret_map.get(prod.id, 0.0)), 4)
+                    if abs(sret_qty) < 1e-6:
+                        sret_qty = 0.0
+
+                    # Regular sales = Gross sales - tracked customer sales (returns are reported separately)
+                    regular_sold = round(max(0.0, gross_sales - tracked_sold), 4)
                     if abs(regular_sold) < 1e-6:
                         regular_sold = 0.0
 
-                    # Total net sales across all parties
+                    # Total gross sales across all parties
                     day_sold = round(regular_sold + tracked_sold, 4)
                     if abs(day_sold) < 1e-6:
                         day_sold = 0.0
@@ -504,11 +540,11 @@ class CashBookService:
                     if abs(due_sold) < 1e-6:
                         due_sold = 0.0
 
-                    previous_stock = round(closing_stock - day_purch + day_sold, 4)
+                    previous_stock = round(closing_stock - day_purch - sret_qty + day_sold, 4)
                     if abs(previous_stock) < 1e-6:
                         previous_stock = 0.0
 
-                    if previous_stock != 0 or day_purch != 0 or day_sold != 0 or closing_stock != 0:
+                    if previous_stock != 0 or day_purch != 0 or sret_qty != 0 or day_sold != 0 or closing_stock != 0:
                         stock_summary.append(
                             CashBookStockItem(
                                 product_id=prod.id,
@@ -516,6 +552,7 @@ class CashBookService:
                                 unit=prod.unit or "pcs",
                                 previous_stock=previous_stock,
                                 purchases=day_purch,
+                                sale_returns=sret_qty,
                                 cash_sales=cash_sold,
                                 due_sales=due_sold,
                                 regular_sales=regular_sold,
@@ -542,7 +579,7 @@ class CashBookService:
             total_cash_out=float(total_cash_out_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             total_purchase_paid=0.0,
             total_supplier_paid=0.0,
-            total_refund_paid=0.0,
+            total_refund_paid=float(total_refund_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             cash_in_hand=float(closing_cash_dec),
             total_cash_received=float(total_credit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             total_cash_paid=float(total_debit_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),

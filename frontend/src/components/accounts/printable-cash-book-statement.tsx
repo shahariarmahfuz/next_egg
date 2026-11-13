@@ -555,6 +555,7 @@ export const PrintableCashBookStatement = React.forwardRef<
   }
 
   const stockItems = summary.stock_summary || [];
+  const hasSaleReturns = stockItems.some((st) => (st.sale_returns || 0) !== 0);
   const hasTrackedCustomer = Boolean(summary.tracked_customer_name && summary.tracked_customer_name.trim());
   const trackedCustomerName = summary.tracked_customer_name?.trim() || "";
 
@@ -591,6 +592,13 @@ export const PrintableCashBookStatement = React.forwardRef<
       : typeof summary.today_cash_out === "number"
       ? summary.today_cash_out
       : cashOutRows.reduce((sum, r) => sum + (r.amount || 0), 0);
+
+  const totalRefundPaid =
+    typeof summary.total_refund_paid === "number"
+      ? summary.total_refund_paid
+      : (summary.items || [])
+          .filter((it) => it.transaction_type === "sale_return" && it.debit > 0)
+          .reduce((sum, it) => sum + (it.debit || 0), 0);
 
   // Supplier daily accounts (multi-day or single-day)
   const supplierSummary = summary.supplier_summary;
@@ -957,6 +965,21 @@ export const PrintableCashBookStatement = React.forwardRef<
                               </td>
                             ))}
                           </tr>
+                          {hasSaleReturns && (
+                            <tr>
+                              <td className="px-1.5 py-[2px] font-medium text-gray-700 border-r hairline-light whitespace-nowrap">
+                                ফেরত ডিম
+                              </td>
+                              {stockItems.map((st) => (
+                                <td
+                                  key={`sret-${st.product_id}`}
+                                  className="px-1 py-[2px] text-right tabular font-medium text-gray-900 border-r last:border-r-0 hairline-light"
+                                >
+                                  {formatNumber(st.sale_returns || 0)}
+                                </td>
+                              ))}
+                            </tr>
+                          )}
                           {hasTrackedCustomer ? (
                             <>
                               <tr>
@@ -1240,6 +1263,12 @@ export const PrintableCashBookStatement = React.forwardRef<
                       <th className="px-1 py-[2.5px]">TOTAL EXPENSE</th>
                       <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
                       <th className="px-1 py-[2.5px]">CASH OUT</th>
+                      {totalRefundPaid > 0 && (
+                        <>
+                          <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
+                          <th className="px-1 py-[2.5px]">RETURN REFUND</th>
+                        </>
+                      )}
                       <th className="px-0 py-[2.5px] w-2 text-gray-400 font-normal"></th>
                       <th className="px-1 py-[2.5px] bg-gray-150 font-bold text-gray-900">NET CASH IN HAND</th>
                       <th className="px-1 py-[2.5px] text-gray-700 font-semibold">TOTAL DUE SALE</th>
@@ -1262,6 +1291,14 @@ export const PrintableCashBookStatement = React.forwardRef<
                       <td className="px-1 py-[3px] text-gray-900 font-semibold">
                         {currencySymbol} {formatNumber(totalCashOut)}
                       </td>
+                      {totalRefundPaid > 0 && (
+                        <>
+                          <td className="px-0 py-[3px] text-gray-700 font-bold text-[7.5px]">-</td>
+                          <td className="px-1 py-[3px] text-gray-900 font-semibold">
+                            {currencySymbol} {formatNumber(totalRefundPaid)}
+                          </td>
+                        </>
+                      )}
                       <td className="px-0 py-[3px] text-gray-700 font-bold text-[7.5px]">=</td>
                       <td className="px-1 py-[3px] bg-gray-100 font-bold text-gray-950 text-[8.5px]">
                         {currencySymbol} {formatNumber(summary.closing_cash_balance)}

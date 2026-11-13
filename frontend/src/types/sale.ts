@@ -82,5 +82,10 @@ export interface SaleReportSummaryData {
   due_amount?: number;
   total_units?: number;
   total_invoices?: number;
+  total_return_amount?: number;
+  total_refund_amount?: number;
+  total_return_units?: number;
+  net_sale_amount?: number;
+  net_units_sold?: number;
 }
 

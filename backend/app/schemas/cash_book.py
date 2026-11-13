@@ -19,7 +19,7 @@ class CashBookItem(BaseModel):
     invoice: str = "—"
     transaction_type: str = Field(
         ...,
-        description="Type: opening_balance, cash_sale, collection, expense, cash_out",
+        description="Type: opening_balance, cash_sale, collection, expense, cash_out, sale_return",
     )
     debit: float = Field(0.0, description="Cash OUT")
     credit: float = Field(0.0, description="Cash IN")
@@ -61,6 +61,7 @@ class CashBookStockItem(BaseModel):
     unit: str = "pcs"
     previous_stock: float = 0.0
     purchases: float = 0.0
+    sale_returns: float = 0.0
     cash_sales: float = 0.0
     due_sales: float = 0.0
     regular_sales: float = 0.0

@@ -12,7 +12,8 @@ export interface CashBookItem {
     | "cash_sale"
     | "collection"
     | "expense"
-    | "cash_out";
+    | "cash_out"
+    | "sale_return";
   debit: number;
   credit: number;
   balance: number;
@@ -53,6 +54,7 @@ export interface CashBookStockItem {
   unit?: string;
   previous_stock: number;
   purchases: number;
+  sale_returns?: number;
   cash_sales?: number;
   due_sales?: number;
   regular_sales?: number;

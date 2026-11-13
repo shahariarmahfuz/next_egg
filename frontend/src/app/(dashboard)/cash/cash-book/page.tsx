@@ -184,6 +184,8 @@ export default function CashBookPage() {
         return <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 font-semibold">Expense</Badge>;
       case "cash_out":
         return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20 font-semibold">Cash Out</Badge>;
+      case "sale_return":
+        return <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20 font-semibold">Sale Return</Badge>;
       default:
         return <Badge variant="outline">{type}</Badge>;
     }
@@ -379,6 +381,11 @@ export default function CashBookPage() {
               <span className="text-xs sm:text-sm md:text-base font-bold text-amber-600 dark:text-amber-400 truncate block">
                 {formatCurrency(summary?.total_cash_paid)}
               </span>
+              {(summary?.total_refund_paid ?? 0) > 0 && (
+                <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium block truncate">
+                  Refund: {formatCurrency(summary?.total_refund_paid)}
+                </span>
+              )}
             </div>
           </Card>
 
