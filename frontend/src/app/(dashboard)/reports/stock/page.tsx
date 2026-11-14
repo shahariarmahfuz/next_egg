@@ -450,7 +450,9 @@ export default function StockReportPage() {
               const cashSales = report.cash_sales ?? 0;
               const dueSales = report.due_sales ?? 0;
               const totalSales = report.sales ?? (cashSales + dueSales);
-              const remainingStock = report.remaining_stock ?? (totalStock - totalSales);
+              const saleReturns = report.sale_returns ?? 0;
+              const purchaseReturns = report.purchase_returns ?? 0;
+              const remainingStock = report.remaining_stock ?? (totalStock - totalSales + saleReturns - purchaseReturns);
               const trackedCustomerQty = report.tracked_customer_qty ?? report.customer_sales ?? 0;
               const finalRemainingStock = report.final_remaining_stock ?? (remainingStock - trackedCustomerQty);
               const trackedCustomerName = report.configured_customer?.name || "Tracked Customer";
@@ -584,7 +586,7 @@ export default function StockReportPage() {
                           <div>
                             <h4 className="text-xs font-bold text-foreground print:text-black">Stock Reconciliation</h4>
                             <p className="text-[10px] text-muted-foreground print:text-slate-600">
-                              Total Stock - Sales - {report.configured_customer ? report.configured_customer.name : "Tracked"}
+                              Total Stock - Sales + রিটার্ন ডিম - {report.configured_customer ? report.configured_customer.name : "Tracked"}
                             </p>
                           </div>
                         </div>
@@ -611,6 +613,34 @@ export default function StockReportPage() {
                             - {formatNumber(totalSales)}
                           </span>
                         </div>
+
+                        {/* Row 3: + রিটার্ন ডিম (Sale Returns) */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 mr-1.5 print:bg-emerald-50 shrink-0">
+                              +
+                            </span>
+                            রিটার্ন ডিম
+                          </span>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                            + {formatNumber(saleReturns)}
+                          </span>
+                        </div>
+
+                        {/* Conditional Row: - Purchase Returns (only shown when > 0) */}
+                        {purchaseReturns > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center">
+                              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 mr-1.5 print:bg-amber-50 shrink-0">
+                                -
+                              </span>
+                              Purchase Returns
+                            </span>
+                            <span className="font-mono font-bold text-amber-600 dark:text-amber-400 text-sm">
+                              - {formatNumber(purchaseReturns)}
+                            </span>
+                          </div>
+                        )}
 
                         <div className="border-t border-slate-200 dark:border-slate-800 print:border-slate-300" />
 
@@ -681,7 +711,7 @@ export default function StockReportPage() {
                             {formatNumber(report.sale_returns)} {report.product.unit} Sale Returns (restocked)
                           </strong>
                         )}
-                        . These are factored directly into Remaining Stock.
+                        . These are shown above in Stock Reconciliation.
                       </span>
                     </div>
                   )}
