@@ -36,7 +36,7 @@ import {
 import { CollectionViewModal } from "@/components/collections/collection-view-modal";
 import { SaleViewModal } from "@/components/sales/sale-view-modal";
 import { SaleReturnViewModal } from "@/components/sale-returns/sale-return-view-modal";
-import { HasPermission } from "@/providers/auth-provider";
+import { HasPermission, useAuth } from "@/providers/auth-provider";
 import { usePrint } from "@/lib/print-service";
 import { PrintableCustomerStatement } from "@/components/customers/printable-customer-statement";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -44,6 +44,9 @@ import { formatCurrency, formatDate } from "@/utils/formatters";
 import { getTodayDateStr } from "@/utils/business-date";
 
 export default function CustomerLedgerPage() {
+  const { hasPermission } = useAuth();
+  const canViewLedgerSummary = hasPermission("customer.ledger.summary.view");
+
   // Customer Search & Selection
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerItem | null>(null);
@@ -97,17 +100,11 @@ export default function CustomerLedgerPage() {
   });
 
   const ledgerData = ledgerDataRes?.data;
+  const activeCustomer = ledgerData?.customer || selectedCustomer;
   const transactions: CustomerLedgerTransaction[] = ledgerData?.transactions || [];
   const totalItems = typeof ledgerData?.total === "number" ? ledgerData.total : transactions.length;
   const totalPages = Math.max(1, ledgerData?.pages || Math.ceil(totalItems / pageSize) || 1);
-  const summary = ledgerData?.summary || {
-    opening_balance: selectedCustomer?.opening_balance || 0,
-    total_sales: 0,
-    total_collections: 0,
-    total_returns: 0,
-    manual_adjustments: 0,
-    current_due: selectedCustomer?.current_balance || 0,
-  };
+  const summary = canViewLedgerSummary ? ledgerData?.summary ?? undefined : undefined;
 
   // Click handler for Sale / Collection / Sale Return vouchers
   const handleVoucherClick = async (tx: CustomerLedgerTransaction) => {
@@ -180,10 +177,11 @@ export default function CustomerLedgerPage() {
         all: true,
       });
       const printTxs = fullRes.data?.transactions || transactions;
+      const printSummary = canViewLedgerSummary ? fullRes.data?.summary ?? summary : undefined;
       await printDocument(
         <PrintableCustomerStatement
-          customer={selectedCustomer}
-          summary={summary}
+          customer={activeCustomer || selectedCustomer}
+          summary={printSummary}
           transactions={printTxs}
           startDate={startDate}
           endDate={endDate}
@@ -192,7 +190,7 @@ export default function CustomerLedgerPage() {
     } catch {
       await printDocument(
         <PrintableCustomerStatement
-          customer={selectedCustomer}
+          customer={activeCustomer || selectedCustomer}
           summary={summary}
           transactions={transactions}
           startDate={startDate}
@@ -206,7 +204,7 @@ export default function CustomerLedgerPage() {
     if (selectedCustomer) {
       return registerPrintHandler(handlePrintStatement);
     }
-  }, [selectedCustomer, summary, transactions, startDate, endDate, registerPrintHandler]);
+  }, [selectedCustomer, activeCustomer, canViewLedgerSummary, summary, transactions, startDate, endDate, registerPrintHandler]);
 
   return (
     <HasPermission code="customer.view">
@@ -246,7 +244,7 @@ export default function CustomerLedgerPage() {
           <CardContent className="p-4 space-y-4">
             <div className="space-y-1.5 w-full max-w-xl">
               <label className="text-xs font-semibold text-foreground block">
-                Search Customer (Name, Code, Phone)
+                Search Customer (Name, Code, Phone, Physical Page No.)
               </label>
               <Popover open={openCustomerPopover} onOpenChange={setOpenCustomerPopover}>
                 <PopoverTrigger asChild>
@@ -267,7 +265,7 @@ export default function CustomerLedgerPage() {
                     >
                       <span className="flex items-center gap-2 text-muted-foreground truncate">
                         <Search className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                        Type name, phone number, or customer code to search...
+                        Type name, phone, code, or physical page number to search...
                       </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -276,7 +274,7 @@ export default function CustomerLedgerPage() {
                 <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                   <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Search by customer name, code, or phone..."
+                      placeholder="Search by name, code, phone, or physical page..."
                       value={customerSearch}
                       onValueChange={setCustomerSearch}
                     />
@@ -293,7 +291,7 @@ export default function CustomerLedgerPage() {
                           {customerSuggestions.map((cust) => (
                             <CommandItem
                               key={cust.id}
-                              value={`${cust.name} ${cust.customer_code || ""} ${cust.phone || ""} ${cust.id}`}
+                              value={`${cust.name} ${cust.customer_code || ""} ${cust.phone || ""} ${cust.physical_page_number || ""} ${cust.id}`}
                               onSelect={() => {
                                 setSelectedCustomer(cust);
                                 setOpenCustomerPopover(false);
@@ -316,33 +314,71 @@ export default function CustomerLedgerPage() {
             </div>
 
             {/* Selected Customer Details Header Banner */}
-            {selectedCustomer && (
-              <div className="p-4 rounded-xl bg-accent/40 border grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            {activeCustomer && (
+              <div className="p-4 rounded-xl bg-accent/40 border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-xs">
                 <div>
                   <span className="text-[11px] text-muted-foreground block font-medium">Customer Name</span>
-                  <span className="font-bold text-foreground text-sm flex items-center gap-1.5 mt-0.5">
-                    <User className="h-3.5 w-3.5 text-primary" /> {selectedCustomer.name}
+                  <span className="font-bold text-foreground text-sm flex items-start gap-1.5 mt-0.5">
+                    <User className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                    <span className="break-words">{activeCustomer.name}</span>
                   </span>
                 </div>
 
                 <div>
                   <span className="text-[11px] text-muted-foreground block font-medium">Customer Code</span>
                   <span className="font-semibold text-foreground text-xs mt-0.5 block">
-                    {selectedCustomer.customer_code}
+                    {activeCustomer.customer_code}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[11px] text-muted-foreground block font-medium">Physical Page No.</span>
+                  <span className="font-semibold text-foreground text-xs flex items-center gap-1 mt-0.5">
+                    <BookOpen className="h-3 w-3 text-primary shrink-0" />
+                    {activeCustomer.physical_page_number ? (
+                      <Badge variant="outline" className="font-semibold text-xs px-2 py-0 bg-primary/10 text-primary border-primary/30">
+                        {activeCustomer.physical_page_number}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">N/A</span>
+                    )}
                   </span>
                 </div>
 
                 <div>
                   <span className="text-[11px] text-muted-foreground block font-medium">Contact Phone</span>
                   <span className="font-medium text-foreground text-xs flex items-center gap-1 mt-0.5">
-                    <Phone className="h-3 w-3 text-muted-foreground" /> {selectedCustomer.phone || "N/A"}
+                    <Phone className="h-3 w-3 text-muted-foreground shrink-0" /> {activeCustomer.phone || "N/A"}
                   </span>
                 </div>
 
                 <div>
                   <span className="text-[11px] text-muted-foreground block font-medium">Customer Address</span>
-                  <span className="font-medium text-foreground text-xs flex items-center gap-1 mt-0.5 truncate" title={selectedCustomer.address || "N/A"}>
-                    <MapPin className="h-3 w-3 text-muted-foreground shrink-0" /> {selectedCustomer.address || "N/A"}
+                  <span className="font-medium text-foreground text-xs flex items-center gap-1 mt-0.5 truncate" title={activeCustomer.address || "N/A"}>
+                    <MapPin className="h-3 w-3 text-muted-foreground shrink-0" /> {activeCustomer.address || "N/A"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[11px] text-muted-foreground block font-medium">Current Due</span>
+                  <span
+                    className={`font-bold text-xs inline-flex items-center gap-1 mt-0.5 tabular-nums ${
+                      activeCustomer.current_balance > 0
+                        ? "text-amber-600 dark:text-amber-500"
+                        : activeCustomer.current_balance < 0
+                        ? "text-blue-600 dark:text-blue-500"
+                        : "text-emerald-600 dark:text-emerald-500"
+                    }`}
+                  >
+                    {activeCustomer.current_balance < 0 && "-"}
+                    {formatCurrency(Math.abs(activeCustomer.current_balance))}
+                    <span className="font-medium text-[11px]">
+                      {activeCustomer.current_balance > 0
+                        ? "(Due)"
+                        : activeCustomer.current_balance < 0
+                        ? "(Advance)"
+                        : "(Paid)"}
+                    </span>
                   </span>
                 </div>
               </div>
@@ -363,11 +399,13 @@ export default function CustomerLedgerPage() {
           <>
             {/* 2. Date Range Filter Toolbar */}
             <Card className="glass-card">
-              <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-xs font-semibold text-foreground whitespace-nowrap">Date From:</span>
+              <CardContent className="p-3.5 sm:p-4 flex flex-col lg:flex-row lg:items-end justify-between gap-3.5">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-2.5 sm:gap-3 w-full lg:w-auto">
+                  <div className="space-y-1 min-w-0">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-primary shrink-0" />
+                      Date From
+                    </label>
                     <Input
                       type="date"
                       value={startDate}
@@ -375,12 +413,15 @@ export default function CustomerLedgerPage() {
                         setStartDate(e.target.value);
                         setPage(1);
                       }}
-                      className="h-8 text-xs w-36 bg-background/50"
+                      className="h-9 text-xs w-full sm:w-40 bg-background/50"
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground whitespace-nowrap">Date To:</span>
+                  <div className="space-y-1 min-w-0">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-primary shrink-0" />
+                      Date To
+                    </label>
                     <Input
                       type="date"
                       value={endDate}
@@ -388,127 +429,115 @@ export default function CustomerLedgerPage() {
                         setEndDate(e.target.value);
                         setPage(1);
                       }}
-                      className="h-8 text-xs w-36 bg-background/50"
+                      className="h-9 text-xs w-full sm:w-40 bg-background/50"
                     />
                   </div>
                 </div>
 
                 {/* Quick Presets */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickDateFilter("all")}
-                    className="h-7 text-[11px] px-2.5"
-                  >
-                    All Time
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickDateFilter("this_month")}
-                    className="h-7 text-[11px] px-2.5"
-                  >
-                    This Month
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickDateFilter("last_30")}
-                    className="h-7 text-[11px] px-2.5"
-                  >
-                    Last 30 Days
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickDateFilter("this_year")}
-                    className="h-7 text-[11px] px-2.5"
-                  >
-                    This Year
-                  </Button>
+                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-1.5 w-full lg:w-auto">
+                  {(
+                    [
+                      { id: "all", label: "All Time" },
+                      { id: "this_month", label: "This Month" },
+                      { id: "last_30", label: "Last 30 Days" },
+                      { id: "this_year", label: "This Year" },
+                    ] as const
+                  ).map((preset) => (
+                    <Button
+                      key={preset.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleQuickDateFilter(preset.id)}
+                      className="h-8 sm:h-9 text-xs px-2.5 w-full sm:w-auto"
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
 
-            {/* 3. Top Summary Cards (6 Cards) */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {/* Card 1: Opening Balance */}
-              <Card className="glass-card">
-                <CardContent className="p-3.5">
-                  <span className="text-[10px] text-muted-foreground uppercase font-semibold block mb-1">
-                    Opening Balance
-                  </span>
-                  <span className="text-lg font-bold text-foreground ">
-                    {formatCurrency(summary.opening_balance)}
-                  </span>
-                </CardContent>
-              </Card>
+            {/* 3. Top Summary Cards (6 Cards - Owner or Explicitly Permitted Only) */}
+            {canViewLedgerSummary && summary && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                {/* Card 1: Opening Balance */}
+                <Card className="glass-card">
+                  <CardContent className="p-3.5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold block mb-1">
+                      Opening Balance
+                    </span>
+                    <span className="text-lg font-bold text-foreground ">
+                      {formatCurrency(summary.opening_balance)}
+                    </span>
+                  </CardContent>
+                </Card>
 
-              {/* Card 2: Total Sales */}
-              <Card className="glass-card border-blue-500/20 bg-blue-500/5">
-                <CardContent className="p-3.5">
-                  <span className="text-[10px] text-blue-600 font-semibold uppercase block mb-1">
-                    Total Sales
-                  </span>
-                  <span className="text-lg font-bold text-blue-600 ">
-                    {formatCurrency(summary.total_sales)}
-                  </span>
-                </CardContent>
-              </Card>
+                {/* Card 2: Total Sales */}
+                <Card className="glass-card border-blue-500/20 bg-blue-500/5">
+                  <CardContent className="p-3.5">
+                    <span className="text-[10px] text-blue-600 font-semibold uppercase block mb-1">
+                      Total Sales
+                    </span>
+                    <span className="text-lg font-bold text-blue-600 ">
+                      {formatCurrency(summary.total_sales)}
+                    </span>
+                  </CardContent>
+                </Card>
 
-              {/* Card 3: Total Collections */}
-              <Card className="glass-card border-emerald-500/20 bg-emerald-500/5">
-                <CardContent className="p-3.5">
-                  <span className="text-[10px] text-emerald-600 font-semibold uppercase block mb-1">
-                    Total Collections
-                  </span>
-                  <span className="text-lg font-bold text-emerald-600 ">
-                    {formatCurrency(summary.total_collections)}
-                  </span>
-                </CardContent>
-              </Card>
+                {/* Card 3: Total Collections */}
+                <Card className="glass-card border-emerald-500/20 bg-emerald-500/5">
+                  <CardContent className="p-3.5">
+                    <span className="text-[10px] text-emerald-600 font-semibold uppercase block mb-1">
+                      Total Collections
+                    </span>
+                    <span className="text-lg font-bold text-emerald-600 ">
+                      {formatCurrency(summary.total_collections)}
+                    </span>
+                  </CardContent>
+                </Card>
 
-              {/* Card 4: Total Returns */}
-              <Card className="glass-card border-purple-500/20 bg-purple-500/5">
-                <CardContent className="p-3.5">
-                  <span className="text-[10px] text-purple-600 font-semibold uppercase block mb-1">
-                    Total Returns
-                  </span>
-                  <span className="text-lg font-bold text-purple-600 ">
-                    {formatCurrency(summary.total_returns)}
-                  </span>
-                </CardContent>
-              </Card>
+                {/* Card 4: Total Returns */}
+                <Card className="glass-card border-purple-500/20 bg-purple-500/5">
+                  <CardContent className="p-3.5">
+                    <span className="text-[10px] text-purple-600 font-semibold uppercase block mb-1">
+                      Total Returns
+                    </span>
+                    <span className="text-lg font-bold text-purple-600 ">
+                      {formatCurrency(summary.total_returns)}
+                    </span>
+                  </CardContent>
+                </Card>
 
-              {/* Card 5: Adjustments */}
-              <Card className="glass-card border-indigo-500/20 bg-indigo-500/5">
-                <CardContent className="p-3.5">
-                  <span className="text-[10px] text-indigo-600 font-semibold uppercase block mb-1">
-                    Adjustments
-                  </span>
-                  <span className="text-lg font-bold text-indigo-600 ">
-                    {formatCurrency(summary.manual_adjustments)}
-                  </span>
-                </CardContent>
-              </Card>
+                {/* Card 5: Adjustments */}
+                <Card className="glass-card border-indigo-500/20 bg-indigo-500/5">
+                  <CardContent className="p-3.5">
+                    <span className="text-[10px] text-indigo-600 font-semibold uppercase block mb-1">
+                      Adjustments
+                    </span>
+                    <span className="text-lg font-bold text-indigo-600 ">
+                      {formatCurrency(summary.manual_adjustments)}
+                    </span>
+                  </CardContent>
+                </Card>
 
-              {/* Card 6: Current Balance */}
-              <Card className="glass-card border-amber-500/30 bg-amber-500/10">
-                <CardContent className="p-3.5">
-                  <span className="text-[10px] text-amber-600 font-semibold uppercase block mb-1">
-                    Current Balance
-                  </span>
-                  <span className={`text-lg font-extrabold ${summary.current_due > 0 ? "text-amber-500" : summary.current_due < 0 ? "text-blue-500" : "text-emerald-500"}`}>
-                    {summary.current_due < 0 && "-"}
-                    {formatCurrency(Math.abs(summary.current_due))}
-                  </span>
-                  {summary.current_due > 0 && <span className="text-[10px] text-amber-600 ml-1 font-medium">(Due)</span>}
-                  {summary.current_due < 0 && <span className="text-[10px] text-blue-600 ml-1 font-medium">(Advance)</span>}
-                  {summary.current_due === 0 && <span className="text-[10px] text-emerald-600 ml-1 font-medium">(Paid)</span>}
-                </CardContent>
-              </Card>
-            </div>
+                {/* Card 6: Current Balance */}
+                <Card className="glass-card border-amber-500/30 bg-amber-500/10">
+                  <CardContent className="p-3.5">
+                    <span className="text-[10px] text-amber-600 font-semibold uppercase block mb-1">
+                      Current Balance
+                    </span>
+                    <span className={`text-lg font-extrabold ${summary.current_due > 0 ? "text-amber-500" : summary.current_due < 0 ? "text-blue-500" : "text-emerald-500"}`}>
+                      {summary.current_due < 0 && "-"}
+                      {formatCurrency(Math.abs(summary.current_due))}
+                    </span>
+                    {summary.current_due > 0 && <span className="text-[10px] text-amber-600 ml-1 font-medium">(Due)</span>}
+                    {summary.current_due < 0 && <span className="text-[10px] text-blue-600 ml-1 font-medium">(Advance)</span>}
+                    {summary.current_due === 0 && <span className="text-[10px] text-emerald-600 ml-1 font-medium">(Paid)</span>}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* 4. Complete Transaction History Table */}
             <Card className="glass-card overflow-hidden">

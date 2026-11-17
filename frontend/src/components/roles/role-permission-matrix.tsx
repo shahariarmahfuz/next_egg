@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { roleService } from "@/services/api";
+import { useAuth } from "@/providers/auth-provider";
 import { PermissionItem, RoleItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -152,8 +153,12 @@ function sortPermissions(perms: PermissionItem[]): PermissionItem[] {
   });
 }
 
+const OWNER_ONLY_PERMISSION_CODES = new Set(["customer.ledger.summary.view"]);
+
 export function RolePermissionMatrix({ role, allPermissions, onSaved, onDeleteRole }: RolePermissionMatrixProps) {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+  const isCurrentUserOwner = currentUser?.role?.code === "owner";
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [successMsg, setSuccessMsg] = useState(false);
@@ -239,8 +244,17 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved, onDeleteRo
     },
   });
 
+  const lockedOwnerOnlyIds = useMemo(() => {
+    if (isCurrentUserOwner) return new Set<string>();
+    return new Set(
+      validPermissions
+        .filter((p) => OWNER_ONLY_PERMISSION_CODES.has(p.code))
+        .map((p) => p.id)
+    );
+  }, [isCurrentUserOwner, validPermissions]);
+
   const togglePermission = (id: string) => {
-    if (isOwner) return; // Owner permissions immutable
+    if (isOwner || lockedOwnerOnlyIds.has(id)) return; // Owner permissions or Owner-only perms immutable to non-owners
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
@@ -248,11 +262,13 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved, onDeleteRo
 
   const togglePermissionGroup = (permIds: string[]) => {
     if (isOwner) return;
-    const allSelected = permIds.every((id) => selectedIds.includes(id));
+    const mutableIds = permIds.filter((id) => !lockedOwnerOnlyIds.has(id));
+    if (mutableIds.length === 0) return;
+    const allSelected = mutableIds.every((id) => selectedIds.includes(id));
     if (allSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !permIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !mutableIds.includes(id)));
     } else {
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...permIds])));
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...mutableIds])));
     }
   };
 
@@ -264,12 +280,18 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved, onDeleteRo
 
   const selectAll = () => {
     if (isOwner) return;
-    setSelectedIds(validPermissions.map((p) => p.id));
+    setSelectedIds((prev) => {
+      const preservedLocked = prev.filter((id) => lockedOwnerOnlyIds.has(id));
+      const mutableAll = validPermissions
+        .filter((p) => !lockedOwnerOnlyIds.has(p.id))
+        .map((p) => p.id);
+      return Array.from(new Set([...preservedLocked, ...mutableAll]));
+    });
   };
 
   const clearAll = () => {
     if (isOwner) return;
-    setSelectedIds([]);
+    setSelectedIds((prev) => prev.filter((id) => lockedOwnerOnlyIds.has(id)));
   };
 
   const totalSelectedCount = isOwner ? validPermissions.length : selectedIds.length;
@@ -452,7 +474,10 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved, onDeleteRo
         {filteredModules.map((moduleName) => {
           const rawPerms = permissionsByModule[moduleName] || [];
           const modulePermIds = rawPerms.map((p) => p.id);
-          const isModuleFull = modulePermIds.length > 0 && modulePermIds.every((id) => selectedIds.includes(id));
+          const mutableModulePermIds = modulePermIds.filter((id) => !lockedOwnerOnlyIds.has(id));
+          const isModuleFull =
+            mutableModulePermIds.length > 0 &&
+            mutableModulePermIds.every((id) => selectedIds.includes(id));
           const selectedInModuleCount = modulePermIds.filter((id) => selectedIds.includes(id)).length;
 
           // If searching, filter display perms
@@ -645,29 +670,40 @@ export function RolePermissionMatrix({ role, allPermissions, onSaved, onDeleteRo
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
                   {sortedDisplayPerms.map((perm) => {
                     const isChecked = isOwner || selectedIds.includes(perm.id);
+                    const isLockedPerm = isOwner || lockedOwnerOnlyIds.has(perm.id);
 
                     return (
                       <label
                         key={perm.id}
-                        className={`group relative flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl border text-xs cursor-pointer select-none transition-all ${
+                        className={`group relative flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl border text-xs select-none transition-all ${
                           isChecked
                             ? "bg-primary/10 border-primary/40 text-foreground shadow-2xs"
                             : "bg-background/60 hover:bg-muted/40 border-border/70 text-muted-foreground"
-                        } ${isOwner ? "cursor-default opacity-85" : ""}`}
+                        } ${isLockedPerm ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          disabled={isOwner}
+                          disabled={isLockedPerm}
                           onChange={() => togglePermission(perm.id)}
                           className="mt-0.5 rounded border-border text-primary focus:ring-primary/20 h-4 w-4 shrink-0 transition-transform group-active:scale-95"
                         />
                         <div className="space-y-0.5 min-w-0 flex-1">
-                          <div
-                            className="font-semibold text-foreground text-xs leading-snug line-clamp-1"
-                            title={perm.name}
-                          >
-                            {perm.name}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className="font-semibold text-foreground text-xs leading-snug line-clamp-1"
+                              title={perm.name}
+                            >
+                              {perm.name}
+                            </span>
+                            {OWNER_ONLY_PERMISSION_CODES.has(perm.code) && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 h-4 shrink-0 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                              >
+                                Owner Only
+                              </Badge>
+                            )}
                           </div>
                           <div
                             className="text-[10px] font-mono text-muted-foreground/60 truncate"

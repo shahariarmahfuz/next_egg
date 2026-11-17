@@ -35,7 +35,7 @@ async def create_role(
     current_user: User = Depends(RequirePermission("role.edit")),
 ):
     """Create a custom role."""
-    role = await role_service.create_role(db, role_in)
+    role = await role_service.create_role(db, role_in, current_user)
     return ResponseModel[RoleResponse](
         success=True,
         message="Role created successfully",

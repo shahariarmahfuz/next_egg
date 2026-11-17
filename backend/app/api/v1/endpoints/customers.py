@@ -6,11 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies.db import get_db
 from app.dependencies.permissions import RequirePermission
+from app.exceptions.custom import ForbiddenException
 from app.models.user import User
 from app.schemas.common import PaginatedResponse, ResponseModel
 from app.schemas.customer import (
     CustomerCreate,
     CustomerLedgerResponse,
+    CustomerPhysicalPageUpdate,
     CustomerResponse,
     CustomerStatusUpdate,
     CustomerUpdate,
@@ -19,6 +21,20 @@ from app.schemas.customer import (
 from app.services.customer_service import customer_service
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
+
+
+def _has_permission(current_user: User, permission_code: str) -> bool:
+    if current_user.role and current_user.role.code in ("owner", "super_admin"):
+        return True
+    user_perms = {p.code for p in (current_user.role.permissions if current_user.role else [])}
+    return permission_code in user_perms
+
+
+def _ensure_physical_page_permission(current_user: User) -> None:
+    if not _has_permission(current_user, "customer.physical_page.manage"):
+        raise ForbiddenException(
+            "Permission denied. Required permission: customer.physical_page.manage"
+        )
 
 
 @router.get("/{customer_id}/ledger", response_model=ResponseModel[CustomerLedgerResponse])
@@ -50,6 +66,8 @@ async def get_customer_ledger(
         page_size=eff_size,
         order=order or "desc",
     )
+    if not _has_permission(current_user, "customer.ledger.summary.view"):
+        ledger_data["summary"] = None
     return ResponseModel[CustomerLedgerResponse](
         success=True,
         message="Customer ledger retrieved successfully",
@@ -149,6 +167,8 @@ async def create_customer(
     current_user: User = Depends(RequirePermission("customer.create")),
 ):
     """Create a new customer profile."""
+    if "physical_page_number" in customer_in.model_fields_set and customer_in.physical_page_number is not None:
+        _ensure_physical_page_permission(current_user)
     customer = await customer_service.create_customer(db, customer_in)
     return ResponseModel[CustomerResponse](
         success=True,
@@ -180,6 +200,8 @@ async def update_customer(
     current_user: User = Depends(RequirePermission("customer.edit")),
 ):
     """Update customer details."""
+    if "physical_page_number" in customer_in.model_fields_set:
+        _ensure_physical_page_permission(current_user)
     customer = await customer_service.update_customer(db, customer_id, customer_in)
     return ResponseModel[CustomerResponse](
         success=True,
@@ -202,6 +224,26 @@ async def update_customer_status(
     return ResponseModel[CustomerResponse](
         success=True,
         message="Customer status updated",
+        data=CustomerResponse.model_validate(customer),
+    )
+
+
+@router.patch("/{customer_id}/physical-page", response_model=ResponseModel[CustomerResponse])
+async def update_customer_physical_page(
+    customer_id: str,
+    physical_page_in: CustomerPhysicalPageUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(RequirePermission("customer.physical_page.manage")),
+):
+    """Set, update, or clear a customer's physical ledger page number."""
+    customer = await customer_service.update_customer(
+        db,
+        customer_id,
+        CustomerUpdate(physical_page_number=physical_page_in.physical_page_number),
+    )
+    return ResponseModel[CustomerResponse](
+        success=True,
+        message="Customer physical page number updated",
         data=CustomerResponse.model_validate(customer),
     )
 

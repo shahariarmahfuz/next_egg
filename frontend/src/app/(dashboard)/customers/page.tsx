@@ -11,6 +11,7 @@ import {
   Eye,
   AlertCircle,
   Coins,
+  BookOpen,
 } from "lucide-react";
 import { customerService } from "@/services/api";
 import { CustomerItem } from "@/types";
@@ -22,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HasPermission } from "@/providers/auth-provider";
 import { CustomerViewModal } from "@/components/customers/customer-view-modal";
+import { CustomerPhysicalPageModal } from "@/components/customers/customer-physical-page-modal";
 import { BalanceAdjustmentModal } from "@/components/common/balance-adjustment-modal";
 import { useDebounce } from "@/hooks/use-debounce";
 import { formatCurrency } from "@/utils/formatters";
@@ -36,6 +38,7 @@ export default function CustomersPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [viewingCustomer, setViewingCustomer] = useState<CustomerItem | null>(null);
   const [adjustingCustomer, setAdjustingCustomer] = useState<CustomerItem | null>(null);
+  const [physicalPageCustomer, setPhysicalPageCustomer] = useState<CustomerItem | null>(null);
   const [hardDeletingCustomer, setHardDeletingCustomer] = useState<CustomerItem | null>(null);
 
   const debouncedSearch = useDebounce(search, 300);
@@ -147,7 +150,7 @@ export default function CustomersPage() {
                 <th className="px-3 py-2.5 align-middle whitespace-nowrap">Customer Address</th>
                 <th className="px-3 py-2.5 align-middle w-[130px] whitespace-nowrap">Current Due</th>
                 <th className="px-3 py-2.5 align-middle w-[110px] whitespace-nowrap">Status</th>
-                <th className="px-3 py-2.5 align-middle w-[140px] text-right whitespace-nowrap">Actions</th>
+                <th className="px-3 py-2.5 align-middle w-[170px] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -259,6 +262,18 @@ export default function CustomersPage() {
                           </Button>
                         </HasPermission>
 
+                        <HasPermission code="customer.physical_page.manage">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-sky-500 hover:bg-sky-500/10"
+                            onClick={() => setPhysicalPageCustomer(customer)}
+                            title="Set Physical Page Number"
+                          >
+                            <BookOpen className="h-3.5 w-3.5" />
+                          </Button>
+                        </HasPermission>
+
                         <HasPermission code="customer.edit">
                           <Button asChild variant="ghost" size="icon" className="h-7 w-7" title="Edit Customer">
                             <Link href={`/customers/${customer.id}/edit`}>
@@ -356,6 +371,14 @@ export default function CustomersPage() {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["customers"] });
           }}
+        />
+      )}
+      {physicalPageCustomer && (
+        <CustomerPhysicalPageModal
+          key={physicalPageCustomer.id}
+          customer={physicalPageCustomer}
+          isOpen={!!physicalPageCustomer}
+          onClose={() => setPhysicalPageCustomer(null)}
         />
       )}
     </div>

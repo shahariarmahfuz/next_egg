@@ -336,6 +336,10 @@ export const customerService = {
     return http.patch<CustomerItem>(`/customers/${id}/status`, { status });
   },
 
+  updateCustomerPhysicalPage: async (id: string, payload: { physical_page_number: string | null }) => {
+    return http.patch<CustomerItem>(`/customers/${id}/physical-page`, payload);
+  },
+
   deleteCustomer: async (id: string) => {
     return http.delete<{ id: string }>(`/customers/${id}`);
   },

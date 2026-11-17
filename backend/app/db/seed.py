@@ -85,6 +85,8 @@ DEFAULT_PERMISSIONS = [
     {"code": "customer.due.view", "name": "View Customer Dues", "module": "customer", "description": "View customer due list"},
     {"code": "customer.balance.adjust", "name": "Set Customer Balance", "module": "customer", "description": "Set customer current balance directly"},
     {"code": "customer.balance.adjustment.delete", "name": "Delete Customer Balance Adjustment History", "module": "customer", "description": "Delete customer balance adjustment history records"},
+    {"code": "customer.physical_page.manage", "name": "Set / Remove Physical Page Number", "module": "customer", "description": "Add, update, or remove customer physical ledger page numbers"},
+    {"code": "customer.ledger.summary.view", "name": "View Customer Ledger Summary Cards", "module": "customer", "description": "View Opening Balance, Total Sales, Collections, Returns, Adjustments, and Current Balance summary cards on Customer Ledger"},
 
     # Collection module
     {"code": "collection.view", "name": "View Customer Collections", "module": "collection", "description": "View customer collection vouchers and list"},
@@ -222,11 +224,13 @@ async def seed_initial_data(db: AsyncSession) -> None:
 
     # 1. Seed Permissions
     permission_map = {}
+    newly_created_permissions = set()
     for perm_data in DEFAULT_PERMISSIONS:
         existing = await permission_repository.get_by_code(db, perm_data["code"])
         if not existing:
             perm = await permission_repository.create(db, obj_in=perm_data)
             permission_map[perm.code] = perm
+            newly_created_permissions.add(perm.code)
         else:
             existing.name = perm_data["name"]
             existing.module = perm_data["module"]
@@ -254,7 +258,7 @@ async def seed_initial_data(db: AsyncSession) -> None:
     employee_perm_codes = {
         "dashboard.view",
         "sales.view", "sales.create",
-        "customer.view", "customer.create", "customer.due.view",
+        "customer.view", "customer.create", "customer.due.view", "customer.physical_page.manage",
         "product.view", "product.create",
         "supplier.view", "supplier.create",
         "purchase.view", "purchase.create",
@@ -267,10 +271,11 @@ async def seed_initial_data(db: AsyncSession) -> None:
     }
     employee_perms = [p for p in all_perms if p.code in employee_perm_codes]
 
-    # Admin gets all perms EXCEPT customer/supplier balance adjustment delete and farm delete permissions by default
+    # Admin gets all perms EXCEPT customer/supplier balance adjustment delete, owner-only ledger summary, and farm delete permissions by default
     admin_restricted_perm_codes = {
         "customer.balance.adjustment.delete",
         "supplier.balance.adjustment.delete",
+        "customer.ledger.summary.view",
         "farm.delete",
         "farm.production.delete",
         "farm.delivery.delete",
@@ -284,7 +289,10 @@ async def seed_initial_data(db: AsyncSession) -> None:
             await role_repository.set_role_permissions(db, admin_role, admin_perms)
         else:
             existing_codes = {p.code for p in admin_role.permissions}
-            new_admin_perms = [p for p in admin_perms if p.code not in existing_codes and p.code in {"cash_out.view", "cash_out.edit", "cash_out.delete", "stock_report.view", "cash_report.view", "cash_out_report.view", "calculator.view"}]
+            auto_grant_admin = {"cash_out.view", "cash_out.edit", "cash_out.delete", "stock_report.view", "cash_report.view", "cash_out_report.view", "calculator.view"}
+            if "customer.physical_page.manage" in newly_created_permissions:
+                auto_grant_admin.add("customer.physical_page.manage")
+            new_admin_perms = [p for p in admin_perms if p.code not in existing_codes and p.code in auto_grant_admin]
             if new_admin_perms:
                 combined = list(admin_role.permissions) + new_admin_perms
                 await role_repository.set_role_permissions(db, admin_role, combined)
@@ -300,7 +308,10 @@ async def seed_initial_data(db: AsyncSession) -> None:
             await role_repository.set_role_permissions(db, employee_role, employee_perms)
         else:
             existing_codes = {p.code for p in employee_role.permissions}
-            new_emp_perms = [p for p in employee_perms if p.code not in existing_codes and p.code == "calculator.view"]
+            auto_grant_emp = {"calculator.view"}
+            if "customer.physical_page.manage" in newly_created_permissions:
+                auto_grant_emp.add("customer.physical_page.manage")
+            new_emp_perms = [p for p in employee_perms if p.code not in existing_codes and p.code in auto_grant_emp]
             if new_emp_perms:
                 combined = list(employee_role.permissions) + new_emp_perms
                 await role_repository.set_role_permissions(db, employee_role, combined)

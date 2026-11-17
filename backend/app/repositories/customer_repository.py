@@ -36,6 +36,21 @@ class CustomerRepository(BaseRepository[Customer, CustomerCreate, CustomerUpdate
 
         return candidate
 
+    @staticmethod
+    def _apply_search_filter(query, search: Optional[str]):
+        if not search:
+            return query
+        pattern = f"%{search}%"
+        return query.where(
+            or_(
+                Customer.name.ilike(pattern),
+                Customer.customer_code.ilike(pattern),
+                Customer.phone.ilike(pattern),
+                Customer.email.ilike(pattern),
+                Customer.physical_page_number.ilike(pattern),
+            )
+        )
+
     async def get_filtered(
         self,
         db: AsyncSession,
@@ -46,18 +61,7 @@ class CustomerRepository(BaseRepository[Customer, CustomerCreate, CustomerUpdate
         status: Optional[str] = None,
         due_only: bool = False,
     ) -> tuple[Sequence[Customer], int]:
-        query = select(Customer)
-
-        if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    Customer.name.ilike(pattern),
-                    Customer.customer_code.ilike(pattern),
-                    Customer.phone.ilike(pattern),
-                    Customer.email.ilike(pattern),
-                )
-            )
+        query = self._apply_search_filter(select(Customer), search)
 
         if status:
             query = query.where(Customer.status == status)
@@ -79,18 +83,7 @@ class CustomerRepository(BaseRepository[Customer, CustomerCreate, CustomerUpdate
 
 
     async def get_dues_summary(self, db: AsyncSession, search: Optional[str] = None) -> tuple[int, float]:
-        query = select(Customer).where(Customer.current_balance > 0)
-        
-        if search:
-            pattern = f"%{search}%"
-            query = query.where(
-                or_(
-                    Customer.name.ilike(pattern),
-                    Customer.customer_code.ilike(pattern),
-                    Customer.phone.ilike(pattern),
-                    Customer.email.ilike(pattern),
-                )
-            )
+        query = self._apply_search_filter(select(Customer).where(Customer.current_balance > 0), search)
 
         count_query = select(func.count()).select_from(query.subquery())
         # To get the sum, we can query it directly

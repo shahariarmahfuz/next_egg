@@ -15,6 +15,7 @@ class Customer(TimestampedBaseModel):
     phone: Mapped[str | None] = mapped_column(String(30), unique=False, index=True, nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     nid: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    physical_page_number: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
     
     opening_balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     current_balance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)

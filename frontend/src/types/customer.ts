@@ -6,6 +6,7 @@ export interface CustomerItem {
   email?: string;
   address?: string;
   nid?: string;
+  physical_page_number?: string | null;
   opening_balance: number;
   current_balance: number;
   credit_limit?: number;
@@ -20,6 +21,7 @@ export interface CustomerCreatePayload {
   name: string;
   phone?: string;
   address?: string;
+  physical_page_number?: string | null;
   opening_balance?: number;
   notes?: string;
 }
@@ -28,6 +30,7 @@ export interface CustomerUpdatePayload {
   name?: string;
   phone?: string;
   address?: string;
+  physical_page_number?: string | null;
   status?: string;
   notes?: string;
 }
@@ -56,7 +59,7 @@ export interface CustomerLedgerSummary {
 
 export interface CustomerLedgerResponse {
   customer: CustomerItem;
-  summary: CustomerLedgerSummary;
+  summary?: CustomerLedgerSummary | null;
   transactions: CustomerLedgerTransaction[];
   total?: number;
   page?: number;

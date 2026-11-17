@@ -7,7 +7,7 @@ import { ReportPrintLayout } from "@/components/print/report-print-layout";
 
 export interface PrintableCustomerStatementProps {
   customer: CustomerItem;
-  summary: CustomerLedgerSummary;
+  summary?: CustomerLedgerSummary | null;
   transactions: CustomerLedgerTransaction[];
   startDate?: string;
   endDate?: string;
@@ -19,6 +19,9 @@ export const PrintableCustomerStatement = React.forwardRef<HTMLDivElement, Print
       { label: "Customer Name", value: customer.name },
       { label: "Customer Code", value: customer.customer_code },
       { label: "Contact Phone", value: customer.phone || "N/A" },
+      ...(summary
+        ? []
+        : [{ label: "Current Due", value: formatCurrency(customer.current_balance) }]),
       {
         label: "Statement Period",
         value: `${startDate ? formatDate(startDate) : "Beginning of Account"}  to  ${
@@ -36,8 +39,9 @@ export const PrintableCustomerStatement = React.forwardRef<HTMLDivElement, Print
         showSignatures
         signatureTitles={["Customer Acknowledgment", "Authorized Stamp / Signature"]}
       >
-        {/* Customer & Statement Summary Card */}
-        <div className="grid grid-cols-6 gap-2 my-3 print-avoid-break">
+        {/* Customer & Statement Summary Card (Owner / Authorized Only) */}
+        {summary && (
+          <div className="grid grid-cols-6 gap-2 my-3 print-avoid-break">
           <div className="border border-slate-300 bg-slate-50 p-2 rounded text-center">
             <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600 block">
               Opening Due
@@ -92,6 +96,7 @@ export const PrintableCustomerStatement = React.forwardRef<HTMLDivElement, Print
             </span>
           </div>
         </div>
+        )}
 
         {/* Transactions Table */}
         <table className="w-full border-collapse border border-slate-400 text-[10px] my-3">

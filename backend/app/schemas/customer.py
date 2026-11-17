@@ -1,6 +1,18 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _normalize_physical_page_number(v: Any) -> Optional[str]:
+    """Normalize optional physical page input (supports text & numbers; blank becomes None)."""
+    if v is None:
+        return None
+    if isinstance(v, int) and not isinstance(v, bool):
+        v = str(v)
+    if isinstance(v, str):
+        stripped = v.strip()
+        return stripped if stripped else None
+    raise ValueError("Physical page number must be text or a number")
 
 
 class CustomerCreate(BaseModel):
@@ -8,6 +20,9 @@ class CustomerCreate(BaseModel):
     phone: Optional[str] = Field(None, max_length=30, description="Optional customer phone")
     customer_code: Optional[str] = Field(None, max_length=50, description="Optional custom customer code")
     address: Optional[str] = None
+    physical_page_number: Optional[str] = Field(
+        None, max_length=50, description="Optional physical ledger page number"
+    )
     opening_balance: float = Field(0.0, ge=0.0, description="Opening Due balance ($)")
     notes: Optional[str] = None
 
@@ -17,13 +32,34 @@ class CustomerCreate(BaseModel):
             raise ValueError("Customer full name cannot be empty")
         return v.strip()
 
+    @field_validator("physical_page_number", mode="before")
+    def validate_physical_page_number(cls, v: Any) -> Optional[str]:
+        return _normalize_physical_page_number(v)
+
 
 class CustomerUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=150)
     phone: Optional[str] = Field(None, max_length=30)
     address: Optional[str] = None
+    physical_page_number: Optional[str] = Field(
+        None, max_length=50, description="Optional physical ledger page number"
+    )
     status: Optional[str] = Field(None, description="active / inactive")
     notes: Optional[str] = None
+
+    @field_validator("physical_page_number", mode="before")
+    def validate_physical_page_number(cls, v: Any) -> Optional[str]:
+        return _normalize_physical_page_number(v)
+
+
+class CustomerPhysicalPageUpdate(BaseModel):
+    physical_page_number: Optional[str] = Field(
+        ..., max_length=50, description="Physical ledger page number (null/empty to clear)"
+    )
+
+    @field_validator("physical_page_number", mode="before")
+    def validate_physical_page_number(cls, v: Any) -> Optional[str]:
+        return _normalize_physical_page_number(v)
 
 
 class CustomerStatusUpdate(BaseModel):
@@ -40,6 +76,7 @@ class CustomerResponse(BaseModel):
     email: Optional[str] = None
     address: Optional[str] = None
     nid: Optional[str] = None
+    physical_page_number: Optional[str] = None
     opening_balance: float
     current_balance: float
     credit_limit: float = 0.0
@@ -73,7 +110,7 @@ class CustomerLedgerSummary(BaseModel):
 
 class CustomerLedgerResponse(BaseModel):
     customer: CustomerResponse
-    summary: CustomerLedgerSummary
+    summary: Optional[CustomerLedgerSummary] = None
     transactions: list[CustomerLedgerTransaction]
     total: int = Field(ge=0, default=0, description="Total transaction count in filtered ledger")
     page: int = Field(ge=1, default=1, description="Current page number")
